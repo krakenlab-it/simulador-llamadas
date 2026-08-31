@@ -1,20 +1,56 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap");
-
 :root {
-  --bg: #0c1117;
-  --panel: #151d2b;
-  --border: #2a3548;
-  --text: #eef2f8;
-  --muted: #8fa0b8;
-  --accent: #4f8cff;
-  --success: #34d399;
+  --ink: #0e1a2b;
+  --orange: #ff5a1f;
+  --teal: #00a08a;
+  --paper: #eef1ee;
+
+  --ink-muted: color-mix(in srgb, var(--ink) 62%, transparent);
+  --surface: #ffffff;
+  --border: color-mix(in srgb, var(--ink) 14%, var(--paper));
+  --teal-soft: color-mix(in srgb, var(--teal) 14%, var(--paper));
+  --orange-soft: color-mix(in srgb, var(--orange) 12%, var(--paper));
+  --ink-soft: color-mix(in srgb, var(--ink) 4%, var(--paper));
+
+  /* Semantic aliases used by simulator screens */
+  --bg: var(--paper);
+  --panel: var(--surface);
+  --text: var(--ink);
+  --muted: var(--ink-muted);
+  --accent: var(--orange);
+  --success: var(--teal);
   --warn: #fbbf24;
   --danger: #f87171;
+
+  --radius-sm: 10px;
   --radius: 14px;
+  --shadow: 0 12px 40px color-mix(in srgb, var(--ink) 8%, transparent);
+
+  --font-display: var(--font-archivo), system-ui, sans-serif;
+  --font-body: var(--font-ibm-plex-sans), system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 html,
@@ -22,9 +58,24 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  font-family: "DM Sans", "Segoe UI", system-ui, sans-serif;
-  background: radial-gradient(ellipse at top, #1a2740 0%, var(--bg) 55%);
-  color: var(--text);
+  font-family: var(--font-body);
+  background: radial-gradient(
+    ellipse 120% 80% at 50% -20%,
+    color-mix(in srgb, var(--teal) 18%, var(--paper)) 0%,
+    var(--paper) 55%
+  );
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--teal) 35%, var(--paper));
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--orange);
+  outline-offset: 2px;
 }
 
 main {
@@ -37,8 +88,51 @@ main {
   padding: 2rem 1.25rem 4rem;
 }
 
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand-mark {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+}
+
+.brand-mark-image {
+  width: auto;
+  height: 36px;
+  object-fit: contain;
+}
+
+.brand-wordmark {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.brand-wordmark span {
+  color: var(--teal);
+}
+
 .kicker {
+  font-family: var(--font-body);
   font-size: 0.72rem;
+  font-weight: 500;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
@@ -46,11 +140,16 @@ main {
 }
 
 h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.65rem, 4vw, 1.85rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
   margin: 0 0 0.5rem;
-  font-size: 1.85rem;
+  line-height: 1.15;
 }
 
 h2 {
+  font-family: var(--font-display);
   margin: 0 0 0.75rem;
 }
 
@@ -61,11 +160,12 @@ h3 {
 .subtitle {
   color: var(--muted);
   margin-bottom: 1.5rem;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .section-label {
   margin: 1.25rem 0 0.5rem;
+  font-weight: 600;
 }
 
 .screen {
@@ -92,22 +192,35 @@ h3 {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.1rem 1.2rem;
+  box-shadow: var(--shadow);
 }
 
 .card.selectable {
   cursor: pointer;
-  transition: border-color 0.15s, transform 0.15s;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
 }
 
-.card.selectable:hover,
-.card.selectable.selected {
-  border-color: var(--accent);
-  transform: translateY(-2px);
+@media (prefers-reduced-motion: no-preference) {
+  .card.selectable:hover,
+  .card.selectable.selected {
+    border-color: color-mix(in srgb, var(--teal) 45%, var(--border));
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.selectable:hover,
+  .card.selectable.selected {
+    border-color: color-mix(in srgb, var(--teal) 45%, var(--border));
+  }
 }
 
 .card h3 {
   margin: 0 0 0.35rem;
   font-size: 1rem;
+  font-family: var(--font-display);
 }
 
 .role {
@@ -131,22 +244,25 @@ h3 {
 
 .badge {
   display: inline-block;
+  font-family: var(--font-body);
   font-size: 0.68rem;
-  font-weight: 700;
-  padding: 0.15rem 0.45rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.55rem;
   border-radius: 999px;
-  background: rgba(79, 140, 255, 0.15);
-  color: var(--accent);
+  background: var(--orange-soft);
+  color: var(--orange);
 }
 
 .badge.hard {
-  background: rgba(248, 113, 113, 0.15);
+  background: color-mix(in srgb, var(--danger) 12%, var(--paper));
   color: var(--danger);
 }
 
 .badge.medium {
-  background: rgba(251, 191, 36, 0.15);
-  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 15%, var(--paper));
+  color: color-mix(in srgb, var(--warn) 80%, var(--ink));
 }
 
 .controls {
@@ -158,17 +274,18 @@ h3 {
 
 button {
   border: 1px solid var(--border);
-  background: #1e2a3d;
-  color: var(--text);
-  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: var(--radius-sm);
   padding: 0.65rem 1rem;
   font-size: 0.9rem;
+  font-family: var(--font-body);
   cursor: pointer;
 }
 
 button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--orange);
+  border-color: var(--orange);
   color: #fff;
   font-weight: 600;
 }
@@ -181,7 +298,7 @@ button:disabled {
 .toggle-group {
   display: inline-flex;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
@@ -191,7 +308,8 @@ button:disabled {
 }
 
 .toggle-group button.active {
-  background: var(--accent);
+  background: var(--orange);
+  color: #fff;
 }
 
 .call-panel {
@@ -199,13 +317,15 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.25rem;
+  box-shadow: var(--shadow);
 }
 
 .round-label {
   font-size: 0.75rem;
-  color: var(--accent);
+  color: var(--teal);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  font-weight: 600;
 }
 
 .client-line {
@@ -217,29 +337,29 @@ button:disabled {
   min-height: 120px;
   max-height: 280px;
   overflow-y: auto;
-  background: #0f1520;
-  border-radius: 10px;
+  background: var(--ink-soft);
+  border-radius: var(--radius-sm);
   padding: 1rem;
   margin-bottom: 1rem;
   line-height: 1.55;
 }
 
 .dialogue .client {
-  color: #c4d4ef;
+  color: var(--ink);
 }
 
 .dialogue .you {
-  color: var(--success);
+  color: var(--teal);
   margin-top: 0.75rem;
 }
 
 textarea {
   width: 100%;
   min-height: 90px;
-  background: #0f1520;
+  background: var(--ink-soft);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  color: var(--text);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
   padding: 0.75rem;
   font-size: 0.95rem;
   resize: vertical;
@@ -249,9 +369,9 @@ textarea {
 .eval {
   margin-top: 1rem;
   padding: 1rem;
-  border-radius: 10px;
-  background: #0f1520;
-  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--ink-soft);
+  border-left: 4px solid var(--orange);
 }
 
 .eval.bad {
@@ -259,7 +379,7 @@ textarea {
 }
 
 .eval.good {
-  border-left-color: var(--success);
+  border-left-color: var(--teal);
 }
 
 .keywords {
@@ -273,13 +393,14 @@ textarea {
   font-size: 0.7rem;
   padding: 0.2rem 0.45rem;
   border-radius: 6px;
-  background: #1e2a3d;
+  background: color-mix(in srgb, var(--ink) 8%, var(--paper));
   color: var(--muted);
+  font-family: var(--font-mono);
 }
 
 .kw.hit {
-  background: rgba(52, 211, 153, 0.2);
-  color: var(--success);
+  background: var(--teal-soft);
+  color: var(--teal);
 }
 
 .history-item {
@@ -299,7 +420,7 @@ textarea {
 }
 
 .exact-phrase.expected {
-  color: var(--text);
+  color: var(--ink);
 }
 
 .note {
