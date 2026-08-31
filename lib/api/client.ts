@@ -8,24 +8,19 @@ import {
   stubCreateSession,
   stubCreateScenario,
   stubEndSession,
-  stubListHistory,
   stubListScenarios,
   stubSubmitTurn,
   type CreateSessionRequest,
   type EndSessionResponse,
-  type HistoryEntry,
   type SessionResponse,
   type TurnRequest,
   type TurnResponse,
   type TurnSummary,
 } from "@/lib/api/stubs";
-import {
-  getStoredTraineeId,
-  storeTraineeId,
-} from "@/lib/trainee/storage";
 
 /**
- * API client — calls App Router routes, stubs on fetch failure.
+ * API client — no auth. Anyone with the URL can start a call.
+ * History for the demo UI is device-local (see lib/history/local.ts).
  */
 
 async function tryFetch<T>(
@@ -56,26 +51,14 @@ async function tryFetch<T>(
   }
 }
 
-function withTraineeId(body: CreateSessionRequest): CreateSessionRequest {
-  const traineeId = body.traineeId ?? getStoredTraineeId() ?? undefined;
-  return traineeId ? { ...body, traineeId } : body;
-}
-
-function rememberTrainee(session: SessionResponse): SessionResponse {
-  storeTraineeId(session.traineeId);
-  return session;
-}
-
 export async function createSession(
   body: CreateSessionRequest,
 ): Promise<SessionResponse> {
-  const payload = withTraineeId(body);
   const remote = await tryFetch<SessionResponse>("/api/sessions", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
-  const session = remote ?? stubCreateSession(payload);
-  return rememberTrainee(session);
+  return remote ?? stubCreateSession(body);
 }
 
 export async function submitTurn(
@@ -102,20 +85,6 @@ export async function endSession(
   return remote ?? stubEndSession(callAttemptId);
 }
 
-export async function fetchHistory(
-  traineeId?: string,
-): Promise<HistoryEntry[]> {
-  const id = traineeId ?? getStoredTraineeId();
-  if (!id) {
-    return [];
-  }
-
-  const remote = await tryFetch<{ history: HistoryEntry[] }>(
-    `/api/history?traineeId=${encodeURIComponent(id)}`,
-  );
-  return remote?.history ?? stubListHistory(id);
-}
-
 export async function listScenarios(): Promise<ScenarioRecord[]> {
   const remote = await tryFetch<{ scenarios: ScenarioRecord[] }>("/api/scenarios");
   return remote?.scenarios ?? stubListScenarios();
@@ -132,48 +101,21 @@ export interface CreateScenarioRequest {
   clientProblem: string;
   objections: string[];
   winCriteria: string;
-  traineeId?: string;
 }
 
 export async function createScenario(
   body: CreateScenarioRequest,
 ): Promise<ScenarioRecord> {
-  const payload = {
-    ...body,
-    traineeId: body.traineeId ?? getStoredTraineeId() ?? undefined,
-  };
   const remote = await tryFetch<ScenarioRecord>("/api/scenarios", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
-  return remote ?? stubCreateScenario(payload);
-}
-
-export interface HistoryTrend {
-  attempts: number;
-  scores: (number | null)[];
-  averageScore: number;
-  improving: boolean;
-}
-
-export async function fetchHistoryWithTrend(
-  traineeId: string,
-  scenarioSlug?: string,
-): Promise<{ history: HistoryEntry[]; trend: HistoryTrend | null }> {
-  const params = new URLSearchParams({ traineeId });
-  if (scenarioSlug) params.set("scenarioSlug", scenarioSlug);
-  const remote = await tryFetch<{ history: HistoryEntry[]; trend: HistoryTrend | null }>(
-    `/api/history?${params.toString()}`,
-  );
-  if (remote) return remote;
-  const history = stubListHistory(traineeId);
-  return { history, trend: null };
+  return remote ?? stubCreateScenario(body);
 }
 
 export type {
   CreateSessionRequest,
   EndSessionResponse,
-  HistoryEntry,
   RichTurnFeedback,
   ScenarioRecord,
   SessionEvaluationSummary,
@@ -188,5 +130,3 @@ export type SessionConfig = {
   mode: PracticeMode;
   difficultyLevel: DifficultyLevel;
 };
-
-export { getStoredTraineeId, storeTraineeId };

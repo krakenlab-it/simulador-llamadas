@@ -1,11 +1,13 @@
 "use client";
 
 import type { EndSessionResponse, TurnSummary } from "@/lib/api/client";
+import { computeLocalTrend } from "@/lib/history/local";
 
 interface EvaluationScreenProps {
   result: EndSessionResponse;
   turns: TurnSummary[];
   clientName: string;
+  scenarioSlug: string;
   totalRounds: number;
   onRepeat: () => void;
   onOtherClient: () => void;
@@ -15,11 +17,19 @@ export function EvaluationScreen({
   result,
   turns,
   clientName,
+  scenarioSlug,
   totalRounds,
   onRepeat,
   onOtherClient,
 }: EvaluationScreenProps) {
   const { evaluation } = result;
+  const localTrend = computeLocalTrend(scenarioSlug);
+  const trend =
+    evaluation.trend && evaluation.trend.attempts > 1
+      ? evaluation.trend
+      : localTrend && localTrend.attempts > 1
+        ? localTrend
+        : null;
 
   return (
     <section className="screen active" aria-label="Evaluación de la llamada">
@@ -56,12 +66,12 @@ export function EvaluationScreen({
         <p>{evaluation.nextDrill}</p>
       </div>
 
-      {evaluation.trend && evaluation.trend.attempts > 1 && (
+      {trend && (
         <div className="trend-card">
-          <strong>Tendencia ({evaluation.trend.attempts} intentos)</strong>
+          <strong>Tendencia ({trend.attempts} intentos)</strong>
           <p>
-            Promedio histórico: {evaluation.trend.averageScore.toFixed(0)}/100
-            {evaluation.trend.improving ? " · Mejorando 📈" : " · Estable"}
+            Promedio histórico: {trend.averageScore.toFixed(0)}/100
+            {trend.improving ? " · Mejorando 📈" : " · Estable"}
           </p>
         </div>
       )}

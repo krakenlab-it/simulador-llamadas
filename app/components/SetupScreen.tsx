@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import type { ClientPersona } from "@/lib/clients";
 import { CLIENTS } from "@/lib/clients";
-import { fetchHistory, listScenarios } from "@/lib/api/client";
-import type { HistoryEntry } from "@/lib/api/client";
+import { listScenarios } from "@/lib/api/client";
+import { loadLocalHistory, type LocalHistoryEntry } from "@/lib/history/local";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
@@ -37,8 +37,7 @@ export function SetupScreen({
   const [level, setLevel] = useState<DifficultyLevel>(1);
   const [micTested, setMicTested] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [history, setHistory] = useState<LocalHistoryEntry[]>([]);
   const speech = useSpeechRecognition();
 
   useEffect(() => {
@@ -97,19 +96,13 @@ export function SetupScreen({
     });
   };
 
-  const handleToggleHistory = async () => {
+  const handleToggleHistory = () => {
     if (showHistory) {
       setShowHistory(false);
       return;
     }
-    setHistoryLoading(true);
-    try {
-      const entries = await fetchHistory();
-      setHistory(entries);
-      setShowHistory(true);
-    } finally {
-      setHistoryLoading(false);
-    }
+    setHistory(loadLocalHistory());
+    setShowHistory(true);
   };
 
   const renderCard = (scenario: ScenarioRecord, isClinic: boolean) => (
@@ -258,16 +251,8 @@ export function SetupScreen({
         >
           Marcar
         </button>
-        <button
-          type="button"
-          onClick={() => void handleToggleHistory()}
-          disabled={historyLoading}
-        >
-          {historyLoading
-            ? "Cargando…"
-            : showHistory
-              ? "Ocultar historial"
-              : "Ver historial"}
+        <button type="button" onClick={handleToggleHistory}>
+          {showHistory ? "Ocultar historial" : "Ver historial"}
         </button>
       </div>
 
@@ -281,7 +266,7 @@ export function SetupScreen({
               <div key={entry.callAttemptId} className="history-item">
                 {new Date(entry.startedAt).toLocaleString("es-MX")} ·{" "}
                 {entry.clientName} · Nivel {entry.difficultyLevel} ·{" "}
-                {entry.mode} · {entry.totalScore ?? 0} pts ·{" "}
+                {entry.mode} · {entry.totalScore} pts ·{" "}
                 {entry.won ? "Ganó" : "No ganó"}
               </div>
             ))

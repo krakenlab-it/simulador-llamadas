@@ -9,18 +9,13 @@ export interface ScenarioBuilderResult {
 }
 
 interface ScenarioBuilderScreenProps {
-  traineeId: string | null;
   onSave: (result: ScenarioBuilderResult) => void;
   onCancel: () => void;
 }
 
 const DEFAULT_OBJECTIONS = ["", ""];
 
-export function ScenarioBuilderScreen({
-  traineeId,
-  onSave,
-  onCancel,
-}: ScenarioBuilderScreenProps) {
+export function ScenarioBuilderScreen({ onSave, onCancel }: ScenarioBuilderScreenProps) {
   const [industry, setIndustry] = useState("");
   const [productSold, setProductSold] = useState("");
   const [clientName, setClientName] = useState("");
@@ -61,7 +56,6 @@ export function ScenarioBuilderScreen({
         clientProblem: clientProblem.trim(),
         objections: objections.map((o) => o.trim()).filter(Boolean),
         winCriteria: winCriteria.trim(),
-        traineeId: traineeId ?? undefined,
       });
       onSave({ scenario });
     } catch (err) {

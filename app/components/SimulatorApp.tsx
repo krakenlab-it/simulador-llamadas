@@ -4,10 +4,10 @@ import { useCallback, useState } from "react";
 import {
   createSession,
   endSession,
-  getStoredTraineeId,
   type EndSessionResponse,
   type TurnSummary,
 } from "@/lib/api/client";
+import { appendLocalHistory } from "@/lib/history/local";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { SetupScreen, type SetupConfig } from "@/app/components/SetupScreen";
 import { ScenarioBuilderScreen } from "@/app/components/ScenarioBuilderScreen";
@@ -27,6 +27,7 @@ export function SimulatorApp() {
   const [config, setConfig] = useState<SetupConfig | null>(null);
   const [evaluation, setEvaluation] = useState<EvaluationState | null>(null);
   const [starting, setStarting] = useState(false);
+  const [callStartedAt, setCallStartedAt] = useState<string | null>(null);
   const [scenarioRefresh, setScenarioRefresh] = useState(0);
 
   const handleStart = useCallback(async (setup: SetupConfig) => {
@@ -36,9 +37,9 @@ export function SimulatorApp() {
         scenarioSlug: setup.scenarioSlug,
         mode: setup.mode,
         difficultyLevel: setup.difficultyLevel,
-        traineeId: getStoredTraineeId() ?? undefined,
       });
       setCallAttemptId(session.callAttemptId);
+      setCallStartedAt(new Date().toISOString());
       setConfig({
         ...setup,
         totalRounds: session.totalRounds ?? setup.totalRounds,
@@ -51,12 +52,23 @@ export function SimulatorApp() {
 
   const handleHangUp = useCallback(
     async (turns: TurnSummary[]) => {
-      if (!callAttemptId) return;
+      if (!callAttemptId || !config) return;
       const result = await endSession(callAttemptId);
+      appendLocalHistory({
+        callAttemptId,
+        scenarioSlug: config.scenarioSlug,
+        clientName: config.clientName,
+        difficultyLevel: config.difficultyLevel,
+        mode: config.mode,
+        won: result.won,
+        totalScore: result.totalScore,
+        turnsCompleted: result.turnsCompleted,
+        startedAt: callStartedAt ?? new Date().toISOString(),
+      });
       setEvaluation({ result, turns });
       setScreen("evaluation");
     },
-    [callAttemptId],
+    [callAttemptId, config, callStartedAt],
   );
 
   const handleRepeat = useCallback(async () => {
@@ -67,6 +79,7 @@ export function SimulatorApp() {
 
   const handleOtherClient = useCallback(() => {
     setCallAttemptId(null);
+    setCallStartedAt(null);
     setConfig(null);
     setEvaluation(null);
     setScreen("setup");
@@ -117,7 +130,6 @@ export function SimulatorApp() {
 
       {screen === "builder" && (
         <ScenarioBuilderScreen
-          traineeId={getStoredTraineeId()}
           onCancel={() => setScreen("setup")}
           onSave={({ scenario }) => handleScenarioSaved(scenario.slug)}
         />
@@ -142,6 +154,7 @@ export function SimulatorApp() {
           result={evaluation.result}
           turns={evaluation.turns}
           clientName={config.clientName}
+          scenarioSlug={config.scenarioSlug}
           totalRounds={config.totalRounds}
           onRepeat={() => void handleRepeat()}
           onOtherClient={handleOtherClient}

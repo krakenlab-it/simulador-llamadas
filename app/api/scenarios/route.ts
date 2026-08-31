@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ScenarioRepository } from "@/lib/scenarios";
-import { createTrainee, withPgClient } from "@/lib/session";
+import { withPgClient } from "@/lib/session";
 import type { CreateCustomScenarioInput } from "@/lib/scenarios";
 
 export async function GET() {
@@ -28,8 +28,6 @@ interface CreateScenarioBody {
   objections: string[];
   winCriteria: string;
   rounds?: CreateCustomScenarioInput["rounds"];
-  traineeId?: string;
-  traineeDisplayName?: string;
 }
 
 export async function POST(request: Request) {
@@ -58,14 +56,6 @@ export async function POST(request: Request) {
 
     const scenario = await withPgClient(async (client) => {
       const repo = new ScenarioRepository(client);
-      let traineeId = body.traineeId;
-
-      if (!traineeId) {
-        traineeId = await createTrainee(
-          client,
-          body.traineeDisplayName ?? "Trainee",
-        );
-      }
 
       return repo.createCustom({
         industry: body.industry.trim(),
@@ -79,7 +69,6 @@ export async function POST(request: Request) {
         objections: (body.objections ?? []).map((o) => o.trim()).filter(Boolean),
         winCriteria: body.winCriteria.trim(),
         rounds: body.rounds,
-        traineeId,
       });
     });
 
