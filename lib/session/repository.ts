@@ -49,6 +49,21 @@ export interface EndSessionResult {
   turnsCompleted: number;
 }
 
+export interface HistoryEntry {
+  callAttemptId: string;
+  traineeId: string;
+  scenarioSlug: string;
+  clientName: string;
+  difficultyLevel: DifficultyLevel;
+  mode: PracticeMode;
+  status: CallStatus;
+  won: boolean | null;
+  totalScore: number | null;
+  startedAt: string;
+  endedAt: string | null;
+  turnsCompleted: number;
+}
+
 export class SessionRepository {
   constructor(private readonly client: Client) {}
 
@@ -275,5 +290,55 @@ export class SessionRepository {
 
   getRoundType(roundNumber: number): RoundType | null {
     return getRoundTypeForNumber(roundNumber);
+  }
+
+  async listHistoryForTrainee(traineeId: string): Promise<HistoryEntry[]> {
+    const { rows } = await this.client.query<{
+      call_attempt_id: string;
+      trainee_id: string;
+      scenario_slug: string;
+      client_name: string;
+      difficulty_level: number;
+      mode: PracticeMode;
+      status: CallStatus;
+      won: boolean | null;
+      total_score: string | null;
+      started_at: Date;
+      ended_at: Date | null;
+      turns_completed: number;
+    }>(
+      `SELECT
+         call_attempt_id,
+         trainee_id,
+         scenario_slug,
+         client_name,
+         difficulty_level,
+         mode,
+         status,
+         won,
+         total_score,
+         started_at,
+         ended_at,
+         turns_completed
+       FROM call_history
+       WHERE trainee_id = $1
+       ORDER BY started_at DESC`,
+      [traineeId],
+    );
+
+    return rows.map((row) => ({
+      callAttemptId: row.call_attempt_id,
+      traineeId: row.trainee_id,
+      scenarioSlug: row.scenario_slug,
+      clientName: row.client_name,
+      difficultyLevel: row.difficulty_level as DifficultyLevel,
+      mode: row.mode,
+      status: row.status,
+      won: row.won,
+      totalScore: row.total_score === null ? null : Number(row.total_score),
+      startedAt: row.started_at.toISOString(),
+      endedAt: row.ended_at ? row.ended_at.toISOString() : null,
+      turnsCompleted: row.turns_completed,
+    }));
   }
 }

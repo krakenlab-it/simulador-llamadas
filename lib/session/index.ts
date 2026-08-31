@@ -4,6 +4,7 @@ export { SessionRepository } from "./repository";
 export type {
   CreateSessionInput,
   EndSessionResult,
+  HistoryEntry,
   SessionRecord,
   TurnRecord,
 } from "./repository";
