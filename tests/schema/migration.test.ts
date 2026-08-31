@@ -61,6 +61,14 @@ describe("schema migration (static)", () => {
     expect(valueGroups.length).toBeGreaterThanOrEqual(2);
   });
 
+  it("includes clinic content migration with short slugs", () => {
+    expect(sql).toContain("scenario_fichas");
+    expect(sql).toContain("scenario_reacciones");
+    expect(sql).toContain("'mariana'");
+    expect(sql).toContain("'rodrigo'");
+    expect(sql).toContain("'efrain'");
+  });
+
   it("limits scenario sort_order to three slots", () => {
     expect(sql).toMatch(/sort_order BETWEEN 1 AND 3/);
   });
