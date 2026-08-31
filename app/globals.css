@@ -450,3 +450,7 @@ textarea {
 .muted {
   color: var(--muted);
 }
+
+.history-panel {
+  margin-top: 1rem;
+}

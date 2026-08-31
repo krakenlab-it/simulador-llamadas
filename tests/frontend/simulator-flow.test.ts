@@ -3,6 +3,7 @@ import {
   stubCreateSession,
   stubSubmitTurn,
   stubEndSession,
+  stubListHistory,
   resetStubSessions,
 } from "@/lib/api/stubs";
 import { scoreUtterance } from "@/lib/extension-points/scoring";
@@ -65,6 +66,25 @@ describe("API stubs", () => {
         difficultyLevel: 1,
       }),
     ).toThrow("Cliente no encontrado");
+  });
+
+  it("lists history for trainee after completed call", () => {
+    const session = stubCreateSession({
+      scenarioSlug: "mariana",
+      mode: "texto",
+      difficultyLevel: 1,
+    });
+
+    stubSubmitTurn(session.callAttemptId, {
+      utterance: "Entiendo el problema de medición",
+    });
+    stubEndSession(session.callAttemptId);
+
+    const history = stubListHistory(session.traineeId);
+    expect(history).toHaveLength(1);
+    expect(history[0].scenarioSlug).toBe("mariana");
+    expect(history[0].clientName).toBe("Mariana Escobedo");
+    expect(history[0].turnsCompleted).toBe(1);
   });
 });
 

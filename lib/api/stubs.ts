@@ -20,7 +20,23 @@ export interface CreateSessionRequest {
   scenarioSlug: string;
   mode: PracticeMode;
   difficultyLevel: DifficultyLevel;
+  traineeId?: string;
   traineeDisplayName?: string;
+}
+
+export interface HistoryEntry {
+  callAttemptId: string;
+  traineeId: string;
+  scenarioSlug: string;
+  clientName: string;
+  difficultyLevel: DifficultyLevel;
+  mode: PracticeMode;
+  status: CallStatus;
+  won: boolean | null;
+  totalScore: number | null;
+  startedAt: string;
+  endedAt: string | null;
+  turnsCompleted: number;
 }
 
 export interface SessionResponse {
@@ -76,9 +92,11 @@ interface StubSession {
   status: CallStatus;
   turns: TurnSummary[];
   won: boolean;
+  startedAt: string;
 }
 
 const sessions = new Map<string, StubSession>();
+const historyByTrainee = new Map<string, HistoryEntry[]>();
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -91,9 +109,10 @@ export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
   }
 
   const callAttemptId = generateId("stub");
+  const traineeId = body.traineeId ?? generateId("trainee");
   const session: StubSession = {
     callAttemptId,
-    traineeId: generateId("trainee"),
+    traineeId,
     scenarioSlug: body.scenarioSlug,
     mode: body.mode,
     difficultyLevel: body.difficultyLevel,
@@ -101,6 +120,7 @@ export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
     status: "in_progress",
     turns: [],
     won: false,
+    startedAt: new Date().toISOString(),
   };
   sessions.set(callAttemptId, session);
 
@@ -193,6 +213,26 @@ export function stubEndSession(callAttemptId: string): EndSessionResponse {
 
   const cierre = session.turns.find((t) => t.roundType === "cierre");
   const won = Boolean(cierre && session.won);
+  const endedAt = new Date().toISOString();
+  const persona = getClientBySlug(session.scenarioSlug);
+
+  const entry: HistoryEntry = {
+    callAttemptId,
+    traineeId: session.traineeId,
+    scenarioSlug: session.scenarioSlug,
+    clientName: persona?.name ?? session.scenarioSlug,
+    difficultyLevel: session.difficultyLevel,
+    mode: session.mode,
+    status: "completed",
+    won,
+    totalScore,
+    startedAt: session.startedAt,
+    endedAt,
+    turnsCompleted: session.turns.length,
+  };
+
+  const existing = historyByTrainee.get(session.traineeId) ?? [];
+  historyByTrainee.set(session.traineeId, [entry, ...existing].slice(0, 50));
 
   return {
     callAttemptId,
@@ -203,6 +243,10 @@ export function stubEndSession(callAttemptId: string): EndSessionResponse {
   };
 }
 
+export function stubListHistory(traineeId: string): HistoryEntry[] {
+  return [...(historyByTrainee.get(traineeId) ?? [])];
+}
+
 export function stubGetTurnSummaries(callAttemptId: string): TurnSummary[] {
   return [...(sessions.get(callAttemptId)?.turns ?? [])];
 }
@@ -210,4 +254,5 @@ export function stubGetTurnSummaries(callAttemptId: string): TurnSummary[] {
 /** Reset in-memory store (tests only) */
 export function resetStubSessions(): void {
   sessions.clear();
+  historyByTrainee.clear();
 }
