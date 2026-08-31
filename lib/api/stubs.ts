@@ -179,7 +179,6 @@ export function stubCreateScenario(
     winCriteria: input.winCriteria,
     temperament: input.temperament,
     clientName: input.clientName,
-    rounds: input.rounds,
   });
 
   const slug = `${input.clientName}-${input.industry}`
@@ -217,9 +216,7 @@ export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
   }
 
   const callAttemptId = generateId("stub");
-  const totalRounds = scenario.record.isPreset
-    ? 5
-    : scenario.record.config.rounds.length;
+  const totalRounds = 5;
 
   const session: StubSession = {
     callAttemptId,
@@ -257,9 +254,7 @@ export function stubSubmitTurn(
   if (!session) throw new Error("Sesión no encontrada");
   if (session.status !== "in_progress") throw new Error("La sesión ya terminó");
 
-  const totalRounds = session.scenario.record.isPreset
-    ? 5
-    : session.scenario.record.config.rounds.length;
+  const totalRounds = 5;
 
   if (session.currentRound > totalRounds) {
     throw new Error("All rounds already completed");
@@ -391,9 +386,7 @@ export function stubEndSession(callAttemptId: string): EndSessionResponse {
 
   session.status = "completed";
 
-  const totalRounds = session.scenario.record.isPreset
-    ? 5
-    : session.scenario.record.config.rounds.length;
+  const totalRounds = 5;
 
   const totalScore =
     session.turns.length > 0

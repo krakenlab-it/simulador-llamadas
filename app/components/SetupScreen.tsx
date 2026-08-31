@@ -24,12 +24,15 @@ interface SetupScreenProps {
   onStart: (config: SetupConfig) => void;
   onCreateScenario: () => void;
   refreshKey?: number;
+  /** After saving a custom scenario, pre-select it on setup (user still taps Marcar). */
+  selectedSlugOnLoad?: string | null;
 }
 
 export function SetupScreen({
   onStart,
   onCreateScenario,
   refreshKey = 0,
+  selectedSlugOnLoad = null,
 }: SetupScreenProps) {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
@@ -43,6 +46,12 @@ export function SetupScreen({
   useEffect(() => {
     void listScenarios().then(setScenarios);
   }, [refreshKey]);
+
+  useEffect(() => {
+    if (selectedSlugOnLoad) {
+      setSelectedSlug(selectedSlugOnLoad);
+    }
+  }, [selectedSlugOnLoad, refreshKey]);
 
   const presets = scenarios.filter((s) => s.isPreset);
   const custom = scenarios.filter((s) => !s.isPreset);
@@ -82,16 +91,13 @@ export function SetupScreen({
 
   const handleMarcar = () => {
     if (!selected || !canCall) return;
-    const totalRounds = selected.isPreset
-      ? 5
-      : (selected.config?.rounds?.length ?? 5);
     onStart({
       scenarioSlug: selected.slug,
       clientName: selected.clientName,
       isPreset: selected.isPreset,
       mode,
       difficultyLevel: level,
-      totalRounds,
+      totalRounds: 5,
       client: selectedClient ?? undefined,
     });
   };

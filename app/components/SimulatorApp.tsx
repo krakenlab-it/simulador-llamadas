@@ -29,6 +29,9 @@ export function SimulatorApp() {
   const [starting, setStarting] = useState(false);
   const [callStartedAt, setCallStartedAt] = useState<string | null>(null);
   const [scenarioRefresh, setScenarioRefresh] = useState(0);
+  const [selectedSlugOnLoad, setSelectedSlugOnLoad] = useState<string | null>(
+    null,
+  );
 
   const handleStart = useCallback(async (setup: SetupConfig) => {
     setStarting(true);
@@ -85,21 +88,11 @@ export function SimulatorApp() {
     setScreen("setup");
   }, []);
 
-  const handleScenarioSaved = useCallback(
-    (slug: string) => {
-      setScenarioRefresh((k) => k + 1);
-      setScreen("setup");
-      void handleStart({
-        scenarioSlug: slug,
-        clientName: "",
-        isPreset: false,
-        mode: "texto",
-        difficultyLevel: 2,
-        totalRounds: 5,
-      });
-    },
-    [handleStart],
-  );
+  const handleScenarioSaved = useCallback((slug: string) => {
+    setScenarioRefresh((k) => k + 1);
+    setSelectedSlugOnLoad(slug);
+    setScreen("setup");
+  }, []);
 
   return (
     <div className="wrap">
@@ -123,6 +116,7 @@ export function SimulatorApp() {
       {screen === "setup" && !starting && (
         <SetupScreen
           refreshKey={scenarioRefresh}
+          selectedSlugOnLoad={selectedSlugOnLoad}
           onStart={(c) => void handleStart(c)}
           onCreateScenario={() => setScreen("builder")}
         />

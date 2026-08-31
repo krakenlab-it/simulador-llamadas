@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { ScenarioRepository } from "@/lib/scenarios";
 import { withPgClient } from "@/lib/session";
-import type { CreateCustomScenarioInput } from "@/lib/scenarios";
 
 export async function GET() {
   try {
@@ -27,7 +26,6 @@ interface CreateScenarioBody {
   clientProblem: string;
   objections: string[];
   winCriteria: string;
-  rounds?: CreateCustomScenarioInput["rounds"];
 }
 
 export async function POST(request: Request) {
@@ -68,7 +66,6 @@ export async function POST(request: Request) {
         clientProblem: body.clientProblem.trim(),
         objections: (body.objections ?? []).map((o) => o.trim()).filter(Boolean),
         winCriteria: body.winCriteria.trim(),
-        rounds: body.rounds,
       });
     });
 

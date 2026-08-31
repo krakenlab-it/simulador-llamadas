@@ -82,7 +82,6 @@ export class ScenarioRepository {
       winCriteria: input.winCriteria,
       temperament: input.temperament,
       clientName: input.clientName,
-      rounds: input.rounds,
     });
 
     const slug = slugifyScenario(input.clientName, input.industry);

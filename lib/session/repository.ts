@@ -97,9 +97,10 @@ function parseConfig(raw: unknown): ScenarioConfig | null {
   return config;
 }
 
-function getTotalRounds(isPreset: boolean, config: ScenarioConfig | null): number {
-  if (isPreset) return 5;
-  return config?.rounds.length ?? 5;
+const FIVE_ROUND_ENGINE = 5;
+
+function getTotalRounds(): number {
+  return FIVE_ROUND_ENGINE;
 }
 
 export class SessionRepository {
@@ -130,7 +131,7 @@ export class SessionRepository {
       clientName: row.client_name,
       isPreset: row.is_preset,
       config,
-      totalRounds: getTotalRounds(row.is_preset, config),
+      totalRounds: getTotalRounds(),
     };
   }
 
@@ -197,7 +198,7 @@ export class SessionRepository {
     const row = result.rows[0];
     const turnsCompleted = Number(row.turns_completed);
     const config = row.is_preset ? null : parseConfig(row.config);
-    const totalRounds = getTotalRounds(row.is_preset, config);
+    const totalRounds = getTotalRounds();
 
     return {
       callAttemptId: row.id,

@@ -173,8 +173,9 @@ export function ScenarioBuilderScreen({ onSave, onCancel }: ScenarioBuilderScree
       </div>
 
       <p className="note">
-        Rondas por defecto: Apertura → Objeción → Claridad → Correo → Cierre (5
-        turnos). Puedes personalizarlas después en una versión futura.
+        Mismo motor de cinco rondas que la clínica: Apertura → Objeción →
+        Claridad → Correo → Cierre. Solo cambian persona, objeciones y lenguaje
+        del sector.
       </p>
 
       {error && <p className="note warn">{error}</p>}

@@ -65,7 +65,6 @@ export interface CreateCustomScenarioInput {
   clientProblem: string;
   objections: string[];
   winCriteria: string;
-  rounds?: ScenarioRoundDef[];
   traineeId?: string;
 }
 
