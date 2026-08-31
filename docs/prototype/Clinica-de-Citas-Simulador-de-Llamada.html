@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clínica de Citas · Simulador de llamada</title>
+  <style>
+    :root {
+      --bg: #0c1117;
+      --panel: #151d2b;
+      --border: #2a3548;
+      --text: #eef2f8;
+      --muted: #8fa0b8;
+      --accent: #4f8cff;
+      --success: #34d399;
+      --warn: #fbbf24;
+      --danger: #f87171;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(ellipse at top, #1a2740 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+    .kicker {
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    h1 { margin: 0 0 0.5rem; font-size: 1.85rem; }
+    .subtitle { color: var(--muted); margin-bottom: 2rem; line-height: 1.5; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .grid { display: grid; gap: 1rem; }
+    @media (min-width: 700px) { .grid.cols-3 { grid-template-columns: repeat(3, 1fr); } }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem 1.2rem;
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.15s;
+    }
+    .card:hover, .card.selected { border-color: var(--accent); transform: translateY(-2px); }
+    .card h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+    .card .role { color: var(--muted); font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 999px;
+      background: rgba(79, 140, 255, 0.15);
+      color: var(--accent);
+    }
+    .badge.hard { background: rgba(248, 113, 113, 0.15); color: var(--danger); }
+    .badge.medium { background: rgba(251, 191, 36, 0.15); color: var(--warn); }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1.25rem 0; }
+    button, .btn {
+      border: 1px solid var(--border);
+      background: #1e2a3d;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 0.65rem 1rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .toggle-group { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .toggle-group button { border: none; border-radius: 0; }
+    .toggle-group button.active { background: var(--accent); }
+    .call-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+    }
+    .round-label { font-size: 0.75rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+    .client-line { font-size: 1.1rem; margin: 0.35rem 0 1rem; }
+    .dialogue { min-height: 120px; background: #0f1520; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; line-height: 1.55; }
+    .dialogue .client { color: #c4d4ef; }
+    .dialogue .you { color: var(--success); margin-top: 0.75rem; }
+    textarea {
+      width: 100%;
+      min-height: 90px;
+      background: #0f1520;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      padding: 0.75rem;
+      font-size: 0.95rem;
+      resize: vertical;
+    }
+    .eval { margin-top: 1rem; padding: 1rem; border-radius: 10px; background: #0f1520; border-left: 4px solid var(--accent); }
+    .eval.bad { border-left-color: var(--danger); }
+    .eval.good { border-left-color: var(--success); }
+    .keywords { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.75rem; }
+    .kw { font-size: 0.7rem; padding: 0.2rem 0.45rem; border-radius: 6px; background: #1e2a3d; color: var(--muted); }
+    .kw.hit { background: rgba(52, 211, 153, 0.2); color: var(--success); }
+    .history-item { font-size: 0.85rem; padding: 0.65rem 0; border-bottom: 1px solid var(--border); color: var(--muted); }
+    .note { font-size: 0.8rem; color: var(--muted); margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+  <p class="kicker">Formación comercial · Módulo 3 · Clínica en vivo</p>
+  <h1>Clínica de Citas · Simulador de llamada</h1>
+  <p class="subtitle">Practica tu llamada en frío. Elige cliente, modo y nivel. Cinco rondas. Gana solo si cierras con día y hora concretos.</p>
+
+  <!-- Pantalla 1: selección de cliente -->
+  <section id="screen-clients" class="screen active">
+    <h2>Elige tu cliente</h2>
+    <div class="grid cols-3" id="client-grid"></div>
+    <div class="controls">
+      <button class="primary" id="btn-to-config" disabled>Continuar</button>
+      <button id="btn-history">Ver historial</button>
+    </div>
+  </section>
+
+  <!-- Pantalla 2: modo y nivel -->
+  <section id="screen-config" class="screen">
+    <h2>Configura la práctica</h2>
+    <p id="selected-client-summary" class="subtitle"></p>
+    <p><strong>Modo</strong></p>
+    <div class="toggle-group" id="mode-toggle">
+      <button type="button" data-mode="voz" class="active">Voz</button>
+      <button type="button" data-mode="texto">Texto</button>
+    </div>
+    <p style="margin-top:1rem"><strong>Nivel de dificultad</strong></p>
+    <div class="toggle-group" id="level-toggle">
+      <button type="button" data-level="1" class="active">1</button>
+      <button type="button" data-level="2">2</button>
+      <button type="button" data-level="3">3</button>
+    </div>
+    <div class="controls">
+      <button id="btn-back-clients">Atrás</button>
+      <button class="primary" id="btn-start-call">Iniciar llamada</button>
+    </div>
+  </section>
+
+  <!-- Pantalla 3: llamada -->
+  <section id="screen-call" class="screen">
+    <div class="call-panel">
+      <div class="round-label" id="round-label">Ronda 1 · Apertura</div>
+      <div class="client-line" id="call-client-line"></div>
+      <div class="dialogue" id="dialogue"></div>
+      <textarea id="utterance" placeholder="Escribe tu respuesta o usa el micrófono (modo voz)…"></textarea>
+      <div class="controls">
+        <button id="btn-mic" type="button">🎤 Escuchar</button>
+        <button class="primary" id="btn-submit-turn">Enviar turno</button>
+        <button id="btn-hangup" type="button">Colgar y evaluar</button>
+      </div>
+      <div id="turn-eval" class="eval" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- Pantalla 4: evaluación final -->
+  <section id="screen-eval" class="screen">
+    <h2>Evaluación de la llamada</h2>
+    <div id="final-eval"></div>
+    <div class="controls">
+      <button class="primary" id="btn-restart">Nueva llamada</button>
+    </div>
+  </section>
+
+  <!-- Pantalla 5: historial -->
+  <section id="screen-history" class="screen">
+    <h2>Historial</h2>
+    <div id="history-list"></div>
+    <div class="controls">
+      <button id="btn-back-from-history">Volver</button>
+    </div>
+  </section>
+
+  <p class="note">Prototipo de referencia (100% navegador: Web Speech API + localStorage <code>clinicav2:historial</code>). No es la UI de producción.</p>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "clinicav2:historial";
+
+    const CLIENTS = [
+      {
+        id: "mariana",
+        name: "Mariana Escobedo",
+        title: "Directora de Mercadotecnia",
+        company: "Desarrolladora de vivienda media",
+        difficulty: "Difícil",
+        badge: "hard",
+        indicator: "Visitas a caseta",
+        pains: ["Costo por prospecto +40%", "Formularios que no visitan", "Espectaculares sin medición"],
+        openings: [
+          "¿Quién habla? Estoy entre juntas.",
+          "Ya tenemos agencia y caseta. No busco otra cosa.",
+        ],
+      },
+      {
+        id: "rodrigo",
+        name: "Rodrigo Nava",
+        title: "Gerente de Medios",
+        company: "Cadena nacional de farmacias",
+        difficulty: "Muy difícil",
+        badge: "hard",
+        indicator: "Tráfico a tienda / venta por m²",
+        pains: ["Aperturas de proximidad que no levantan"],
+        openings: [
+          "Tengo dos minutos. ¿Qué tiene que ver con tráfico a tienda?",
+          "Si es otro discurso de branding, cuelgo.",
+        ],
+      },
+      {
+        id: "efrain",
+        name: "Efraín Loera",
+        title: "Director Comercial",
+        company: "Grupo distribuidor automotriz",
+        difficulty: "Media",
+        badge: "medium",
+        indicator: "Piso con menos gente",
+        pains: ["No cree en clics"],
+        openings: [
+          "El piso está flojo. No me interesan los clics.",
+          "¿Ustedes miden gente real o solo leads?",
+        ],
+      },
+    ];
+
+    const ROUNDS = [
+      { key: "apertura", label: "Apertura" },
+      { key: "objecion", label: "Objeción" },
+      { key: "claridad", label: "Claridad" },
+      { key: "correo", label: "Correo" },
+      { key: "cierre", label: "Cierre" },
+    ];
+
+    const EXPECTED = {
+      apertura: "Reconozca el indicador del cliente y proponga medición, sin monólogo ni telegrama.",
+      objecion: "Valide la objeción, use jerga del sector y evite descalificar.",
+      claridad: "Nombre el problema concreto y cómo lo medirían juntos.",
+      correo: "Pida permiso para enviar algo breve; no diga gratis sin contexto.",
+      cierre: "Proponga reunión con día Y hora concretos. Sin ambigüedad.",
+    };
+
+    const KEYWORDS = [
+      ["problema", /problema/i],
+      ["medición", /medici[oó]n|medir|m[eé]trica/i],
+      ["jerga", /cpm|ctr|roi|kpi|impresiones|m2|m²|tr[aá]fico/i],
+      ["reconocimiento", /entiendo|comprendo|tiene raz[oó]n|veo que/i],
+      ["descalifica", /no es para usted|no califica/i],
+      ["gratis", /gratis|sin costo/i],
+      ["reunión", /reuni[oó]n|cita|agendar/i],
+      ["día/hora", /(lunes|martes|mi[eé]rcoles|jueves|viernes).*\d{1,2}/i],
+      ["monólogo", /.{220,}/],
+      ["telegrama", /^.{0,18}$/],
+    ];
+
+    const state = {
+      client: null,
+      mode: "voz",
+      level: 1,
+      round: 0,
+      turns: [],
+    };
+
+    function showScreen(id) {
+      document.querySelectorAll(".screen").forEach((el) => el.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
+    }
+
+    function renderClients() {
+      const grid = document.getElementById("client-grid");
+      grid.innerHTML = CLIENTS.map((c) => `
+        <article class="card" data-id="${c.id}">
+          <h3>${c.name}</h3>
+          <div class="role">${c.title} · ${c.company}</div>
+          <span class="badge ${c.badge}">${c.difficulty}</span>
+          <p style="font-size:0.82rem;color:var(--muted);margin:0.6rem 0 0">Indicador: ${c.indicator}</p>
+          <ul style="margin:0.4rem 0 0;padding-left:1.1rem;font-size:0.8rem;color:var(--muted)">
+            ${c.pains.map((p) => `<li>${p}</li>`).join("")}
+          </ul>
+        </article>
+      `).join("");
+
+      grid.querySelectorAll(".card").forEach((card) => {
+        card.addEventListener("click", () => {
+          grid.querySelectorAll(".card").forEach((c) => c.classList.remove("selected"));
+          card.classList.add("selected");
+          state.client = CLIENTS.find((c) => c.id === card.dataset.id);
+          document.getElementById("btn-to-config").disabled = false;
+        });
+      });
+    }
+
+    function scoreUtterance(text, roundKey) {
+      const hits = {};
+      KEYWORDS.forEach(([name, re]) => { hits[name] = re.test(text); });
+      const positives = ["problema", "medición", "jerga", "reconocimiento", "reunión", "día/hora"]
+        .filter((k) => hits[k]).length;
+      const negatives = (hits["descalifica"] ? 1 : 0) + (hits["monólogo"] ? 1 : 0) + (hits["telegrama"] ? 1 : 0);
+      let score = Math.max(0, Math.min(100, positives * 14 - negatives * 10));
+      const hasDay = /(lunes|martes|mi[eé]rcoles|jueves|viernes|\d{1,2}\s+de)/i.test(text);
+      const hasTime = /\d{1,2}[:h]\d{2}|\d{1,2}\s*(am|pm|hrs?)/i.test(text);
+      const won = roundKey === "cierre" && hasDay && hasTime && hits["reunión"];
+      return { hits, score, won, hasDay, hasTime };
+    }
+
+    function clientLine(roundIndex) {
+      const c = state.client;
+      const lines = {
+        0: c.openings[0],
+        1: "Eso ya lo escuché. ¿Qué resultado me trae?",
+        2: "Explíqueme en una frase qué medirían.",
+        3: "Mande su correo, pero sea breve.",
+        4: "Si no hay fecha en la agenda, no hay reunión.",
+      };
+      return lines[roundIndex] || "...";
+    }
+
+    function startCall() {
+      state.round = 0;
+      state.turns = [];
+      document.getElementById("call-client-line").textContent =
+        `${state.client.name} · Nivel ${state.level} · Modo ${state.mode}`;
+      document.getElementById("utterance").value = "";
+      document.getElementById("turn-eval").style.display = "none";
+      renderRound();
+      showScreen("screen-call");
+    }
+
+    function renderRound() {
+      const r = ROUNDS[state.round];
+      document.getElementById("round-label").textContent =
+        `Ronda ${state.round + 1} · ${r.label}`;
+      document.getElementById("dialogue").innerHTML =
+        `<div class="client"><strong>Cliente:</strong> ${clientLine(state.round)}</div>`;
+    }
+
+    function submitTurn() {
+      const text = document.getElementById("utterance").value.trim();
+      if (!text) return alert("Escribe o dicta tu respuesta.");
+      const round = ROUNDS[state.round];
+      const result = scoreUtterance(text, round.key);
+      state.turns.push({ round: round.key, text, result, expected: EXPECTED[round.key] });
+
+      const evalEl = document.getElementById("turn-eval");
+      evalEl.style.display = "block";
+      evalEl.className = "eval " + (result.score >= 50 ? "good" : "bad");
+      evalEl.innerHTML = `
+        <strong>Puntuación ronda: ${result.score}/100</strong>
+        <p>Debería haber dicho algo como: <em>${EXPECTED[round.key]}</em></p>
+        <div class="keywords">${KEYWORDS.map(([k]) =>
+          `<span class="kw ${result.hits[k] ? "hit" : ""}">${k}</span>`).join("")}</div>
+      `;
+
+      document.getElementById("dialogue").innerHTML += `<div class="you"><strong>Tú:</strong> ${text}</div>`;
+
+      if (state.round < ROUNDS.length - 1) {
+        state.round += 1;
+        setTimeout(() => {
+          document.getElementById("utterance").value = "";
+          document.getElementById("turn-eval").style.display = "none";
+          renderRound();
+        }, 1200);
+      }
+    }
+
+    function hangupAndEvaluate() {
+      const last = state.turns[state.turns.length - 1];
+      const won = last && last.round === "cierre" && last.result.won;
+      const avg = state.turns.length
+        ? Math.round(state.turns.reduce((s, t) => s + t.result.score, 0) / state.turns.length)
+        : 0;
+
+      const entry = {
+        at: new Date().toISOString(),
+        client: state.client.name,
+        mode: state.mode,
+        level: state.level,
+        avg,
+        won: !!won,
+        turns: state.turns.length,
+      };
+      const hist = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      hist.unshift(entry);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(hist.slice(0, 50)));
+
+      document.getElementById("final-eval").innerHTML = `
+        <div class="eval ${won ? "good" : "bad"}">
+          <h3>${won ? "¡Ganaste la cita!" : "No cerraste con día y hora"}</h3>
+          <p>Promedio: ${avg}/100 · Turnos completados: ${state.turns.length}/5</p>
+          <p>${won
+            ? "Lograste una reunión con fecha y hora concretas."
+            : "En el cierre debes proponer un día y una hora específicos."}</p>
+        </div>
+        <h3 style="margin-top:1.5rem">Detalle por ronda</h3>
+        ${state.turns.map((t) => `
+          <div class="history-item">
+            <strong>${t.round}</strong> (${t.result.score} pts) — ${t.expected}
+          </div>
+        `).join("")}
+      `;
+      showScreen("screen-eval");
+    }
+
+    function renderHistory() {
+      const hist = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      document.getElementById("history-list").innerHTML = hist.length
+        ? hist.map((h) => `
+          <div class="history-item">
+            ${new Date(h.at).toLocaleString("es-MX")} · ${h.client} · Nivel ${h.level} · ${h.mode}
+            · ${h.avg} pts · ${h.won ? "Ganó" : "No ganó"}
+          </div>`).join("")
+        : "<p class='subtitle'>Sin llamadas guardadas.</p>";
+      showScreen("screen-history");
+    }
+
+    // Web Speech API (modo voz)
+    let recognition;
+    function setupSpeech() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) return;
+      recognition = new SR();
+      recognition.lang = "es-MX";
+      recognition.interimResults = false;
+      recognition.onresult = (e) => {
+        const transcript = e.results[0][0].transcript;
+        document.getElementById("utterance").value =
+          (document.getElementById("utterance").value + " " + transcript).trim();
+      };
+    }
+
+    document.getElementById("btn-to-config").onclick = () => {
+      const c = state.client;
+      document.getElementById("selected-client-summary").textContent =
+        `${c.name} — ${c.title}. ${c.indicator}.`;
+      showScreen("screen-config");
+    };
+    document.getElementById("btn-back-clients").onclick = () => showScreen("screen-clients");
+    document.getElementById("btn-start-call").onclick = startCall;
+    document.getElementById("btn-submit-turn").onclick = submitTurn;
+    document.getElementById("btn-hangup").onclick = hangupAndEvaluate;
+    document.getElementById("btn-restart").onclick = () => showScreen("screen-clients");
+    document.getElementById("btn-history").onclick = renderHistory;
+    document.getElementById("btn-back-from-history").onclick = () => showScreen("screen-clients");
+
+    document.getElementById("mode-toggle").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-mode]");
+      if (!btn) return;
+      state.mode = btn.dataset.mode;
+      document.querySelectorAll("#mode-toggle button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+    document.getElementById("level-toggle").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-level]");
+      if (!btn) return;
+      state.level = Number(btn.dataset.level);
+      document.querySelectorAll("#level-toggle button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+    document.getElementById("btn-mic").onclick = () => {
+      if (state.mode !== "voz") return alert("Activa modo voz.");
+      if (!recognition) return alert("Web Speech API no disponible en este navegador.");
+      recognition.start();
+    };
+
+    renderClients();
+    setupSpeech();
+  </script>
+</body>
+</html>
