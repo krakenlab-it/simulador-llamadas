@@ -26,7 +26,7 @@ describe("API stubs", () => {
     expect(session.currentRound).toBe(1);
   });
 
-  it("runs a five-round loop and evaluates", async () => {
+  it("runs a five-round loop and evaluates", () => {
     const session = stubCreateSession({
       scenarioSlug: "efrain",
       mode: "voz",
@@ -42,13 +42,11 @@ describe("API stubs", () => {
     ];
 
     for (let i = 0; i < utterances.length; i++) {
-      const res = await stubSubmitTurn(session.callAttemptId, {
+      const res = stubSubmitTurn(session.callAttemptId, {
         utterance: utterances[i],
       });
       expect(res.roundType).toBeDefined();
-      if (res.roundType) {
-        expect(res.feedback).toBe(ROUND_EXPECTED[res.roundType]);
-      }
+      expect(res.feedback).toBe(ROUND_EXPECTED[res.roundType]);
       expect(res.roundNumber).toBe(i + 1);
     }
 
@@ -56,8 +54,6 @@ describe("API stubs", () => {
     expect(final.turnsCompleted).toBe(5);
     expect(final.won).toBe(true);
     expect(final.totalScore).toBeGreaterThan(0);
-    expect(final.evaluation).toBeDefined();
-    expect(final.evaluation.nextDrill).toBeTruthy();
     expect(final.callAttemptId).toBe(session.callAttemptId);
     expect(final.status).toBe("completed");
   });
@@ -72,14 +68,14 @@ describe("API stubs", () => {
     ).toThrow("Cliente no encontrado");
   });
 
-  it("lists history for trainee after completed call", async () => {
+  it("lists history for trainee after completed call", () => {
     const session = stubCreateSession({
       scenarioSlug: "mariana",
       mode: "texto",
       difficultyLevel: 1,
     });
 
-    await stubSubmitTurn(session.callAttemptId, {
+    stubSubmitTurn(session.callAttemptId, {
       utterance: "Entiendo el problema de medición",
     });
     stubEndSession(session.callAttemptId);

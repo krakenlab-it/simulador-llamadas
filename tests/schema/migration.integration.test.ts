@@ -114,8 +114,6 @@ describeIfDb("schema migration (integration)", () => {
         "trainee_id",
         "scenario_slug",
         "client_name",
-        "is_preset",
-        "industry",
         "difficulty_level",
         "won",
         "total_score",
@@ -197,35 +195,11 @@ describeIfDb("schema migration (integration)", () => {
     expect(rows[1].saludo).toBe("Ya tenemos agencia y caseta. No busco otra cosa.");
   });
 
-  it("allows custom scenarios after v1 three-scenario limit removed", async () => {
+  it("enforces exactly-three-scenarios trigger exists", async () => {
     const { rows } = await client.query<{ tgname: string }>(
       "SELECT tgname FROM pg_trigger WHERE tgname = 'trg_enforce_three_scenarios'",
     );
-    expect(rows).toHaveLength(0);
-
-    await client.query<{ id: string }>(
-      "INSERT INTO trainees (display_name) VALUES ('Custom Creator') RETURNING id",
-    );
-
-    const inserted = await client.query<{ slug: string; is_preset: boolean }>(
-      `INSERT INTO scenarios (
-         slug, client_name, client_title, company_context,
-         difficulty_label, indicator, pain_points, is_preset,
-         industry, product_sold, config
-       ) VALUES (
-         'tire-shop-demo', 'Carlos', 'Dueño', 'Taller Norte', 'Media',
-         'Rotación', ARRAY['inventario lento'], false,
-         'llantas', 'Michelin', '{"rounds":[{"key":"apertura","label":"Apertura"}]}'::jsonb
-       ) RETURNING slug, is_preset`,
-    );
-    expect(inserted.rows[0].is_preset).toBe(false);
-
-    const { rows: countRows } = await client.query<{ count: string }>(
-      "SELECT COUNT(*)::text AS count FROM scenarios",
-    );
-    expect(Number(countRows[0].count)).toBe(4);
-
-    await client.query("DELETE FROM scenarios WHERE slug = 'tire-shop-demo'");
+    expect(rows).toHaveLength(1);
   });
 
   it("call_history includes round_scores JSON", async () => {

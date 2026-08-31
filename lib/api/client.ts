@@ -89,7 +89,7 @@ export async function submitTurn(
       body: JSON.stringify(body),
     },
   );
-  return remote ?? (await stubSubmitTurn(callAttemptId, body));
+  return remote ?? stubSubmitTurn(callAttemptId, body);
 }
 
 export async function endSession(

@@ -35,15 +35,11 @@ describe("clinic content seed (static)", () => {
     expect(sql).toMatch(/CREATE TYPE reaction_quality AS ENUM \('bien', 'medio', 'mal'\)/);
   });
 
-  it("tightens scenario slugs to mariana, rodrigo, efrain in v1 seed", () => {
+  it("tightens scenario slugs to mariana, rodrigo, efrain", () => {
+    expect(sql).toContain("slug IN ('mariana', 'rodrigo', 'efrain')");
     expect(sql).toContain("SET slug = 'mariana'");
     expect(sql).toContain("SET slug = 'rodrigo'");
     expect(sql).toContain("SET slug = 'efrain'");
-  });
-
-  it("allows custom scenarios in later migration", () => {
-    expect(sql).toContain("is_preset");
-    expect(sql).toContain("scenarios_insert_custom");
   });
 
   it("enriches call_history with round_scores", () => {

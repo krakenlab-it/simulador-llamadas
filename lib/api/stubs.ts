@@ -14,7 +14,9 @@ import type {
   SessionEvaluationSummary,
 } from "@/lib/scenarios/types";
 import { buildSessionEvaluation } from "@/lib/feedback/evaluation";
-import { scoreTurnAdaptive } from "@/lib/scoring/adaptive";
+import { templateClientReply } from "@/lib/feedback/evaluation";
+import { scoreTurn } from "@/lib/scoring";
+import { scoreCustomTurn } from "@/lib/scoring/custom";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
 import type { ClientReaction } from "@/lib/scoring/rondas";
 import { getOpeningLine } from "@/lib/llm/client-replies";
@@ -62,7 +64,7 @@ export interface TurnRequest {
 export interface TurnResponse {
   turnId: string;
   roundNumber: number;
-  roundType: RoundType | null;
+  roundType: RoundType;
   roundKey: string;
   roundLabel: string;
   traineeUtterance: string;
@@ -247,10 +249,10 @@ export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
   };
 }
 
-export async function stubSubmitTurn(
+export function stubSubmitTurn(
   callAttemptId: string,
   body: TurnRequest,
-): Promise<TurnResponse> {
+): TurnResponse {
   const session = sessions.get(callAttemptId);
   if (!session) throw new Error("Sesión no encontrada");
   if (session.status !== "in_progress") throw new Error("La sesión ya terminó");
@@ -269,8 +271,7 @@ export async function stubSubmitTurn(
 
   let roundKey: string;
   let roundLabel: string;
-  let roundType: RoundType | null;
-  let roundGoal: string;
+  let roundType: RoundType;
 
   if (session.scenario.record.isPreset) {
     roundType = ROUND_ORDER[roundNumber - 1];
@@ -283,29 +284,74 @@ export async function stubSubmitTurn(
       cierre: "Cierre",
     };
     roundLabel = labels[roundType];
-    roundGoal = ROUND_EXPECTED[roundType];
   } else {
     const round = session.scenario.record.config.rounds[roundNumber - 1];
     roundKey = round.key;
     roundLabel = round.label;
-    roundType = null;
-    roundGoal = round.goal;
+    roundType = ROUND_ORDER[roundNumber - 1];
   }
 
-  const score = await scoreTurnAdaptive({
-    utterance: trimmed,
-    roundKey,
-    roundLabel,
-    roundGoal,
-    difficultyLevel: session.difficultyLevel,
-    scenarioSlug: session.scenario.record.slug,
-    isPreset: session.scenario.record.isPreset,
-    config: session.scenario.record.isPreset
-      ? null
-      : session.scenario.record.config,
-    clientName: session.scenario.record.clientName,
-    isLastRound: roundNumber === totalRounds,
-  });
+  let score: {
+    keywordHits: Record<string, boolean>;
+    roundScore: number;
+    feedback: string;
+    clientReaction: ClientReaction;
+    clientReply: string;
+    richFeedback: RichTurnFeedback;
+    hasConcreteDayAndTime: boolean;
+    won: boolean;
+  };
+
+  if (session.scenario.record.isPreset) {
+    const clinicScore = scoreTurn({
+      utterance: trimmed,
+      roundType,
+      difficultyLevel: session.difficultyLevel,
+      scenarioSlug: session.scenario.record.slug,
+    });
+    score = {
+      keywordHits: clinicScore.keywordHits,
+      roundScore: clinicScore.roundScore,
+      feedback: clinicScore.feedback,
+      clientReaction: clinicScore.clientReaction,
+      clientReply: clinicScore.clientReply,
+      richFeedback: {
+        score: clinicScore.roundScore,
+        utterance: trimmed,
+        whyScore: clinicScore.feedback,
+        strongerLine: ROUND_EXPECTED[roundType],
+        missedCriteria: [],
+        roundLabel,
+      },
+      hasConcreteDayAndTime: clinicScore.hasConcreteDayAndTime,
+      won: clinicScore.won,
+    };
+  } else {
+    const custom = scoreCustomTurn({
+      utterance: trimmed,
+      round: session.scenario.record.config.rounds[roundNumber - 1],
+      config: session.scenario.record.config,
+      difficultyLevel: session.difficultyLevel,
+      clientName: session.scenario.record.clientName,
+      isLastRound: roundNumber === totalRounds,
+    });
+    const round = session.scenario.record.config.rounds[roundNumber - 1];
+    score = {
+      keywordHits: custom.keywordHits,
+      roundScore: custom.roundScore,
+      feedback: custom.feedback,
+      clientReaction: custom.reaction,
+      clientReply: templateClientReply(
+        session.scenario.record.config,
+        round,
+        custom.reaction,
+        session.scenario.record.clientName,
+      ),
+      richFeedback: custom.richFeedback,
+      hasConcreteDayAndTime: custom.hasConcreteDayAndTime,
+      won: custom.won,
+    };
+  }
 
   const summary: TurnSummary = {
     roundKey,
