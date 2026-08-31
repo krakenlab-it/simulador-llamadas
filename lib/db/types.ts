@@ -35,6 +35,7 @@ export const SCORING_KEYWORDS = [
   "dia_hora",
   "monologo",
   "telegrama",
+  "se_presenta_solo",
 ] as const;
 
 export type ScoringKeyword = (typeof SCORING_KEYWORDS)[number];
