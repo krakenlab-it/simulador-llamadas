@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { createSession, endSession } from "@/lib/api/client";
 import type { EndSessionResponse, TurnSummary } from "@/lib/api/client";
+import { BrandMark } from "@/components/brand/BrandMark";
 import { SetupScreen, type SetupConfig } from "@/app/components/SetupScreen";
 import { LiveCallScreen } from "@/app/components/LiveCallScreen";
 import { EvaluationScreen } from "@/app/components/EvaluationScreen";
@@ -66,6 +67,13 @@ export function SimulatorApp() {
 
   return (
     <div className="wrap">
+      <header className="site-header">
+        <BrandMark />
+        <p className="brand-wordmark">
+          Clínica de Citas <span>· CDC</span>
+        </p>
+      </header>
+
       <p className="kicker">Formación comercial · Módulo 3 · Clínica en vivo</p>
       <h1>Clínica de Citas · Simulador de llamada</h1>
       <p className="subtitle">
