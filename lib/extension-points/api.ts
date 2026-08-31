@@ -1,17 +1,16 @@
 /**
- * API extension point — implement in a follow-up PR.
- *
- * Planned routes (App Router):
- * - POST /api/sessions          — start call attempt
- * - POST /api/sessions/:id/turns — submit trainee utterance per round
- * - POST /api/sessions/:id/end   — hang up and trigger scoring
- * - GET  /api/history            — server-side history (replaces localStorage)
+ * API extension point — session routes implemented in app/api/sessions.
  */
 
-export const API_EXTENSION_VERSION = "0.1.0";
+export const API_EXTENSION_VERSION = "0.2.0";
 
-export type ApiRoutePlaceholder =
+export type ApiRoute =
   | "sessions.create"
   | "sessions.submitTurn"
-  | "sessions.end"
-  | "history.list";
+  | "sessions.end";
+
+export const API_ROUTES = {
+  create: "POST /api/sessions",
+  submitTurn: "POST /api/sessions/:id/turns",
+  end: "POST /api/sessions/:id/end",
+} as const;

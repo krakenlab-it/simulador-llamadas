@@ -250,4 +250,15 @@ describeIfDb("schema migration (integration)", () => {
     expect(scores[0].round_type).toBe("apertura");
     expect(Number(scores[0].round_score)).toBe(70);
   });
+
+  it("adds client_reaction to turn_scores", async () => {
+    const { rows } = await client.query<{ column_name: string }>(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'turn_scores'
+        AND column_name = 'client_reaction'
+    `);
+    expect(rows).toHaveLength(1);
+  });
 });

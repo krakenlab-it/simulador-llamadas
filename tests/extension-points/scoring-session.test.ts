@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   detectConcreteDayAndTime,
-  scoreUtterancePlaceholder,
+  scoreUtterance,
 } from "@/lib/extension-points/scoring";
 import {
   createInitialSessionState,
@@ -19,8 +19,8 @@ describe("scoring extension point", () => {
     expect(detectConcreteDayAndTime("¿Podemos agendar algo?")).toBe(false);
   });
 
-  it("returns keyword hits placeholder", () => {
-    const result = scoreUtterancePlaceholder({
+  it("returns keyword hits via scoreUtterance", () => {
+    const result = scoreUtterance({
       utterance: "Entiendo el problema de medición y propongo una reunión",
       roundType: "apertura",
     });
