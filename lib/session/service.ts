@@ -5,6 +5,7 @@ import {
   SessionRepository,
   type CreateSessionInput,
   type EndSessionResult,
+  type HistoryEntry,
   type SessionRecord,
   type TurnRecord,
 } from "./repository";
@@ -88,6 +89,10 @@ export class SessionService {
 
   async getSession(callAttemptId: string): Promise<SessionRecord | null> {
     return this.repository.getSession(callAttemptId);
+  }
+
+  async listHistory(traineeId: string): Promise<HistoryEntry[]> {
+    return this.repository.listHistoryForTrainee(traineeId);
   }
 }
 
