@@ -1,5 +1,5 @@
 import type { Client } from "pg";
-import type { DifficultyLevel } from "@/lib/db/types";
+import type { DifficultyLevel, RoundType, ScoringKeyword } from "@/lib/db/types";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
 import { scoreTurnAdaptive } from "@/lib/scoring/adaptive";
 import {
@@ -104,6 +104,68 @@ export async function createTrainee(
     [displayName],
   );
   return result.rows[0].id;
+}
+
+export interface EndSessionTurnInput {
+  roundType: RoundType | null;
+  roundKey: string | null;
+  traineeUtterance: string | null;
+  keywordHits: Partial<Record<ScoringKeyword, boolean>>;
+}
+
+export function utteranceHasDay(utterance: string): boolean {
+  return /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s+de)/i.test(
+    utterance,
+  );
+}
+
+export function utteranceHasTime(utterance: string): boolean {
+  return /\d{1,2}[:h]\d{2}|\d{1,2}\s*(am|pm|hrs?)/i.test(utterance);
+}
+
+/**
+ * Session-level win at hang-up. Clinic presets require a submitted cierre turn
+ * (matches main @ 5475a77). Custom scenarios evaluate only on the final round.
+ */
+export function resolveEndSessionWin(
+  options: {
+    isPreset: boolean;
+    difficultyLevel: DifficultyLevel;
+    closeRoundKey: string | null;
+  },
+  turns: EndSessionTurnInput[],
+): boolean {
+  if (turns.length === 0) {
+    return false;
+  }
+
+  let closeTurn: EndSessionTurnInput | undefined;
+
+  if (options.isPreset) {
+    closeTurn = turns.find((turn) => turn.roundType === "cierre");
+    if (!closeTurn) {
+      return false;
+    }
+  } else {
+    const lastTurn = turns[turns.length - 1];
+    const closeKeys = new Set(
+      ["cierre", options.closeRoundKey].filter((key): key is string => Boolean(key)),
+    );
+    if (!lastTurn.roundKey || !closeKeys.has(lastTurn.roundKey)) {
+      return false;
+    }
+    closeTurn = lastTurn;
+  }
+
+  const utterance = closeTurn.traineeUtterance ?? "";
+
+  return evaluateCloseWinFromScore(
+    options.difficultyLevel,
+    utteranceHasDay(utterance),
+    utteranceHasTime(utterance),
+    Boolean(closeTurn.keywordHits.reunion),
+    Boolean(closeTurn.keywordHits.dia_hora),
+  );
 }
 
 export function evaluateCloseWinFromScore(

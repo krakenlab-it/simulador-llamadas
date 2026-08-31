@@ -14,7 +14,7 @@ import type {
   SessionEvaluationSummary,
 } from "@/lib/scenarios/types";
 import type { ClientReaction } from "@/lib/scoring/rondas";
-import { evaluateCloseWinFromScore } from "./service";
+import { resolveEndSessionWin } from "./service";
 
 export interface CreateSessionInput {
   traineeId: string;
@@ -315,41 +315,25 @@ export class SessionRepository {
           turnRows.rows.length
         : 0;
 
-    const lastTurn = turnRows.rows[turnRows.rows.length - 1];
-    let won = false;
+    const turns = turnRows.rows.map((row) => ({
+      roundType: row.round_type,
+      roundKey: row.round_key,
+      traineeUtterance: row.trainee_utterance,
+      keywordHits: row.keyword_hits,
+    }));
 
-    if (lastTurn) {
-      const utterance = lastTurn.trainee_utterance ?? "";
-      const hasDay =
-        /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s+de)/i.test(
-          utterance,
-        );
-      const hasTime = /\d{1,2}[:h]\d{2}|\d{1,2}\s*(am|pm|hrs?)/i.test(utterance);
+    const closeRoundKey = session.isPreset
+      ? "cierre"
+      : (session.config?.rounds[session.config.rounds.length - 1]?.key ?? "cierre");
 
-      won = evaluateCloseWinFromScore(
-        session.difficultyLevel,
-        hasDay,
-        hasTime,
-        Boolean(lastTurn.keyword_hits?.reunion),
-        Boolean(lastTurn.keyword_hits?.dia_hora),
-      );
-
-      if (!session.isPreset && lastTurn.round_key) {
-        const lastRoundWon = turnRows.rows.some((_, i) => i === turnRows.rows.length - 1);
-        if (lastRoundWon && session.config) {
-          const closeKeys = ["cierre", session.config.rounds[session.config.rounds.length - 1]?.key];
-          if (closeKeys.includes(lastTurn.round_key)) {
-            won = evaluateCloseWinFromScore(
-              session.difficultyLevel,
-              hasDay,
-              hasTime,
-              Boolean(lastTurn.keyword_hits?.reunion),
-              Boolean(lastTurn.keyword_hits?.dia_hora),
-            );
-          }
-        }
-      }
-    }
+    const won = resolveEndSessionWin(
+      {
+        isPreset: session.isPreset,
+        difficultyLevel: session.difficultyLevel,
+        closeRoundKey,
+      },
+      turns,
+    );
 
     const historyForScenario = await this.listHistoryForTrainee(
       session.traineeId,

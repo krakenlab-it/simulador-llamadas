@@ -104,4 +104,28 @@ describeIfDb("session persistence (integration)", () => {
     );
     expect(rows[0].won).toBe(false);
   });
+
+  it("does not award a clinic win when hanging up before cierre", async () => {
+    const session = await service.startSession({
+      traineeId,
+      scenarioSlug: "mariana",
+      difficultyLevel: 2,
+      mode: "texto",
+    });
+
+    await service.submitTurn({
+      callAttemptId: session.callAttemptId,
+      utterance: GOOD_CLOSE_UTTERANCE,
+    });
+
+    const ended = await service.endSession(session.callAttemptId);
+    expect(ended.won).toBe(false);
+    expect(ended.turnsCompleted).toBe(1);
+
+    const { rows } = await client.query(
+      "SELECT won FROM call_attempts WHERE id = $1",
+      [session.callAttemptId],
+    );
+    expect(rows[0].won).toBe(false);
+  });
 });

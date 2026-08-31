@@ -20,6 +20,7 @@ import { scoreCustomTurn } from "@/lib/scoring/custom";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
 import type { ClientReaction } from "@/lib/scoring/rondas";
 import { getOpeningLine } from "@/lib/llm/client-replies";
+import { resolveEndSessionWin } from "@/lib/session/service";
 
 export interface CreateSessionRequest {
   scenarioSlug: string;
@@ -86,6 +87,7 @@ export interface TurnSummary {
   expectedPhrase: string;
   roundScore: number;
   richFeedback: RichTurnFeedback;
+  keywordHits?: Record<string, boolean>;
 }
 
 export interface EndSessionResponse {
@@ -356,6 +358,7 @@ export function stubSubmitTurn(
     expectedPhrase: score.richFeedback.strongerLine,
     roundScore: score.roundScore,
     richFeedback: score.richFeedback,
+    keywordHits: score.keywordHits,
   };
 
   session.turns.push(summary);
@@ -396,6 +399,26 @@ export function stubEndSession(callAttemptId: string): EndSessionResponse {
             100,
         ) / 100
       : 0;
+
+  const closeRoundKey = session.scenario.record.isPreset
+    ? "cierre"
+    : (session.scenario.record.config.rounds[
+        session.scenario.record.config.rounds.length - 1
+      ]?.key ?? "cierre");
+
+  session.won = resolveEndSessionWin(
+    {
+      isPreset: session.scenario.record.isPreset,
+      difficultyLevel: session.difficultyLevel,
+      closeRoundKey,
+    },
+    session.turns.map((turn) => ({
+      roundType: turn.roundType,
+      roundKey: turn.roundKey,
+      traineeUtterance: turn.utterance,
+      keywordHits: turn.keywordHits ?? {},
+    })),
+  );
 
   const evaluation = buildSessionEvaluation(
     session.turns.map((t) => ({

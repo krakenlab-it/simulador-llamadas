@@ -8,7 +8,15 @@ export type {
   SessionRecord,
   TurnRecord,
 } from "./repository";
-export { SessionService, createTrainee, evaluateCloseWinFromScore } from "./service";
+export {
+  SessionService,
+  createTrainee,
+  evaluateCloseWinFromScore,
+  resolveEndSessionWin,
+  utteranceHasDay,
+  utteranceHasTime,
+} from "./service";
+export type { EndSessionTurnInput } from "./service";
 
 let sharedClient: Client | null = null;
 
