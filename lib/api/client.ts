@@ -1,8 +1,15 @@
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
+import type {
+  RichTurnFeedback,
+  ScenarioRecord,
+  SessionEvaluationSummary,
+} from "@/lib/scenarios/types";
 import {
   stubCreateSession,
+  stubCreateScenario,
   stubEndSession,
   stubListHistory,
+  stubListScenarios,
   stubSubmitTurn,
   type CreateSessionRequest,
   type EndSessionResponse,
@@ -18,7 +25,7 @@ import {
 } from "@/lib/trainee/storage";
 
 /**
- * API client — calls App Router routes (#5/#6 contract), stubs on fetch failure.
+ * API client — calls App Router routes, stubs on fetch failure.
  */
 
 async function tryFetch<T>(
@@ -82,7 +89,7 @@ export async function submitTurn(
       body: JSON.stringify(body),
     },
   );
-  return remote ?? stubSubmitTurn(callAttemptId, body);
+  return remote ?? (await stubSubmitTurn(callAttemptId, body));
 }
 
 export async function endSession(
@@ -109,10 +116,67 @@ export async function fetchHistory(
   return remote?.history ?? stubListHistory(id);
 }
 
+export async function listScenarios(): Promise<ScenarioRecord[]> {
+  const remote = await tryFetch<{ scenarios: ScenarioRecord[] }>("/api/scenarios");
+  return remote?.scenarios ?? stubListScenarios();
+}
+
+export interface CreateScenarioRequest {
+  industry: string;
+  productSold: string;
+  clientName: string;
+  clientTitle: string;
+  companyContext: string;
+  temperament: string;
+  difficultyLabel: string;
+  clientProblem: string;
+  objections: string[];
+  winCriteria: string;
+  traineeId?: string;
+}
+
+export async function createScenario(
+  body: CreateScenarioRequest,
+): Promise<ScenarioRecord> {
+  const payload = {
+    ...body,
+    traineeId: body.traineeId ?? getStoredTraineeId() ?? undefined,
+  };
+  const remote = await tryFetch<ScenarioRecord>("/api/scenarios", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return remote ?? stubCreateScenario(payload);
+}
+
+export interface HistoryTrend {
+  attempts: number;
+  scores: (number | null)[];
+  averageScore: number;
+  improving: boolean;
+}
+
+export async function fetchHistoryWithTrend(
+  traineeId: string,
+  scenarioSlug?: string,
+): Promise<{ history: HistoryEntry[]; trend: HistoryTrend | null }> {
+  const params = new URLSearchParams({ traineeId });
+  if (scenarioSlug) params.set("scenarioSlug", scenarioSlug);
+  const remote = await tryFetch<{ history: HistoryEntry[]; trend: HistoryTrend | null }>(
+    `/api/history?${params.toString()}`,
+  );
+  if (remote) return remote;
+  const history = stubListHistory(traineeId);
+  return { history, trend: null };
+}
+
 export type {
   CreateSessionRequest,
   EndSessionResponse,
   HistoryEntry,
+  RichTurnFeedback,
+  ScenarioRecord,
+  SessionEvaluationSummary,
   SessionResponse,
   TurnRequest,
   TurnResponse,

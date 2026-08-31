@@ -1,14 +1,20 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { createSession, endSession } from "@/lib/api/client";
-import type { EndSessionResponse, TurnSummary } from "@/lib/api/client";
+import {
+  createSession,
+  endSession,
+  getStoredTraineeId,
+  type EndSessionResponse,
+  type TurnSummary,
+} from "@/lib/api/client";
 import { BrandMark } from "@/components/brand/BrandMark";
 import { SetupScreen, type SetupConfig } from "@/app/components/SetupScreen";
+import { ScenarioBuilderScreen } from "@/app/components/ScenarioBuilderScreen";
 import { LiveCallScreen } from "@/app/components/LiveCallScreen";
 import { EvaluationScreen } from "@/app/components/EvaluationScreen";
 
-type Screen = "setup" | "call" | "evaluation";
+type Screen = "setup" | "builder" | "call" | "evaluation";
 
 interface EvaluationState {
   result: EndSessionResponse;
@@ -21,17 +27,22 @@ export function SimulatorApp() {
   const [config, setConfig] = useState<SetupConfig | null>(null);
   const [evaluation, setEvaluation] = useState<EvaluationState | null>(null);
   const [starting, setStarting] = useState(false);
+  const [scenarioRefresh, setScenarioRefresh] = useState(0);
 
   const handleStart = useCallback(async (setup: SetupConfig) => {
     setStarting(true);
     try {
       const session = await createSession({
-        scenarioSlug: setup.client.slug,
+        scenarioSlug: setup.scenarioSlug,
         mode: setup.mode,
         difficultyLevel: setup.difficultyLevel,
+        traineeId: getStoredTraineeId() ?? undefined,
       });
       setCallAttemptId(session.callAttemptId);
-      setConfig(setup);
+      setConfig({
+        ...setup,
+        totalRounds: session.totalRounds ?? setup.totalRounds,
+      });
       setScreen("call");
     } finally {
       setStarting(false);
@@ -40,9 +51,7 @@ export function SimulatorApp() {
 
   const handleHangUp = useCallback(
     async (turns: TurnSummary[]) => {
-      if (!callAttemptId) {
-        return;
-      }
+      if (!callAttemptId) return;
       const result = await endSession(callAttemptId);
       setEvaluation({ result, turns });
       setScreen("evaluation");
@@ -51,9 +60,7 @@ export function SimulatorApp() {
   );
 
   const handleRepeat = useCallback(async () => {
-    if (!config) {
-      return;
-    }
+    if (!config) return;
     setEvaluation(null);
     await handleStart(config);
   }, [config, handleStart]);
@@ -65,34 +72,67 @@ export function SimulatorApp() {
     setScreen("setup");
   }, []);
 
+  const handleScenarioSaved = useCallback(
+    (slug: string) => {
+      setScenarioRefresh((k) => k + 1);
+      setScreen("setup");
+      void handleStart({
+        scenarioSlug: slug,
+        clientName: "",
+        isPreset: false,
+        mode: "texto",
+        difficultyLevel: 2,
+        totalRounds: 5,
+      });
+    },
+    [handleStart],
+  );
+
   return (
     <div className="wrap">
       <header className="site-header">
         <BrandMark />
         <p className="brand-wordmark">
-          Clínica de Citas <span>· CDC</span>
+          Simulador de Llamadas <span>· CDC</span>
         </p>
       </header>
 
-      <p className="kicker">Formación comercial · Módulo 3 · Clínica en vivo</p>
-      <h1>Clínica de Citas · Simulador de llamada</h1>
+      <p className="kicker">Formación comercial · Entrenamiento de ventas con IA</p>
+      <h1>Simulador de llamadas de venta</h1>
       <p className="subtitle">
-        Practica tu llamada en frío. Elige cliente, modo y nivel. Cinco rondas.
-        Gana solo si cierras con día y hora concretos.
+        Practica llamadas en frío para cualquier industria. Cinco rondas por
+        defecto. Gana cerrando con día y hora concretos — o tu propio criterio de
+        éxito.
       </p>
 
       {starting && <p className="note">Marcando…</p>}
 
       {screen === "setup" && !starting && (
-        <SetupScreen onStart={(c) => void handleStart(c)} />
+        <SetupScreen
+          refreshKey={scenarioRefresh}
+          onStart={(c) => void handleStart(c)}
+          onCreateScenario={() => setScreen("builder")}
+        />
+      )}
+
+      {screen === "builder" && (
+        <ScenarioBuilderScreen
+          traineeId={getStoredTraineeId()}
+          onCancel={() => setScreen("setup")}
+          onSave={({ scenario }) => handleScenarioSaved(scenario.slug)}
+        />
       )}
 
       {screen === "call" && callAttemptId && config && (
         <LiveCallScreen
           callAttemptId={callAttemptId}
+          clientName={config.clientName}
+          scenarioSlug={config.scenarioSlug}
+          isPreset={config.isPreset}
           client={config.client}
           mode={config.mode}
           level={config.difficultyLevel}
+          totalRounds={config.totalRounds}
           onHangUp={(turns) => void handleHangUp(turns)}
         />
       )}
@@ -101,7 +141,8 @@ export function SimulatorApp() {
         <EvaluationScreen
           result={evaluation.result}
           turns={evaluation.turns}
-          clientName={config.client.name}
+          clientName={config.clientName}
+          totalRounds={config.totalRounds}
           onRepeat={() => void handleRepeat()}
           onOtherClient={handleOtherClient}
         />

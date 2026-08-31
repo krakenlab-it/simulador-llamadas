@@ -1,25 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ClientPersona } from "@/lib/clients";
 import { CLIENTS } from "@/lib/clients";
-import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
-import { fetchHistory } from "@/lib/api/client";
+import { fetchHistory, listScenarios } from "@/lib/api/client";
 import type { HistoryEntry } from "@/lib/api/client";
+import type { ScenarioRecord } from "@/lib/scenarios/types";
+import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 
 export interface SetupConfig {
-  client: ClientPersona;
+  scenarioSlug: string;
+  clientName: string;
+  isPreset: boolean;
   mode: PracticeMode;
   difficultyLevel: DifficultyLevel;
+  totalRounds: number;
+  /** @deprecated use scenarioSlug — kept for clinic preset compatibility */
+  client?: ClientPersona;
 }
 
 interface SetupScreenProps {
   onStart: (config: SetupConfig) => void;
+  onCreateScenario: () => void;
+  refreshKey?: number;
 }
 
-export function SetupScreen({ onStart }: SetupScreenProps) {
+export function SetupScreen({
+  onStart,
+  onCreateScenario,
+  refreshKey = 0,
+}: SetupScreenProps) {
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
   const [mode, setMode] = useState<PracticeMode>("voz");
   const [level, setLevel] = useState<DifficultyLevel>(1);
   const [micTested, setMicTested] = useState(false);
@@ -28,31 +41,59 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const speech = useSpeechRecognition();
 
+  useEffect(() => {
+    void listScenarios().then(setScenarios);
+  }, [refreshKey]);
+
+  const presets = scenarios.filter((s) => s.isPreset);
+  const custom = scenarios.filter((s) => !s.isPreset);
+  const displayPresets =
+    presets.length > 0
+      ? presets
+      : CLIENTS.map(
+          (c) =>
+            ({
+              slug: c.slug,
+              clientName: c.name,
+              clientTitle: c.title,
+              companyContext: c.company,
+              difficultyLabel: c.difficulty,
+              indicator: c.indicator,
+              painPoints: c.pains,
+              isPreset: true,
+              config: { rounds: [] },
+            }) as unknown as ScenarioRecord,
+        );
+
+  const selected =
+    scenarios.find((s) => s.slug === selectedSlug) ??
+    displayPresets.find((s) => s.slug === selectedSlug) ??
+    null;
+
   const selectedClient = CLIENTS.find((c) => c.slug === selectedSlug) ?? null;
 
   const handleMicTest = () => {
-    if (mode !== "voz") {
-      return;
-    }
-    if (!speech.supported) {
-      return;
-    }
+    if (mode !== "voz" || !speech.supported) return;
     speech.startListening();
     setMicTested(true);
   };
 
   const canCall =
-    selectedClient !== null &&
-    (mode === "texto" || (speech.supported && micTested));
+    selected !== null && (mode === "texto" || (speech.supported && micTested));
 
   const handleMarcar = () => {
-    if (!selectedClient || !canCall) {
-      return;
-    }
+    if (!selected || !canCall) return;
+    const totalRounds = selected.isPreset
+      ? 5
+      : (selected.config?.rounds?.length ?? 5);
     onStart({
-      client: selectedClient,
+      scenarioSlug: selected.slug,
+      clientName: selected.clientName,
+      isPreset: selected.isPreset,
       mode,
       difficultyLevel: level,
+      totalRounds,
+      client: selectedClient ?? undefined,
     });
   };
 
@@ -71,43 +112,70 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
     }
   };
 
+  const renderCard = (scenario: ScenarioRecord, isClinic: boolean) => (
+    <article
+      key={scenario.slug}
+      className={`card selectable ${selectedSlug === scenario.slug ? "selected" : ""}`}
+      onClick={() => setSelectedSlug(scenario.slug)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") setSelectedSlug(scenario.slug);
+      }}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selectedSlug === scenario.slug}
+    >
+      <h3>{scenario.clientName}</h3>
+      <div className="role">
+        {scenario.clientTitle} · {scenario.companyContext}
+      </div>
+      {isClinic ? (
+        <span
+          className={`badge ${scenario.difficultyLabel === "Media" ? "medium" : "hard"}`}
+        >
+          {scenario.difficultyLabel}
+        </span>
+      ) : (
+        <span className="badge custom">{scenario.industry ?? "Personalizado"}</span>
+      )}
+      <p className="indicator">
+        {isClinic
+          ? `Indicador: ${scenario.indicator}`
+          : `Vende: ${scenario.productSold}`}
+      </p>
+      <ul className="pains">
+        {(scenario.painPoints ?? []).slice(0, 3).map((pain) => (
+          <li key={pain}>{pain}</li>
+        ))}
+      </ul>
+    </article>
+  );
+
   return (
     <section className="screen active" aria-label="Configuración de la práctica">
       <h2>Configura la práctica</h2>
       <p className="subtitle">
-        Elige cliente, modo y nivel. En modo voz, prueba el micrófono antes de
-        marcar.
+        Elige un escenario predefinido o crea el tuyo. En modo voz, prueba el
+        micrófono antes de marcar.
       </p>
 
-      <h3 className="section-label">Elige tu cliente</h3>
+      <h3 className="section-label">Clínica de Citas (preset)</h3>
       <div className="grid cols-3">
-        {CLIENTS.map((client) => (
-          <article
-            key={client.slug}
-            className={`card selectable ${selectedSlug === client.slug ? "selected" : ""}`}
-            onClick={() => setSelectedSlug(client.slug)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                setSelectedSlug(client.slug);
-              }
-            }}
-            role="button"
-            tabIndex={0}
-            aria-pressed={selectedSlug === client.slug}
-          >
-            <h3>{client.name}</h3>
-            <div className="role">
-              {client.title} · {client.company}
-            </div>
-            <span className={`badge ${client.badge}`}>{client.difficulty}</span>
-            <p className="indicator">Indicador: {client.indicator}</p>
-            <ul className="pains">
-              {client.pains.map((pain) => (
-                <li key={pain}>{pain}</li>
-              ))}
-            </ul>
-          </article>
-        ))}
+        {displayPresets.map((s) => renderCard(s, true))}
+      </div>
+
+      {custom.length > 0 && (
+        <>
+          <h3 className="section-label">Mis escenarios</h3>
+          <div className="grid cols-3">
+            {custom.map((s) => renderCard(s, false))}
+          </div>
+        </>
+      )}
+
+      <div className="controls builder-cta">
+        <button type="button" onClick={onCreateScenario}>
+          + Crear escenario personalizado
+        </button>
       </div>
 
       <p className="section-label">

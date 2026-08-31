@@ -1,6 +1,7 @@
 import type { Client } from "pg";
 import type { DifficultyLevel } from "@/lib/db/types";
-import { scoreTurn } from "@/lib/scoring";
+import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
+import { scoreTurnAdaptive } from "@/lib/scoring/adaptive";
 import {
   SessionRepository,
   type CreateSessionInput,
@@ -29,35 +30,31 @@ export class SessionService {
   async submitTurn(input: SubmitTurnInput): Promise<TurnRecord> {
     const session = await this.repository.getSession(input.callAttemptId);
 
-    if (!session) {
-      throw new Error("Session not found");
-    }
-
-    if (session.status !== "in_progress") {
-      throw new Error("Session is not in progress");
-    }
-
-    if (session.currentRound > 5) {
+    if (!session) throw new Error("Session not found");
+    if (session.status !== "in_progress") throw new Error("Session is not in progress");
+    if (session.currentRound > session.totalRounds) {
       throw new Error("All rounds already completed");
     }
 
-    const roundType = this.repository.getRoundType(session.currentRound);
-
-    if (!roundType) {
-      throw new Error("Invalid round number");
-    }
-
     const trimmed = input.utterance.trim();
+    if (!trimmed) throw new Error("Utterance cannot be empty");
 
-    if (!trimmed) {
-      throw new Error("Utterance cannot be empty");
-    }
+    const roundDef = this.repository.getRoundDef(session, session.currentRound);
+    const isLastRound = session.currentRound === session.totalRounds;
 
-    const score = scoreTurn({
+    const score = await scoreTurnAdaptive({
       utterance: trimmed,
-      roundType,
+      roundKey: roundDef.key,
+      roundLabel: roundDef.label,
+      roundGoal:
+        roundDef.goal ||
+        (roundDef.roundType ? ROUND_EXPECTED[roundDef.roundType] : ""),
       difficultyLevel: session.difficultyLevel,
       scenarioSlug: session.scenarioSlug,
+      isPreset: session.isPreset,
+      config: session.config,
+      clientName: session.clientName,
+      isLastRound,
     });
 
     return this.repository.saveTurn(
@@ -65,12 +62,15 @@ export class SessionService {
       session.currentRound,
       trimmed,
       {
-        roundType,
+        roundType: roundDef.roundType,
+        roundKey: roundDef.key,
+        roundLabel: roundDef.label,
         roundScore: score.roundScore,
         keywordHits: score.keywordHits,
         clientReaction: score.clientReaction,
         clientReply: score.clientReply,
         feedback: score.feedback,
+        richFeedback: score.richFeedback,
         hasConcreteDayAndTime: score.hasConcreteDayAndTime,
         won: score.won,
       },
@@ -79,11 +79,7 @@ export class SessionService {
 
   async endSession(callAttemptId: string): Promise<EndSessionResult> {
     const session = await this.repository.getSession(callAttemptId);
-
-    if (!session) {
-      throw new Error("Session not found");
-    }
-
+    if (!session) throw new Error("Session not found");
     return this.repository.endSession(callAttemptId);
   }
 
@@ -91,8 +87,11 @@ export class SessionService {
     return this.repository.getSession(callAttemptId);
   }
 
-  async listHistory(traineeId: string): Promise<HistoryEntry[]> {
-    return this.repository.listHistoryForTrainee(traineeId);
+  async listHistory(
+    traineeId: string,
+    scenarioSlug?: string,
+  ): Promise<HistoryEntry[]> {
+    return this.repository.listHistoryForTrainee(traineeId, scenarioSlug);
   }
 }
 
