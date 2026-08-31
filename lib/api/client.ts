@@ -2,18 +2,23 @@ import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import {
   stubCreateSession,
   stubEndSession,
-  stubGetTurnSummaries,
+  stubListHistory,
   stubSubmitTurn,
   type CreateSessionRequest,
   type EndSessionResponse,
+  type HistoryEntry,
   type SessionResponse,
   type TurnRequest,
   type TurnResponse,
   type TurnSummary,
 } from "@/lib/api/stubs";
+import {
+  getStoredTraineeId,
+  storeTraineeId,
+} from "@/lib/trainee/storage";
 
 /**
- * API client — calls App Router routes (#5 contract), stubs on fetch failure.
+ * API client — calls App Router routes (#5/#6 contract), stubs on fetch failure.
  */
 
 async function tryFetch<T>(
@@ -44,14 +49,26 @@ async function tryFetch<T>(
   }
 }
 
+function withTraineeId(body: CreateSessionRequest): CreateSessionRequest {
+  const traineeId = body.traineeId ?? getStoredTraineeId() ?? undefined;
+  return traineeId ? { ...body, traineeId } : body;
+}
+
+function rememberTrainee(session: SessionResponse): SessionResponse {
+  storeTraineeId(session.traineeId);
+  return session;
+}
+
 export async function createSession(
   body: CreateSessionRequest,
 ): Promise<SessionResponse> {
+  const payload = withTraineeId(body);
   const remote = await tryFetch<SessionResponse>("/api/sessions", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
-  return remote ?? stubCreateSession(body);
+  const session = remote ?? stubCreateSession(payload);
+  return rememberTrainee(session);
 }
 
 export async function submitTurn(
@@ -78,15 +95,24 @@ export async function endSession(
   return remote ?? stubEndSession(callAttemptId);
 }
 
-export async function getSessionTurnSummaries(
-  callAttemptId: string,
-): Promise<TurnSummary[]> {
-  return stubGetTurnSummaries(callAttemptId);
+export async function fetchHistory(
+  traineeId?: string,
+): Promise<HistoryEntry[]> {
+  const id = traineeId ?? getStoredTraineeId();
+  if (!id) {
+    return [];
+  }
+
+  const remote = await tryFetch<{ history: HistoryEntry[] }>(
+    `/api/history?traineeId=${encodeURIComponent(id)}`,
+  );
+  return remote?.history ?? stubListHistory(id);
 }
 
 export type {
   CreateSessionRequest,
   EndSessionResponse,
+  HistoryEntry,
   SessionResponse,
   TurnRequest,
   TurnResponse,
@@ -98,3 +124,5 @@ export type SessionConfig = {
   mode: PracticeMode;
   difficultyLevel: DifficultyLevel;
 };
+
+export { getStoredTraineeId, storeTraineeId };

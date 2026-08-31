@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { ClientPersona } from "@/lib/clients";
 import { CLIENTS } from "@/lib/clients";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
+import { fetchHistory } from "@/lib/api/client";
+import type { HistoryEntry } from "@/lib/api/client";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 
 export interface SetupConfig {
@@ -21,6 +23,9 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
   const [mode, setMode] = useState<PracticeMode>("voz");
   const [level, setLevel] = useState<DifficultyLevel>(1);
   const [micTested, setMicTested] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const speech = useSpeechRecognition();
 
   const selectedClient = CLIENTS.find((c) => c.slug === selectedSlug) ?? null;
@@ -49,6 +54,21 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
       mode,
       difficultyLevel: level,
     });
+  };
+
+  const handleToggleHistory = async () => {
+    if (showHistory) {
+      setShowHistory(false);
+      return;
+    }
+    setHistoryLoading(true);
+    try {
+      const entries = await fetchHistory();
+      setHistory(entries);
+      setShowHistory(true);
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   return (
@@ -170,7 +190,36 @@ export function SetupScreen({ onStart }: SetupScreenProps) {
         >
           Marcar
         </button>
+        <button
+          type="button"
+          onClick={() => void handleToggleHistory()}
+          disabled={historyLoading}
+        >
+          {historyLoading
+            ? "Cargando…"
+            : showHistory
+              ? "Ocultar historial"
+              : "Ver historial"}
+        </button>
       </div>
+
+      {showHistory && (
+        <div className="history-panel">
+          <h3 className="section-label">Historial</h3>
+          {history.length === 0 ? (
+            <p className="subtitle">Sin llamadas guardadas.</p>
+          ) : (
+            history.map((entry) => (
+              <div key={entry.callAttemptId} className="history-item">
+                {new Date(entry.startedAt).toLocaleString("es-MX")} ·{" "}
+                {entry.clientName} · Nivel {entry.difficultyLevel} ·{" "}
+                {entry.mode} · {entry.totalScore ?? 0} pts ·{" "}
+                {entry.won ? "Ganó" : "No ganó"}
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </section>
   );
 }
