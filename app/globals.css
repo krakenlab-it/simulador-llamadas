@@ -1,29 +1,38 @@
 :root {
-  --ink: #0e1a2b;
-  --orange: #ff5a1f;
-  --teal: #00a08a;
-  --paper: #eef1ee;
+  /* Locked design tokens */
+  --dark: #0b0f14;
+  --lime: #e8f07a;
+  --copper: #c45c26;
+  --paper: #f4efe6;
 
-  --ink-muted: color-mix(in srgb, var(--ink) 62%, transparent);
-  --surface: #ffffff;
-  --border: color-mix(in srgb, var(--ink) 14%, var(--paper));
-  --teal-soft: color-mix(in srgb, var(--teal) 14%, var(--paper));
-  --orange-soft: color-mix(in srgb, var(--orange) 12%, var(--paper));
-  --ink-soft: color-mix(in srgb, var(--ink) 4%, var(--paper));
+  /* Surfaces derived from locked tokens */
+  --surface: color-mix(in srgb, var(--paper) 7%, var(--dark));
+  --border: color-mix(in srgb, var(--paper) 12%, transparent);
+  --muted: color-mix(in srgb, var(--paper) 52%, var(--dark));
+  --lime-soft: color-mix(in srgb, var(--lime) 14%, var(--dark));
+  --copper-soft: color-mix(in srgb, var(--copper) 14%, var(--dark));
+  --ink-soft: color-mix(in srgb, var(--paper) 5%, var(--dark));
+
+  /* Legacy aliases → locked tokens */
+  --ink: var(--dark);
+  --orange: var(--copper);
+  --teal: var(--lime);
+  --teal-soft: var(--lime-soft);
+  --orange-soft: var(--copper-soft);
+  --ink-muted: var(--muted);
 
   /* Semantic aliases used by simulator screens */
-  --bg: var(--paper);
+  --bg: var(--dark);
   --panel: var(--surface);
-  --text: var(--ink);
-  --muted: var(--ink-muted);
-  --accent: var(--orange);
-  --success: var(--teal);
-  --warn: #fbbf24;
-  --danger: #f87171;
+  --text: var(--paper);
+  --accent: var(--lime);
+  --success: var(--lime);
+  --warn: color-mix(in srgb, var(--copper) 65%, var(--lime));
+  --danger: #e86a6a;
 
   --radius-sm: 10px;
   --radius: 14px;
-  --shadow: 0 12px 40px color-mix(in srgb, var(--ink) 8%, transparent);
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 
   --font-display: var(--font-archivo), system-ui, sans-serif;
   --font-body: var(--font-ibm-plex-sans), system-ui, sans-serif;
@@ -60,22 +69,29 @@ body {
   padding: 0;
   min-height: 100%;
   font-family: var(--font-body);
-  background: radial-gradient(
-    ellipse 120% 80% at 50% -20%,
-    color-mix(in srgb, var(--teal) 18%, var(--paper)) 0%,
-    var(--paper) 55%
-  );
-  color: var(--ink);
+  background:
+    radial-gradient(
+      ellipse 90% 55% at 50% -15%,
+      color-mix(in srgb, var(--lime) 8%, var(--dark)) 0%,
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 70% 45% at 100% 0%,
+      color-mix(in srgb, var(--copper) 7%, var(--dark)) 0%,
+      transparent 55%
+    ),
+    var(--dark);
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--teal) 35%, var(--paper));
-  color: var(--ink);
+  background: color-mix(in srgb, var(--lime) 38%, var(--dark));
+  color: var(--paper);
 }
 
 :focus-visible {
-  outline: 2px solid var(--orange);
+  outline: 2px solid var(--lime);
   outline-offset: 2px;
 }
 
@@ -142,11 +158,11 @@ main {
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.2;
-  color: var(--ink);
+  color: var(--text);
 }
 
 .brand-wordmark span {
-  color: var(--teal);
+  color: var(--lime);
 }
 
 .kicker {
@@ -166,15 +182,18 @@ h1 {
   letter-spacing: -0.02em;
   margin: 0 0 0.5rem;
   line-height: 1.15;
+  color: var(--text);
 }
 
 h2 {
   font-family: var(--font-display);
   margin: 0 0 0.75rem;
+  color: var(--text);
 }
 
 h3 {
   margin: 0;
+  color: var(--text);
 }
 
 .subtitle {
@@ -276,13 +295,13 @@ h3 {
 }
 
 .badge.hard {
-  background: color-mix(in srgb, var(--danger) 12%, var(--paper));
+  background: color-mix(in srgb, var(--danger) 12%, var(--dark));
   color: var(--danger);
 }
 
 .badge.medium {
-  background: color-mix(in srgb, var(--warn) 15%, var(--paper));
-  color: color-mix(in srgb, var(--warn) 80%, var(--ink));
+  background: color-mix(in srgb, var(--warn) 15%, var(--dark));
+  color: color-mix(in srgb, var(--warn) 80%, var(--paper));
 }
 
 .controls {
@@ -294,8 +313,8 @@ h3 {
 
 button {
   border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--ink);
+  background: color-mix(in srgb, var(--paper) 4%, var(--surface));
+  color: var(--text);
   border-radius: var(--radius-sm);
   padding: 0.65rem 1rem;
   font-size: 0.9rem;
@@ -304,9 +323,9 @@ button {
 }
 
 button.primary {
-  background: var(--orange);
-  border-color: var(--orange);
-  color: #fff;
+  background: var(--lime);
+  border-color: color-mix(in srgb, var(--lime) 80%, var(--paper));
+  color: var(--dark);
   font-weight: 600;
 }
 
@@ -328,8 +347,8 @@ button:disabled {
 }
 
 .toggle-group button.active {
-  background: var(--orange);
-  color: #fff;
+  background: var(--lime);
+  color: var(--dark);
 }
 
 .call-panel {
@@ -365,11 +384,11 @@ button:disabled {
 }
 
 .dialogue .client {
-  color: var(--ink);
+  color: var(--text);
 }
 
 .dialogue .you {
-  color: var(--teal);
+  color: var(--lime);
   margin-top: 0.75rem;
 }
 
@@ -379,7 +398,7 @@ textarea {
   background: var(--ink-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  color: var(--ink);
+  color: var(--text);
   padding: 0.75rem;
   font-size: 0.95rem;
   resize: vertical;
@@ -391,7 +410,7 @@ textarea {
   padding: 1rem;
   border-radius: var(--radius-sm);
   background: var(--ink-soft);
-  border-left: 4px solid var(--orange);
+  border-left: 4px solid var(--copper);
 }
 
 .eval.bad {
@@ -413,7 +432,7 @@ textarea {
   font-size: 0.7rem;
   padding: 0.2rem 0.45rem;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--ink) 8%, var(--paper));
+  background: color-mix(in srgb, var(--paper) 6%, var(--surface));
   color: var(--muted);
   font-family: var(--font-mono);
 }
@@ -440,7 +459,7 @@ textarea {
 }
 
 .exact-phrase.expected {
-  color: var(--ink);
+  color: var(--text);
 }
 
 .note {
@@ -508,7 +527,7 @@ textarea {
   font-family: inherit;
   font-size: 0.9rem;
   background: var(--ink-soft);
-  color: var(--ink);
+  color: var(--text);
 }
 
 .badge.custom {
@@ -602,7 +621,7 @@ textarea {
   padding: 2rem 1rem;
   margin: 1rem 0;
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--ink) 4%, var(--paper));
+  background: color-mix(in srgb, var(--paper) 4%, var(--surface));
   border: 1px dashed var(--border);
   color: var(--muted);
   font-size: 0.9rem;
@@ -616,8 +635,8 @@ textarea {
 
 .spinner {
   display: inline-block;
-  border: 2px solid color-mix(in srgb, var(--ink) 12%, transparent);
-  border-top-color: var(--orange);
+  border: 2px solid color-mix(in srgb, var(--paper) 12%, transparent);
+  border-top-color: var(--lime);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
   flex-shrink: 0;
@@ -642,9 +661,9 @@ textarea {
 .skeleton {
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--ink) 6%, var(--paper)) 25%,
-    color-mix(in srgb, var(--ink) 10%, var(--paper)) 50%,
-    color-mix(in srgb, var(--ink) 6%, var(--paper)) 75%
+    color-mix(in srgb, var(--paper) 5%, var(--surface)) 25%,
+    color-mix(in srgb, var(--paper) 10%, var(--surface)) 50%,
+    color-mix(in srgb, var(--paper) 5%, var(--surface)) 75%
   );
   background-size: 200% 100%;
   border-radius: 6px;
@@ -731,6 +750,7 @@ button .btn-label-pending {
   box-shadow: var(--shadow);
   font-size: 0.88rem;
   line-height: 1.4;
+  color: var(--text);
   animation: toast-in 0.2s ease;
 }
 
@@ -760,7 +780,7 @@ button .btn-label-pending {
 }
 
 .toast-dismiss:hover {
-  color: var(--ink);
+  color: var(--text);
 }
 
 @keyframes toast-in {
