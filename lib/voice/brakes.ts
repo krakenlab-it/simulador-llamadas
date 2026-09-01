@@ -19,7 +19,7 @@ export const SESSION_MAX_ROUNDS = 5;
 /** Extra streaming TTS outside ConvAI, per billed session (characters). */
 export const SESSION_EXTRA_TTS_MAX_CHARS = 2500;
 
-/** Public URL: one billed session per user per UTC day. */
+/** Public URL: exactly one billed ConvAI session per user per UTC day (not 3, not 540s). */
 export const DAILY_BILLED_SESSIONS_PER_USER = 1;
 
 /** Global concurrent ConvAI sessions. Third caller falls back to Web Speech. */
