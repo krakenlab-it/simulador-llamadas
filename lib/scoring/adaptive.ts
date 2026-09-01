@@ -1,6 +1,7 @@
 import type { DifficultyLevel } from "@/lib/db/types";
 import { enrichClinicFeedback } from "@/lib/feedback/evaluation";
-import { generateClientReply } from "@/lib/llm/client-replies";
+import { generateClientReply, isLlmAvailable } from "@/lib/llm/client-replies";
+import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
 import type { RichTurnFeedback, ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { isClinicPreset } from "@/lib/scenarios/types";
 import { scoreCustomTurn } from "./custom";
@@ -70,11 +71,37 @@ export async function scoreTurnAdaptive(
     const roundType = input.roundKey as Parameters<typeof puntua>[0];
     const analisis = analizar(input.utterance);
     const puntuacion = puntua(roundType, analisis, input.difficultyLevel);
-    const clientReply = getClientReply(
+    const templatedReply = getClientReply(
       input.scenarioSlug,
       roundType,
       puntuacion.reaction,
     );
+
+    let clientReply = templatedReply;
+    if (isLlmAvailable()) {
+      const presetConfig = buildPresetScenarioConfig(input.scenarioSlug);
+      if (presetConfig) {
+        const roundDef: ScenarioRoundDef = {
+          key: input.roundKey,
+          label: ROUND_LABELS[input.roundKey] ?? input.roundLabel,
+          goal: ROUND_EXPECTED[roundType],
+          clientPrompt: templatedReply,
+          positiveCriteria: [],
+          negativeCriteria: [],
+        };
+        clientReply = await generateClientReply(
+          {
+            config: presetConfig,
+            round: roundDef,
+            reaction: puntuacion.reaction,
+            clientName: input.clientName,
+            traineeUtterance: input.utterance,
+            roundNumber: 0,
+          },
+          templatedReply,
+        );
+      }
+    }
 
     const richFeedback = enrichClinicFeedback({
       utterance: input.utterance,

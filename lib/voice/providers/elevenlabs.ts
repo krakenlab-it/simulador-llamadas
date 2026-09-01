@@ -8,10 +8,12 @@ import {
 import { withPgClient } from "@/lib/session";
 import type { SttResult } from "@/lib/voice/types";
 
-const TTS_MODEL = "eleven_multilingual_v2";
+const TTS_MODEL = "eleven_flash_v2_5";
 const CONVAI_TTS_MODEL = "eleven_flash_v2_5";
 const SCRIBE_MODEL = "scribe_v2";
-const LANGUAGE = "es-MX";
+/** ISO 639-1; required for Flash v2.5 Spanish enforcement. */
+const TTS_LANGUAGE = "es";
+const STT_LANGUAGE = "es-MX";
 export const CONVAI_AGENT_KEY = "simulador-patient";
 
 export const CONVAI_CLIENT_EVENTS = [
@@ -72,7 +74,7 @@ export async function synthesizeWithElevenLabs(
         body: JSON.stringify({
           text: normalized,
           model_id: TTS_MODEL,
-          language_code: LANGUAGE,
+          language_code: TTS_LANGUAGE,
         }),
       },
     );
@@ -146,7 +148,7 @@ export async function transcribeWithElevenLabsScribe(
     });
     form.append("file", blob, "audio.webm");
     form.append("model_id", SCRIBE_MODEL);
-    form.append("language_code", LANGUAGE);
+    form.append("language_code", STT_LANGUAGE);
     form.append("tag_audio_events", "false");
     form.append("diarize", "false");
 

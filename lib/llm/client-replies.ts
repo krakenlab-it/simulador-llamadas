@@ -93,13 +93,16 @@ Solo la réplica del cliente, sin comillas ni explicación.`;
 
 export async function generateClientReply(
   input: GenerateReplyInput,
+  fallbackText?: string,
 ): Promise<string> {
-  const fallback = templateClientReply(
-    input.config,
-    input.round,
-    input.reaction,
-    input.clientName,
-  );
+  const fallback =
+    fallbackText ??
+    templateClientReply(
+      input.config,
+      input.round,
+      input.reaction,
+      input.clientName,
+    );
 
   const provider = getLlmProvider();
   if (!provider) return fallback;
