@@ -314,6 +314,7 @@ export async function stubSubmitTurn(
   const score = await scoreTurnAdaptive({
     utterance: trimmed,
     roundKey,
+    roundType,
     roundLabel,
     roundGoal,
     difficultyLevel: session.difficultyLevel,

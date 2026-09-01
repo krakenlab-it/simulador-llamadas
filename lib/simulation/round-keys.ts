@@ -1,3 +1,4 @@
+import type { RoundType } from "@/lib/db/types";
 import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
 
 /**
@@ -14,4 +15,23 @@ export function resolveRoundKey(
     return `${phaseKey}-${roundNumber}`;
   }
   return phaseKey;
+}
+
+/** Strip a follow-up suffix (e.g. cierre-6 → cierre) for scoring lookups. */
+export function phaseKeyFromPersistenceKey(roundKey: string): string {
+  const dash = roundKey.lastIndexOf("-");
+  if (dash > 0 && /^\d+$/.test(roundKey.slice(dash + 1))) {
+    return roundKey.slice(0, dash);
+  }
+  return roundKey;
+}
+
+export function isClinicRoundType(key: string): key is RoundType {
+  return (
+    key === "apertura" ||
+    key === "objecion" ||
+    key === "claridad" ||
+    key === "correo" ||
+    key === "cierre"
+  );
 }

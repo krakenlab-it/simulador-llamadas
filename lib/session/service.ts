@@ -62,6 +62,7 @@ export class SessionService {
       const score = await scoreTurnAdaptive({
         utterance: trimmed,
         roundKey: roundDef.key,
+        roundType: roundDef.roundType,
         roundLabel: roundDef.label,
         roundGoal:
           roundDef.goal ||
