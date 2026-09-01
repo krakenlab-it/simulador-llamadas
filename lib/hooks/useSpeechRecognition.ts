@@ -6,9 +6,17 @@ import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { getVoiceAuthHeaders } from "@/lib/auth/voice-session";
 
 const SPEECH_LANG = "es-MX";
+const RESTART_DELAY_MS = 180;
+
+/** Chrome ends a pause with this; it is not a broken mic. */
+const SOFT_RECOGNITION_ERRORS = new Set(["no-speech", "aborted"]);
 
 export interface UseSpeechRecognitionOptions {
   sessionUsageId?: string | null;
+  /** Keep Web Speech running for the whole call; restart after no-speech. */
+  keepAlive?: boolean;
+  /** Pause while the client is talking so we do not transcribe TTS. */
+  paused?: boolean;
 }
 
 export interface UseSpeechRecognitionResult {
@@ -46,7 +54,7 @@ async function transcribeOnServer(
 export function useSpeechRecognition(
   options: UseSpeechRecognitionOptions = {},
 ): UseSpeechRecognitionResult {
-  const { sessionUsageId } = options;
+  const { sessionUsageId, keepAlive = false, paused = false } = options;
   const voiceConfig = useVoiceConfig();
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
@@ -56,6 +64,13 @@ export function useSpeechRecognition(
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const keepAliveRef = useRef(keepAlive);
+  const pausedRef = useRef(paused);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startBrowserRecognitionRef = useRef<() => void>(() => undefined);
+
+  keepAliveRef.current = keepAlive;
+  pausedRef.current = paused;
 
   const useServerStt =
     voiceConfig.serverStt && voiceConfig.sttTier !== "elevenlabs-scribe"
@@ -88,6 +103,23 @@ export function useSpeechRecognition(
     chunksRef.current = [];
   }, []);
 
+  const clearRestartTimer = useCallback(() => {
+    if (restartTimerRef.current) {
+      clearTimeout(restartTimerRef.current);
+      restartTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleRestart = useCallback(() => {
+    clearRestartTimer();
+    if (!keepAliveRef.current || pausedRef.current) return;
+    restartTimerRef.current = setTimeout(() => {
+      restartTimerRef.current = null;
+      if (!keepAliveRef.current || pausedRef.current) return;
+      startBrowserRecognitionRef.current();
+    }, RESTART_DELAY_MS);
+  }, [clearRestartTimer]);
+
   const startBrowserRecognition = useCallback(() => {
     const recognition = getRecognition();
     if (!recognition) {
@@ -95,27 +127,49 @@ export function useSpeechRecognition(
       return;
     }
 
+    clearRestartTimer();
     recognitionRef.current?.abort();
     recognition.lang = SPEECH_LANG;
     recognition.interimResults = false;
     recognition.continuous = false;
 
+    let receivedResult = false;
+
     recognition.onresult = (event) => {
+      receivedResult = true;
       const text = event.results[0]?.[0]?.transcript ?? "";
       setTranscript((prev) => (prev ? `${prev} ${text}` : text).trim());
     };
 
     recognition.onerror = (event) => {
+      if (SOFT_RECOGNITION_ERRORS.has(event.error)) {
+        return;
+      }
       setError(`Error de micrófono: ${event.error}`);
       setListening(false);
     };
 
-    recognition.onend = () => setListening(false);
+    recognition.onend = () => {
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
+      setListening(false);
+      if (receivedResult) return;
+      if (keepAliveRef.current && !pausedRef.current) {
+        scheduleRestart();
+      }
+    };
 
     recognitionRef.current = recognition;
     setListening(true);
-    recognition.start();
-  }, [getRecognition]);
+    try {
+      recognition.start();
+    } catch {
+      setListening(false);
+      scheduleRestart();
+    }
+  }, [clearRestartTimer, getRecognition, scheduleRestart]);
+
+  startBrowserRecognitionRef.current = startBrowserRecognition;
 
   const startServerRecording = useCallback(async () => {
     try {
@@ -179,6 +233,7 @@ export function useSpeechRecognition(
 
   const startListening = useCallback(() => {
     setError(null);
+    if (pausedRef.current) return;
     if (useServerStt) {
       void startServerRecording();
       return;
@@ -187,13 +242,14 @@ export function useSpeechRecognition(
   }, [useServerStt, startServerRecording, startBrowserRecognition]);
 
   const stopListening = useCallback(() => {
+    clearRestartTimer();
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
       return;
     }
     recognitionRef.current?.stop();
     setListening(false);
-  }, []);
+  }, [clearRestartTimer]);
 
   const resetTranscript = useCallback(() => {
     setTranscript("");
@@ -209,11 +265,32 @@ export function useSpeechRecognition(
   );
 
   useEffect(() => {
+    if (!keepAlive || paused) {
+      clearRestartTimer();
+      if (paused || !keepAlive) {
+        recognitionRef.current?.stop();
+        if (paused) setListening(false);
+      }
+      return;
+    }
+    if (!useServerStt && !recognitionRef.current) {
+      startBrowserRecognition();
+    }
+  }, [
+    paused,
+    keepAlive,
+    useServerStt,
+    startBrowserRecognition,
+    clearRestartTimer,
+  ]);
+
+  useEffect(() => {
     return () => {
+      clearRestartTimer();
       recognitionRef.current?.abort();
       cleanupMedia();
     };
-  }, [cleanupMedia]);
+  }, [cleanupMedia, clearRestartTimer]);
 
   return {
     supported,
