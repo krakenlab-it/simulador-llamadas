@@ -224,15 +224,18 @@ export function LiveCallScreen({
   const handleMic = () => {
     if (mode !== "voz" || !useBrowserMic || !speech.supported || hangingUp || ending)
       return;
-    unlockClientPlayback();
     if (micArmed) {
+      unlockClientPlayback();
       clearAutosubmitTimer();
       setMicArmed(false);
       speech.stopListening();
       return;
     }
     interruptConvai();
+    // Cancel before unlocking: unlocking flushes any line that was waiting on a
+    // user gesture, and cancelling afterwards would kill the line we just freed.
     synthesis.cancel();
+    unlockClientPlayback();
     setMicArmed(true);
   };
 

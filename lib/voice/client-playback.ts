@@ -8,8 +8,22 @@ import {
   loadStoredDeviceId,
   CALL_SPEAKER_STORAGE_KEY,
 } from "@/lib/voice/call-devices";
+import {
+  BROWSER_SPEAK_RESUME_PUMP_MS,
+  BROWSER_SPEAK_START_TIMEOUT_MS,
+  BROWSER_SPEAK_TIMEOUT_MS,
+} from "@/lib/voice/timeouts";
 
 const SPEECH_LANG = "es-MX";
+
+/** Longest utterance handed to the engine; Chrome truncates long ones. */
+const MAX_UTTERANCE_CHARS = 180;
+
+/** Let a cancel() settle before the next speak(); back-to-back calls wedge Chrome. */
+const CANCEL_SETTLE_MS = 60;
+
+/** Voices load lazily on first use; do not wait forever for `voiceschanged`. */
+const VOICES_READY_TIMEOUT_MS = 250;
 
 /** Tiny silent WAV so play() can unlock autoplay in the same user gesture. */
 const SILENCE_WAV =
@@ -18,6 +32,13 @@ const SILENCE_WAV =
 let sharedAudio: HTMLAudioElement | null = null;
 let unlocked = false;
 const unlockListeners = new Set<() => void>();
+
+/**
+ * Chrome garbage-collects utterances it is still speaking, which cuts the audio
+ * and swallows `onend`. Holding references here keeps them alive.
+ */
+let liveUtterances: SpeechSynthesisUtterance[] = [];
+let resumePump: ReturnType<typeof setInterval> | null = null;
 
 export function isClientPlaybackUnlocked(): boolean {
   return unlocked;
@@ -93,16 +114,19 @@ export function unlockClientPlayback(): void {
 
   const synth = window.speechSynthesis;
   if (synth) {
+    // Drain any stale queue *before* priming. Handing Chrome an utterance and
+    // cancelling it in the same tick is what leaves the engine accepting later
+    // speak() calls and never speaking them.
+    synth.cancel();
     synth.resume();
-    const priming = new SpeechSynthesisUtterance(" ");
+    const priming = new SpeechSynthesisUtterance(".");
     priming.volume = 0;
     priming.lang = SPEECH_LANG;
     try {
+      liveUtterances.push(priming);
       synth.speak(priming);
-      synth.cancel();
-      synth.resume();
     } catch {
-      // Ignore browsers that reject empty utterances.
+      // Ignore browsers that reject the priming utterance.
     }
   }
 
@@ -136,6 +160,192 @@ export function applySpanishVoice(utterance: SpeechSynthesisUtterance): void {
   utterance.pitch = 1;
   const voice = pickSpanishVoice(loadBrowserVoices());
   if (voice) utterance.voice = voice as SpeechSynthesisVoice;
+}
+
+/**
+ * Split a client reply into utterances the engine reliably finishes. Chrome
+ * truncates long utterances, so break on sentence ends and then on words.
+ */
+export function chunkSpeech(text: string, maxChars = MAX_UTTERANCE_CHARS): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= maxChars) return [trimmed];
+
+  const chunks: string[] = [];
+  let current = "";
+
+  const push = (piece: string) => {
+    if (!current) {
+      current = piece;
+      return;
+    }
+    if (`${current} ${piece}`.length <= maxChars) {
+      current = `${current} ${piece}`;
+      return;
+    }
+    chunks.push(current);
+    current = piece;
+  };
+
+  for (const sentence of trimmed.match(/[^.!?…]+[.!?…]*\s*/g) ?? [trimmed]) {
+    const piece = sentence.trim();
+    if (!piece) continue;
+    if (piece.length <= maxChars) {
+      push(piece);
+      continue;
+    }
+    for (const word of piece.split(/\s+/)) push(word);
+  }
+
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function stopResumePump(): void {
+  if (resumePump !== null) {
+    clearInterval(resumePump);
+    resumePump = null;
+  }
+}
+
+/** Stop whatever the browser engine is saying and release its timers. */
+export function cancelBrowserSpeech(): void {
+  stopResumePump();
+  liveUtterances = [];
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+}
+
+/**
+ * Speak Spanish text with the browser engine and always report back.
+ *
+ * This is the audible path whenever billed ElevenLabs TTS fails, so it defends
+ * against every way Chrome drops speech silently: utterance garbage collection,
+ * the ~15s self-pause, voices not being loaded yet, and speak() being accepted
+ * but never started. `onDone` runs exactly once so the caller can release the
+ * mic even when nothing was audible.
+ */
+export function speakSpanishText(text: string, onDone: () => void): () => void {
+  if (typeof window === "undefined" || !window.speechSynthesis) {
+    onDone();
+    return () => undefined;
+  }
+
+  const synth = window.speechSynthesis;
+  const chunks = chunkSpeech(text);
+  if (chunks.length === 0) {
+    onDone();
+    return () => undefined;
+  }
+
+  let finished = false;
+  let index = 0;
+  let startTimer: number | undefined;
+  let overallTimer: number | undefined;
+
+  const clearTimers = () => {
+    if (startTimer !== undefined) window.clearTimeout(startTimer);
+    if (overallTimer !== undefined) window.clearTimeout(overallTimer);
+    startTimer = undefined;
+    overallTimer = undefined;
+  };
+
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    clearTimers();
+    stopResumePump();
+    liveUtterances = [];
+    onDone();
+  };
+
+  const speakChunk = (retry: boolean) => {
+    if (finished) return;
+    const chunk = chunks[index];
+    if (chunk === undefined) {
+      finish();
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(chunk);
+    applySpanishVoice(utterance);
+    liveUtterances.push(utterance);
+
+    let started = false;
+    const clearStartTimer = () => {
+      if (startTimer !== undefined) window.clearTimeout(startTimer);
+      startTimer = undefined;
+    };
+
+    utterance.onstart = () => {
+      started = true;
+      clearStartTimer();
+    };
+    utterance.onend = () => {
+      if (finished) return;
+      clearStartTimer();
+      index += 1;
+      speakChunk(false);
+    };
+    utterance.onerror = () => {
+      if (finished) return;
+      clearStartTimer();
+      finish();
+    };
+
+    synth.resume();
+    synth.speak(utterance);
+
+    // Chrome accepts speak() and then never starts. One cancel+retry recovers
+    // it; a second miss means the engine is dead, so hand the mic back.
+    startTimer = window.setTimeout(() => {
+      if (finished || started) return;
+      if (retry) {
+        finish();
+        return;
+      }
+      synth.cancel();
+      speakChunk(true);
+    }, BROWSER_SPEAK_START_TIMEOUT_MS);
+  };
+
+  const begin = () => {
+    if (finished) return;
+    stopResumePump();
+    // Chrome pauses itself partway through longer replies.
+    resumePump = setInterval(() => synth.resume(), BROWSER_SPEAK_RESUME_PUMP_MS);
+    speakChunk(false);
+  };
+
+  const beginWhenVoicesReady = () => {
+    if (finished) return;
+    if (synth.getVoices().length > 0) {
+      begin();
+      return;
+    }
+    let begun = false;
+    const onVoices = () => {
+      if (begun || finished) return;
+      begun = true;
+      begin();
+    };
+    synth.addEventListener?.("voiceschanged", onVoices, { once: true });
+    window.setTimeout(onVoices, VOICES_READY_TIMEOUT_MS);
+  };
+
+  liveUtterances = [];
+  synth.cancel();
+  overallTimer = window.setTimeout(finish, BROWSER_SPEAK_TIMEOUT_MS);
+  window.setTimeout(beginWhenVoicesReady, CANCEL_SETTLE_MS);
+
+  return () => {
+    if (finished) return;
+    finished = true;
+    clearTimers();
+    stopResumePump();
+    liveUtterances = [];
+    synth.cancel();
+  };
 }
 
 export async function playSharedAudio(url: string): Promise<void> {
@@ -188,6 +398,8 @@ export function waitForSharedAudioEnd(timeoutMs: number): Promise<void> {
 export function resetClientPlaybackForTests(): void {
   unlocked = false;
   unlockListeners.clear();
+  stopResumePump();
+  liveUtterances = [];
   if (sharedAudio) {
     sharedAudio.pause();
     sharedAudio.src = "";

@@ -5,7 +5,7 @@ import {
   resolveTtsTier,
   isElevenLabsTier,
 } from "@/lib/voice/ladder";
-import { synthesizeSpeech } from "@/lib/voice/tts";
+import { describeTtsFailures, synthesizeSpeech } from "@/lib/voice/tts";
 import { gateElevenLabsCall } from "@/lib/voice/gates";
 import { recordExtraTtsChars } from "@/lib/voice/usage";
 import {
@@ -85,6 +85,17 @@ export async function POST(request: Request) {
   }
 
   const synthesis = await synthesizeSpeech(text);
+
+  // The browser discards the 502 body, so this log is the only place the
+  // ElevenLabs reason survives. Details are secret-scrubbed upstream.
+  if (synthesis.failures.length > 0) {
+    console.error("voice.tts.elevenlabs_failed", {
+      recovered: Boolean(synthesis.result),
+      textLength: text.length,
+      attempts: describeTtsFailures(synthesis.failures),
+    });
+  }
+
   if (!synthesis.result) {
     return NextResponse.json(
       {
@@ -114,6 +125,7 @@ export async function POST(request: Request) {
     headers: {
       "Content-Type": result.mimeType,
       "X-Voice-Tier": result.tier,
+      ...(result.endpoint ? { "X-Voice-Endpoint": result.endpoint } : {}),
     },
   });
 }

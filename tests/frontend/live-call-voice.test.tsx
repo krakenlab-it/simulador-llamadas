@@ -6,8 +6,19 @@ import { ToastProvider } from "@/components/ui/Toast";
 import type { TurnResponse } from "@/lib/api/stubs";
 import { AUTOSUBMIT_SILENCE_MS } from "@/lib/voice/timeouts";
 
+/** Ordered record of the voice side effects a mic click triggers. */
+const voiceCalls = vi.hoisted(() => ({ order: [] as string[] }));
+
 const speak = vi.fn();
-const cancel = vi.fn();
+const cancel = vi.fn(() => {
+  voiceCalls.order.push("cancel");
+});
+
+vi.mock("@/lib/voice/client-playback", () => ({
+  unlockClientPlayback: vi.fn(() => {
+    voiceCalls.order.push("unlock");
+  }),
+}));
 
 const speechState = vi.hoisted(() => ({
   supported: true,
@@ -147,6 +158,7 @@ function renderCall() {
 describe("live call voice path without ConvAI", () => {
   beforeEach(() => {
     convaiEnabled.value = false;
+    voiceCalls.order.length = 0;
     speechState.listening = false;
     speechState.transcript = "";
     speechState.error = null;
@@ -283,6 +295,22 @@ describe("live call voice path without ConvAI", () => {
     });
     expect(submitTurn).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
+  });
+
+  it("cancels speech before unlocking so a line waiting on the gesture survives", async () => {
+    renderCall();
+    await waitFor(() => {
+      expect(speak).toHaveBeenCalled();
+    });
+    voiceCalls.order.length = 0;
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Micrófono" }));
+    });
+
+    // Unlocking flushes any pending line; cancelling after it would kill the
+    // line the click just released.
+    expect(voiceCalls.order).toEqual(["cancel", "unlock"]);
   });
 
   it("does not show Escuchando when recognition is not listening", async () => {

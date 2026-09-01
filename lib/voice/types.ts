@@ -36,6 +36,8 @@ export interface TtsResult {
   audio: Buffer;
   mimeType: string;
   tier: TtsTier;
+  /** Provider endpoint that produced the audio, for logs and response headers. */
+  endpoint?: string;
 }
 
 export interface TtsAttemptFailure {
@@ -43,6 +45,7 @@ export interface TtsAttemptFailure {
   reason: string;
   status?: number;
   detail?: string;
+  endpoint?: string;
 }
 
 export interface TtsSynthesisOutcome {
