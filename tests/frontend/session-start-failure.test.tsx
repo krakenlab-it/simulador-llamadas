@@ -1,3 +1,4 @@
+import "@/tests/frontend/vitest-auth-mocks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -13,6 +14,33 @@ vi.mock("@/lib/api/client", () => ({
   createScenario: vi.fn(),
 }));
 
+vi.mock("@/lib/hooks/useSpeechSynthesis", () => ({
+  useSpeechSynthesis: () => ({
+    speak: vi.fn(),
+    cancel: vi.fn(),
+    speaking: false,
+  }),
+}));
+
+vi.mock("@/lib/hooks/useVoiceSession", () => ({
+  useVoiceSession: () => ({
+    sessionUsageId: null,
+    billedActive: false,
+    fallbackToBrowser: true,
+    warnLowTime: false,
+    remainingConvaiSeconds: 0,
+  }),
+}));
+
+vi.mock("@/lib/hooks/useConvaiConnection", () => ({
+  useConvaiConnection: () => ({
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    interrupt: vi.fn(),
+    connected: false,
+  }),
+}));
+
 vi.mock("@/lib/hooks/useSpeechRecognition", () => ({
   useSpeechRecognition: () => ({
     supported: true,
@@ -23,14 +51,6 @@ vi.mock("@/lib/hooks/useSpeechRecognition", () => ({
     stopListening: vi.fn(),
     resetTranscript: vi.fn(),
     appendToField: (current: string) => current,
-  }),
-}));
-
-vi.mock("@/lib/hooks/useSpeechSynthesis", () => ({
-  useSpeechSynthesis: () => ({
-    speak: vi.fn(),
-    cancel: vi.fn(),
-    speaking: false,
   }),
 }));
 

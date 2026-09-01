@@ -1,3 +1,4 @@
+import "@/tests/frontend/vitest-auth-mocks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -42,7 +43,6 @@ describe("history panel", () => {
   afterEach(() => {
     cleanup();
     vi.useRealTimers();
-    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
