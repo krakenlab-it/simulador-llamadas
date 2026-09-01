@@ -79,7 +79,7 @@ describe("session start failure", () => {
     });
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
-    await user.click(screen.getByRole("button", { name: "Texto" }));
+    await user.click(screen.getByRole("switch", { name: "Modo voz" }));
     await user.click(screen.getByRole("button", { name: "Marcar" }));
 
     await waitFor(() => {
@@ -108,7 +108,7 @@ describe("session start failure", () => {
     });
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
-    await user.click(screen.getByRole("button", { name: "Texto" }));
+    await user.click(screen.getByRole("switch", { name: "Modo voz" }));
     await user.click(screen.getByRole("button", { name: "Marcar" }));
 
     expect(screen.getByText("Marcando…")).toBeInTheDocument();

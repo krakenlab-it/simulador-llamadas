@@ -1,0 +1,63 @@
+/**
+ * Simulador de Llamadas — design tokens (LOCKED)
+ * Copy this file into other PRs; import before app styles.
+ *
+ * CEO palette:
+ *   dark   #0B0F14  (--bg, --ink)
+ *   lime   #E8F07A  (--accent)
+ *   copper #C45C26  (--accent-2)
+ *   paper  #F4EFE6  (--paper)
+ *
+ * Display: Fraunces (--font-display)
+ * UI:      Instrument Sans / IBM Plex Sans (--font-body)
+ * Scores:  IBM Plex Mono (--font-mono)
+ */
+
+:root {
+  /* ── Color (locked) ───────────────────────────────────── */
+  --bg: #0b0f14;
+  --surface: #141a22;
+  --paper: #f4efe6;
+  --ink: #0b0f14;
+  --accent: #e8f07a;
+  --accent-2: #c45c26;
+  --muted: #8b93a1;
+  --line: rgba(244, 239, 230, 0.12);
+
+  /* ── Semantic aliases ─────────────────────────────────── */
+  --text: var(--paper);
+  --panel: var(--surface);
+  --border: var(--line);
+  --text-on-accent: var(--ink);
+  --surface-raised: color-mix(in srgb, var(--paper) 6%, var(--surface));
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, var(--bg));
+  --accent-2-soft: color-mix(in srgb, var(--accent-2) 18%, var(--bg));
+  --success: var(--accent);
+  --warn: var(--accent-2);
+  --danger: #e85d5d;
+
+  /* ── Typography ───────────────────────────────────────── */
+  --font-display: var(--font-fraunces), "Fraunces", Georgia, serif;
+  --font-body: var(--font-instrument-sans), var(--font-ibm-plex-sans), system-ui,
+    sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
+
+  /* ── Radius (locked) ──────────────────────────────────── */
+  --radius-control: 14px;
+  --radius-card: 22px;
+  --radius-pill: 999px;
+  /* Legacy aliases */
+  --radius-sm: var(--radius-control);
+  --radius: var(--radius-card);
+
+  /* ── Motion (locked) ──────────────────────────────────── */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 180ms;
+  --duration-normal: 220ms;
+  --duration-slow: 280ms;
+  --transition: var(--duration-normal) var(--ease-out);
+
+  /* ── Elevation ────────────────────────────────────────── */
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.22);
+}

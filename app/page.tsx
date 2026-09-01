@@ -1,9 +1,5 @@
-import { SimulatorApp } from "@/app/components/SimulatorApp";
+import { LandingPage } from "@/app/components/landing/LandingPage";
 
 export default function HomePage() {
-  return (
-    <main>
-      <SimulatorApp />
-    </main>
-  );
+  return <LandingPage />;
 }

@@ -67,7 +67,7 @@ describe("SetupScreen flow", () => {
     });
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
-    await user.click(screen.getByRole("button", { name: "Texto" }));
+    await user.click(screen.getByRole("switch", { name: "Modo voz" }));
     await user.click(screen.getByRole("button", { name: "Marcar" }));
 
     expect(onStart).toHaveBeenCalledTimes(1);
