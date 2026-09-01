@@ -158,6 +158,7 @@ describeIfDb("turn allocation (integration)", () => {
 
     expect(sixth.roundNumber).toBe(6);
     expect(sixth.roundType).toBe("cierre");
+    expect(sixth.roundKey).toBe("cierre-6");
     expect(sixth.clientReply).toBeTruthy();
   });
 

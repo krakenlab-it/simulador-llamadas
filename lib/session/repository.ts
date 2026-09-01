@@ -17,6 +17,7 @@ import { scoreCall } from "@/lib/scoring/score-call";
 import { buildTranscriptFromTurns } from "@/lib/scoring/transcript";
 import type { TranscriptLine } from "@/lib/scoring/types";
 import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
+import { resolveRoundKey } from "@/lib/simulation/round-keys";
 import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
 import { SessionError } from "./errors";
 import { resolveEndSessionWin } from "./win";
@@ -562,7 +563,7 @@ export class SessionRepository {
         cierre: "Cierre",
       };
       return {
-        key: roundType ?? `round-${roundNumber}`,
+        key: resolveRoundKey(roundType ?? `round-${roundNumber}`, roundNumber),
         label: roundType ? labels[roundType] : `Ronda ${roundNumber}`,
         goal: "",
         roundType,
@@ -577,7 +578,7 @@ export class SessionRepository {
     }
 
     return {
-      key: round.key,
+      key: resolveRoundKey(round.key, roundNumber, rounds.length),
       label: round.label,
       goal: round.goal,
       roundType: null,

@@ -6,6 +6,7 @@ import type {
 } from "@/lib/db/types";
 import { getRoundTypeForNumber } from "@/lib/extension-points/session";
 import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
+import { resolveRoundKey } from "@/lib/simulation/round-keys";
 import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
 import { getClientBySlug } from "@/lib/clients";
 import { buildScenarioConfig } from "@/lib/scenarios/defaults";
@@ -284,7 +285,7 @@ export async function stubSubmitTurn(
     const presetRound = getRoundTypeForNumber(roundNumber);
     if (!presetRound) throw new Error("Invalid round");
     roundType = presetRound;
-    roundKey = roundType;
+    roundKey = resolveRoundKey(roundType, roundNumber);
     const labels: Record<string, string> = {
       apertura: "Apertura",
       objecion: "Objeción",
@@ -297,7 +298,7 @@ export async function stubSubmitTurn(
     const rounds = session.scenario.record.config.rounds;
     const phaseIndex = Math.min(roundNumber - 1, rounds.length - 1);
     const round = rounds[phaseIndex];
-    roundKey = round.key;
+    roundKey = resolveRoundKey(round.key, roundNumber, rounds.length);
     roundLabel = round.label;
     roundGoal = round.goal;
     const customRound = getRoundTypeForNumber(roundNumber);
