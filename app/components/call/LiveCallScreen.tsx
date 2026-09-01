@@ -137,7 +137,7 @@ export function LiveCallScreen({
   const busy = submitting || hangingUp || ending;
   const holdMic = busy || synthesis.speaking;
   const callDevices = useCallAudioDevices(
-    mode === "voz" && useBrowserMic,
+    mode === "voz" && useBrowserMic && !hangingUp && !ending,
     voiceConfig.sttTier === "browser" || !voiceConfig.serverStt,
   );
   const speech = useSpeechRecognition({
@@ -339,6 +339,10 @@ export function LiveCallScreen({
   resetTranscriptRef.current = speech.resetTranscript;
   const ensureListeningRef = useRef(speech.ensureListening);
   ensureListeningRef.current = speech.ensureListening;
+  const stopListeningRef = useRef(speech.stopListening);
+  stopListeningRef.current = speech.stopListening;
+  const releaseCallMicRef = useRef(callDevices.releaseMic);
+  releaseCallMicRef.current = callDevices.releaseMic;
   const synthesisSpeakingRef = useRef(synthesis.speaking);
   synthesisSpeakingRef.current = synthesis.speaking;
   const endingRef = useRef(ending);
@@ -347,6 +351,29 @@ export function LiveCallScreen({
   hangingUpRef.current = hangingUp;
   const handleSubmitTurnRef = useRef(handleSubmitTurn);
   handleSubmitTurnRef.current = handleSubmitTurn;
+
+  const releaseCallAudio = useCallback(() => {
+    clearAutosubmitTimer();
+    setMicArmed(false);
+    stopListeningRef.current();
+    releaseCallMicRef.current();
+    synthesis.cancel();
+    disconnectConvai();
+  }, [clearAutosubmitTimer, disconnectConvai, synthesis]);
+
+  const releaseCallAudioRef = useRef(releaseCallAudio);
+  releaseCallAudioRef.current = releaseCallAudio;
+
+  useEffect(() => {
+    if (!hangingUp && !ending) return;
+    releaseCallAudio();
+  }, [ending, hangingUp, releaseCallAudio]);
+
+  useEffect(() => {
+    return () => {
+      releaseCallAudioRef.current();
+    };
+  }, []);
 
   useEffect(() => {
     if (!speech.transcript || speech.listening) return;
@@ -408,6 +435,7 @@ export function LiveCallScreen({
 
   const handleHangUp = () => {
     if (busy) return;
+    releaseCallAudio();
     setHangingUp(true);
     onHangUp([...turnHistory.current]);
   };

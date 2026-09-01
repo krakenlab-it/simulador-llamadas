@@ -84,6 +84,7 @@ vi.mock("@/lib/hooks/useCallAudioDevices", () => ({
     refreshDevices: vi.fn(),
     selectMic: vi.fn(),
     selectSpeaker: vi.fn(),
+    releaseMic: vi.fn(),
   }),
 }));
 
