@@ -30,9 +30,9 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Clínica de Citas · Simulador de llamada",
+  title: "Simulador de Llamadas · Entrenamiento comercial con IA",
   description:
-    "Formación comercial: practica llamadas en frío con clientes simulados (voz o texto).",
+    "Practica llamadas de venta con clientes simulados, recibe feedback al instante y mejora tu cierre antes de marcar de verdad.",
 };
 
 export default function RootLayout({
