@@ -1,14 +1,21 @@
-/* Auth screens — scoped to landing/app dark design language */
+/* Auth screens — LOCKED design tokens (not CDC palette)
+ * dark:   #0B0F14
+ * lime:   #E8F07A
+ * copper: #C45C26
+ * paper:  #F4EFE6
+ */
 
 .auth-shell,
 .auth-card {
-  --auth-bg: #0b0f14;
-  --auth-surface: #141a22;
-  --auth-paper: #f4efe6;
-  --auth-accent: #e8f07a;
+  --auth-dark: #0b0f14;
+  --auth-lime: #e8f07a;
   --auth-copper: #c45c26;
+  --auth-paper: #f4efe6;
+
+  /* Derived only from the four locked tokens */
+  --auth-surface: color-mix(in srgb, var(--auth-paper) 6%, var(--auth-dark));
   --auth-muted: color-mix(in srgb, var(--auth-paper) 62%, transparent);
-  --auth-border: color-mix(in srgb, var(--auth-paper) 14%, var(--auth-surface));
+  --auth-border: color-mix(in srgb, var(--auth-paper) 14%, var(--auth-dark));
   --auth-transition: 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -17,17 +24,17 @@
   background:
     radial-gradient(
       ellipse 90% 60% at 50% -10%,
-      color-mix(in srgb, var(--auth-copper) 22%, var(--auth-bg)) 0%,
-      var(--auth-bg) 58%
+      color-mix(in srgb, var(--auth-copper) 22%, var(--auth-dark)) 0%,
+      var(--auth-dark) 58%
     ),
-    var(--auth-bg);
+    var(--auth-dark);
   color: var(--auth-paper);
   font-family: var(--font-body);
 }
 
 .auth-shell :focus-visible,
 .auth-card :focus-visible {
-  outline: 2px solid var(--auth-accent);
+  outline: 2px solid var(--auth-lime);
   outline-offset: 2px;
 }
 
@@ -38,32 +45,22 @@
 }
 
 .auth-header {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
   margin-bottom: 2rem;
   padding-bottom: 1.25rem;
   border-bottom: 1px solid var(--auth-border);
 }
 
-.auth-header .brand-mark {
-  background: var(--auth-surface);
-  border-color: var(--auth-border);
-  box-shadow: 0 10px 28px color-mix(in srgb, #000 35%, transparent);
-}
-
 .auth-wordmark {
   margin: 0;
-  font-family: var(--font-body);
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--auth-muted);
+  font-family: var(--font-auth-display);
+  font-size: 1.35rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--auth-paper);
 }
 
 .auth-wordmark span {
-  color: var(--auth-accent);
+  color: var(--auth-lime);
 }
 
 .auth-card {
@@ -73,7 +70,7 @@
   padding: 1.75rem 1.5rem 1.5rem;
   box-shadow:
     0 1px 0 color-mix(in srgb, var(--auth-paper) 6%, transparent) inset,
-    0 18px 48px color-mix(in srgb, #000 42%, transparent);
+    0 18px 48px color-mix(in srgb, var(--auth-dark) 75%, transparent);
 }
 
 .auth-card-inline {
@@ -122,7 +119,7 @@
   gap: 0.35rem;
   padding: 0.3rem;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--auth-bg) 65%, var(--auth-surface));
+  background: color-mix(in srgb, var(--auth-dark) 65%, var(--auth-surface));
   border: 1px solid var(--auth-border);
 }
 
@@ -151,7 +148,7 @@
 }
 
 .auth-mode-toggle button.active {
-  background: color-mix(in srgb, var(--auth-accent) 16%, var(--auth-surface));
+  background: color-mix(in srgb, var(--auth-lime) 16%, var(--auth-surface));
   color: var(--auth-paper);
   box-shadow: 0 1px 0 color-mix(in srgb, var(--auth-paper) 8%, transparent);
 }
@@ -178,7 +175,7 @@
   padding: 0.72rem 0.85rem;
   border: 1px solid var(--auth-border);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--auth-bg) 55%, var(--auth-surface));
+  background: color-mix(in srgb, var(--auth-dark) 55%, var(--auth-surface));
   color: var(--auth-paper);
   font: inherit;
   font-size: 0.95rem;
@@ -197,8 +194,8 @@
 }
 
 .auth-input:focus-visible {
-  border-color: var(--auth-accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--auth-accent) 35%, transparent);
+  border-color: var(--auth-lime);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--auth-lime) 35%, transparent);
 }
 
 .auth-password-wrap {
@@ -224,8 +221,8 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--auth-accent);
-  background: color-mix(in srgb, var(--auth-accent) 10%, transparent);
+  color: var(--auth-lime);
+  background: color-mix(in srgb, var(--auth-lime) 10%, transparent);
   cursor: pointer;
   transition:
     background var(--auth-transition),
@@ -234,7 +231,7 @@
 }
 
 .auth-password-toggle:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--auth-accent) 18%, transparent);
+  background: color-mix(in srgb, var(--auth-lime) 18%, transparent);
   color: var(--auth-paper);
 }
 
@@ -263,14 +260,14 @@
   font-size: 0.95rem;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: var(--auth-bg);
+  color: var(--auth-dark);
   background: linear-gradient(
     165deg,
-    var(--auth-accent) 0%,
-    color-mix(in srgb, var(--auth-accent) 78%, #fff) 100%
+    var(--auth-lime) 0%,
+    color-mix(in srgb, var(--auth-lime) 78%, var(--auth-paper)) 100%
   );
   cursor: pointer;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--auth-accent) 22%, transparent);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--auth-lime) 22%, transparent);
   transition:
     transform 180ms ease,
     box-shadow var(--auth-transition),
@@ -279,7 +276,7 @@
 
 .auth-submit:hover:not(:disabled) {
   filter: brightness(1.04);
-  box-shadow: 0 12px 28px color-mix(in srgb, var(--auth-accent) 28%, transparent);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--auth-lime) 28%, transparent);
 }
 
 .auth-submit:active:not(:disabled) {
@@ -317,7 +314,7 @@
 }
 
 .auth-text-link:active {
-  color: var(--auth-accent);
+  color: var(--auth-lime);
 }
 
 .auth-secondary-button {
@@ -328,7 +325,7 @@
   font-size: 0.88rem;
   font-weight: 600;
   color: var(--auth-paper);
-  background: color-mix(in srgb, var(--auth-bg) 40%, var(--auth-surface));
+  background: color-mix(in srgb, var(--auth-dark) 40%, var(--auth-surface));
   cursor: pointer;
   transition:
     border-color var(--auth-transition),
@@ -338,7 +335,7 @@
 
 .auth-secondary-button:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--auth-paper) 22%, var(--auth-border));
-  background: color-mix(in srgb, var(--auth-bg) 55%, var(--auth-surface));
+  background: color-mix(in srgb, var(--auth-dark) 55%, var(--auth-surface));
 }
 
 .auth-secondary-button:active:not(:disabled) {

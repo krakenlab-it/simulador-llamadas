@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { BrandMark } from "@/components/brand/BrandMark";
 import { AuthForm, type AuthMode } from "@/app/components/AuthForm";
 import "@/app/auth.css";
 
@@ -20,9 +19,8 @@ export function AuthScreen({
     <div className="auth-shell">
       <div className="auth-layout">
         <header className="auth-header">
-          <BrandMark />
           <p className="auth-wordmark">
-            Simulador de Llamadas <span>· CDC</span>
+            Simulador <span>de Llamadas</span>
           </p>
         </header>
 
