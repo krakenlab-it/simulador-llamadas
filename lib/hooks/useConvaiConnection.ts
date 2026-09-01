@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Conversation } from "@elevenlabs/client";
+import type { Conversation as ConversationInstance } from "@elevenlabs/client";
 import {
   getVoiceAuthHeaders,
   startConvaiSession,
@@ -12,156 +14,163 @@ export interface UseConvaiConnectionOptions {
   scenarioContext: string;
   enabled: boolean;
   onAgentTranscript?: (text: string) => void;
+  onUserTranscript?: (text: string) => void;
+  onFallback?: (reason?: string) => void;
 }
 
 export interface UseConvaiConnectionResult {
   connected: boolean;
   agentSpeaking: boolean;
-  connect: () => void;
+  failed: boolean;
   disconnect: () => void;
   /** Barge-in: interrupt agent playback and signal ConvAI. */
   interrupt: () => void;
 }
 
-interface ConvaiEvent {
-  type?: string;
-  audio_event?: { audio_base_64?: string };
-  agent_response_event?: { agent_response?: string };
-  interruption_event?: Record<string, unknown>;
-}
-
 export function useConvaiConnection(
   options: UseConvaiConnectionOptions,
 ): UseConvaiConnectionResult {
-  const { sessionUsageId, clientName, scenarioContext, enabled, onAgentTranscript } =
-    options;
+  const {
+    sessionUsageId,
+    clientName,
+    scenarioContext,
+    enabled,
+    onAgentTranscript,
+    onUserTranscript,
+    onFallback,
+  } = options;
+
   const [connected, setConnected] = useState(false);
   const [agentSpeaking, setAgentSpeaking] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const objectUrlRef = useRef<string | null>(null);
-  const connectingRef = useRef(false);
+  const [failed, setFailed] = useState(false);
 
-  const revokeAudio = useCallback(() => {
-    audioRef.current?.pause();
-    if (audioRef.current) audioRef.current.currentTime = 0;
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = null;
-    }
-    setAgentSpeaking(false);
+  const conversationRef = useRef<ConversationInstance | null>(null);
+  const inFlightRef = useRef<AbortController | null>(null);
+  const connectAttemptRef = useRef(0);
+  const failedRef = useRef(false);
+
+  const onAgentTranscriptRef = useRef(onAgentTranscript);
+  const onUserTranscriptRef = useRef(onUserTranscript);
+  const onFallbackRef = useRef(onFallback);
+
+  useEffect(() => {
+    onAgentTranscriptRef.current = onAgentTranscript;
+    onUserTranscriptRef.current = onUserTranscript;
+    onFallbackRef.current = onFallback;
+  }, [onAgentTranscript, onUserTranscript, onFallback]);
+
+  const markFailed = useCallback((reason?: string) => {
+    if (failedRef.current) return;
+    failedRef.current = true;
+    setFailed(true);
+    onFallbackRef.current?.(reason);
   }, []);
 
   const disconnect = useCallback(() => {
-    revokeAudio();
-    wsRef.current?.close();
-    wsRef.current = null;
-    setConnected(false);
-    connectingRef.current = false;
-  }, [revokeAudio]);
+    connectAttemptRef.current += 1;
+    inFlightRef.current?.abort();
+    inFlightRef.current = null;
 
-  const playAgentAudio = useCallback(
-    (base64: string) => {
-      revokeAudio();
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: "audio/mpeg" });
-      const url = URL.createObjectURL(blob);
-      objectUrlRef.current = url;
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onplay = () => setAgentSpeaking(true);
-      audio.onended = () => {
-        setAgentSpeaking(false);
-        revokeAudio();
-      };
-      audio.onerror = () => {
-        setAgentSpeaking(false);
-        revokeAudio();
-      };
-      void audio.play();
-    },
-    [revokeAudio],
-  );
+    const conversation = conversationRef.current;
+    conversationRef.current = null;
+    if (conversation) {
+      void conversation.endSession().catch(() => undefined);
+    }
+
+    setConnected(false);
+    setAgentSpeaking(false);
+  }, []);
 
   const interrupt = useCallback(() => {
-    revokeAudio();
-    const ws = wsRef.current;
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "interruption" }));
+    const conversation = conversationRef.current;
+    if (!conversation) return;
+    conversation.sendUserActivity();
+  }, []);
+
+  useEffect(() => {
+    if (!enabled || !sessionUsageId || failedRef.current) {
+      return;
     }
-  }, [revokeAudio]);
 
-  const connect = useCallback(() => {
-    if (!enabled || !sessionUsageId || connectingRef.current || wsRef.current) return;
-    connectingRef.current = true;
+    const abort = new AbortController();
+    inFlightRef.current = abort;
+    const attempt = ++connectAttemptRef.current;
 
-    void startConvaiSession({
-      sessionUsageId,
-      clientName,
-      scenarioContext,
-    }).then((result) => {
-      connectingRef.current = false;
-      if (result.fallbackToBrowser || !result.signedUrl) {
-        disconnect();
-        return;
-      }
-
-      const ws = new WebSocket(result.signedUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setConnected(true);
-        ws.send(
-          JSON.stringify({
-            type: "conversation_initiation_client_data",
-            conversation_config_override: {
-              agent: { language: "es" },
-            },
-          }),
+    void (async () => {
+      try {
+        const result = await startConvaiSession(
+          { sessionUsageId, clientName, scenarioContext },
+          abort.signal,
         );
-      };
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(String(event.data)) as ConvaiEvent;
-          if (data.type === "interruption" || data.interruption_event) {
-            revokeAudio();
-            return;
-          }
-          const audioB64 = data.audio_event?.audio_base_64;
-          if (audioB64) playAgentAudio(audioB64);
-          const agentText = data.agent_response_event?.agent_response;
-          if (agentText && onAgentTranscript) onAgentTranscript(agentText);
-        } catch {
-          // ignore malformed frames
+        if (abort.signal.aborted || attempt !== connectAttemptRef.current) {
+          return;
         }
-      };
 
-      ws.onclose = () => {
-        setConnected(false);
-        wsRef.current = null;
-      };
+        if (result.fallbackToBrowser || !result.signedUrl) {
+          markFailed(result.reason);
+          return;
+        }
 
-      ws.onerror = () => {
-        disconnect();
-      };
-    });
+        const conversation = await Conversation.startSession({
+          signedUrl: result.signedUrl,
+          connectionType: "websocket",
+          onConnect: () => {
+            if (!abort.signal.aborted) setConnected(true);
+          },
+          onDisconnect: () => {
+            setConnected(false);
+            setAgentSpeaking(false);
+            conversationRef.current = null;
+          },
+          onMessage: ({ message, source, role }) => {
+            if (source === "user" || role === "user") {
+              onUserTranscriptRef.current?.(message);
+              return;
+            }
+            onAgentTranscriptRef.current?.(message);
+          },
+          onModeChange: ({ mode }) => {
+            setAgentSpeaking(mode === "speaking");
+          },
+          onError: () => {
+            if (!abort.signal.aborted) {
+              markFailed("convai_session_error");
+            }
+          },
+        });
+
+        if (abort.signal.aborted || attempt !== connectAttemptRef.current) {
+          await conversation.endSession().catch(() => undefined);
+          return;
+        }
+
+        conversationRef.current = conversation;
+      } catch {
+        if (!abort.signal.aborted) {
+          markFailed("convai_connect_failed");
+        }
+      } finally {
+        if (inFlightRef.current === abort) {
+          inFlightRef.current = null;
+        }
+      }
+    })();
+
+    return () => {
+      abort.abort();
+      disconnect();
+    };
   }, [
     enabled,
     sessionUsageId,
     clientName,
     scenarioContext,
     disconnect,
-    playAgentAudio,
-    revokeAudio,
-    onAgentTranscript,
+    markFailed,
   ]);
 
-  useEffect(() => disconnect, [disconnect]);
-
-  return { connected, agentSpeaking, connect, disconnect, interrupt };
+  return { connected, agentSpeaking, failed, disconnect, interrupt };
 }
 
 /** Auth-aware fetch headers for voice session usage ticks. */

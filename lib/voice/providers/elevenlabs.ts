@@ -1,10 +1,41 @@
 import { applyPronunciationHints } from "@/lib/voice/pronunciation";
 import { isElevenLabsEnabled } from "@/lib/voice/brakes";
+import { withPgClient } from "@/lib/session";
 import type { SttResult } from "@/lib/voice/types";
 
 const TTS_MODEL = "eleven_multilingual_v2";
+const CONVAI_TTS_MODEL = "eleven_flash_v2_5";
 const SCRIBE_MODEL = "scribe_v2";
 const LANGUAGE = "es-MX";
+export const CONVAI_AGENT_KEY = "simulador-patient";
+
+export const CONVAI_CLIENT_EVENTS = [
+  "user_transcript",
+  "tentative_user_transcript",
+  "audio",
+  "agent_response",
+  "interruption",
+  "ping",
+  "conversation_initiation_metadata",
+] as const;
+
+export type ConvaiAgentError = {
+  ok: false;
+  status: number;
+  detail: unknown;
+  fallbackToBrowser: true;
+};
+
+export type ConvaiAgentSuccess = {
+  ok: true;
+  agentId: string;
+};
+
+export type ConvaiAgentResult = ConvaiAgentSuccess | ConvaiAgentError;
+
+export type ConvaiSignedUrlResult =
+  | { ok: true; signedUrl: string; agentId: string }
+  | ConvaiAgentError;
 
 export async function synthesizeWithElevenLabs(
   text: string,
@@ -118,45 +149,21 @@ export function isConvaiAvailable(): boolean {
   return isElevenLabsEnabled();
 }
 
-export async function getConvaiSignedUrl(
+/** Build the ConvAI agent create payload per ElevenLabs agents/create docs. */
+export function buildConvaiAgentPayload(
   clientName: string,
   scenarioContext: string,
-): Promise<string | null> {
-  const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
-  const voiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
-  if (!apiKey) return null;
-
-  try {
-    const agentId = await ensureConvaiAgent(apiKey, voiceId, clientName, scenarioContext);
-    if (!agentId) return null;
-
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
-      { headers: { "xi-api-key": apiKey } },
-    );
-    if (!response.ok) return null;
-
-    const data = (await response.json()) as { signed_url?: string };
-    return data.signed_url ?? null;
-  } catch {
-    return null;
-  }
-}
-
-let cachedAgentId: string | null = null;
-
-async function ensureConvaiAgent(
-  apiKey: string,
-  voiceId: string | undefined,
-  clientName: string,
-  scenarioContext: string,
-): Promise<string | null> {
-  if (cachedAgentId) return cachedAgentId;
-
+  voiceId?: string,
+): Record<string, unknown> {
   const prompt = `Eres ${clientName}, cliente mexicano en una llamada de ventas fría de una clínica de citas. ${scenarioContext}. Responde breve en español mexicano. Permite interrupciones (barge-in).`;
 
-  const body: Record<string, unknown> = {
-    name: `simulador-patient-${clientName.slice(0, 20)}`,
+  return {
+    name: CONVAI_AGENT_KEY,
+    platform_settings: {
+      auth: {
+        enable_auth: true,
+      },
+    },
     conversation_config: {
       agent: {
         prompt: { prompt },
@@ -164,20 +171,50 @@ async function ensureConvaiAgent(
         language: "es",
       },
       tts: voiceId
-        ? { voice_id: voiceId, model_id: TTS_MODEL }
-        : { model_id: TTS_MODEL },
+        ? { voice_id: voiceId, model_id: CONVAI_TTS_MODEL }
+        : { model_id: CONVAI_TTS_MODEL },
       conversation: {
-        client_events: {
-          agent_response: true,
-          audio: true,
-          interruption: true,
-        },
+        client_events: [...CONVAI_CLIENT_EVENTS],
       },
       turn: {
         turn_timeout: 25,
       },
     },
   };
+}
+
+async function readPersistedAgentId(): Promise<string | null> {
+  try {
+    return await withPgClient(async (client) => {
+      const { rows } = await client.query<{ elevenlabs_agent_id: string }>(
+        `SELECT elevenlabs_agent_id FROM voice_convai_agents WHERE agent_key = $1`,
+        [CONVAI_AGENT_KEY],
+      );
+      return rows[0]?.elevenlabs_agent_id ?? null;
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function persistAgentId(agentId: string): Promise<void> {
+  await withPgClient(async (client) => {
+    await client.query(
+      `INSERT INTO voice_convai_agents (agent_key, elevenlabs_agent_id)
+       VALUES ($1, $2)
+       ON CONFLICT (agent_key) DO NOTHING`,
+      [CONVAI_AGENT_KEY, agentId],
+    );
+  });
+}
+
+async function createConvaiAgent(
+  apiKey: string,
+  voiceId: string | undefined,
+  clientName: string,
+  scenarioContext: string,
+): Promise<ConvaiAgentResult> {
+  const body = buildConvaiAgentPayload(clientName, scenarioContext, voiceId);
 
   const response = await fetch("https://api.elevenlabs.io/v1/convai/agents/create", {
     method: "POST",
@@ -188,9 +225,126 @@ async function ensureConvaiAgent(
     body: JSON.stringify(body),
   });
 
-  if (!response.ok) return null;
+  const detail = await response.json().catch(() => null);
 
-  const data = (await response.json()) as { agent_id?: string };
-  cachedAgentId = data.agent_id ?? null;
-  return cachedAgentId;
+  if (!response.ok) {
+    return {
+      ok: false,
+      status: response.status,
+      detail,
+      fallbackToBrowser: true,
+    };
+  }
+
+  const data = detail as { agent_id?: string };
+  const agentId = data.agent_id?.trim();
+  if (!agentId) {
+    return {
+      ok: false,
+      status: 502,
+      detail: { error: "missing_agent_id_in_create_response" },
+      fallbackToBrowser: true,
+    };
+  }
+
+  return { ok: true, agentId };
+}
+
+/** Resolve agent id: env ELEVENLABS_AGENT_ID → DB → create once. */
+export async function resolveConvaiAgentId(
+  clientName: string,
+  scenarioContext: string,
+): Promise<ConvaiAgentResult> {
+  const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      ok: false,
+      status: 503,
+      detail: { error: "missing_api_key" },
+      fallbackToBrowser: true,
+    };
+  }
+
+  const envAgentId = process.env.ELEVENLABS_AGENT_ID?.trim();
+  if (envAgentId) {
+    return { ok: true, agentId: envAgentId };
+  }
+
+  const voiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
+
+  const persisted = await readPersistedAgentId();
+  if (persisted) {
+    return { ok: true, agentId: persisted };
+  }
+
+  const created = await createConvaiAgent(apiKey, voiceId, clientName, scenarioContext);
+  if (!created.ok) {
+    return created;
+  }
+
+  await persistAgentId(created.agentId);
+
+  const stored = await readPersistedAgentId();
+  return stored ? { ok: true, agentId: stored } : created;
+}
+
+export async function getConvaiSignedUrl(
+  clientName: string,
+  scenarioContext: string,
+): Promise<ConvaiSignedUrlResult> {
+  const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
+  if (!apiKey) {
+    return {
+      ok: false,
+      status: 503,
+      detail: { error: "missing_api_key" },
+      fallbackToBrowser: true,
+    };
+  }
+
+  const agentResult = await resolveConvaiAgentId(clientName, scenarioContext);
+  if (!agentResult.ok) {
+    return agentResult;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(agentResult.agentId)}`,
+      { headers: { "xi-api-key": apiKey } },
+    );
+
+    const detail = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        detail,
+        fallbackToBrowser: true,
+      };
+    }
+
+    const data = detail as { signed_url?: string };
+    const signedUrl = data.signed_url?.trim();
+    if (!signedUrl) {
+      return {
+        ok: false,
+        status: 502,
+        detail: { error: "missing_signed_url" },
+        fallbackToBrowser: true,
+      };
+    }
+
+    return { ok: true, signedUrl, agentId: agentResult.agentId };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 502,
+      detail: {
+        error: "signed_url_fetch_failed",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      fallbackToBrowser: true,
+    };
+  }
 }

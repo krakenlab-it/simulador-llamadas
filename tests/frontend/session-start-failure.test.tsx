@@ -34,10 +34,11 @@ vi.mock("@/lib/hooks/useVoiceSession", () => ({
 
 vi.mock("@/lib/hooks/useConvaiConnection", () => ({
   useConvaiConnection: () => ({
-    connect: vi.fn(),
     disconnect: vi.fn(),
     interrupt: vi.fn(),
     connected: false,
+    agentSpeaking: false,
+    failed: false,
   }),
 }));
 
