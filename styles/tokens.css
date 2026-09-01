@@ -1,6 +1,12 @@
 /**
- * Simulador de Llamadas — design tokens
+ * Simulador de Llamadas — design tokens (LOCKED)
  * Copy this file into other PRs; import before app styles.
+ *
+ * CEO palette:
+ *   dark   #0B0F14  (--bg, --ink)
+ *   lime   #E8F07A  (--accent)
+ *   copper #C45C26  (--accent-2)
+ *   paper  #F4EFE6  (--paper)
  *
  * Display: Fraunces (--font-display)
  * UI:      Instrument Sans / IBM Plex Sans (--font-body)
