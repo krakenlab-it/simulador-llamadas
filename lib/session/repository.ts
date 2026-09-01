@@ -14,6 +14,7 @@ import type {
   SessionEvaluationSummary,
 } from "@/lib/scenarios/types";
 import type { ClientReaction } from "@/lib/scoring/rondas";
+import { SessionError } from "./errors";
 import { resolveEndSessionWin } from "./service";
 
 export interface CreateSessionInput {
@@ -36,6 +37,25 @@ export interface SessionRecord {
   totalRounds: number;
   config: ScenarioConfig | null;
 }
+
+export interface TurnScoreInput {
+  roundType: RoundType | null;
+  roundKey: string;
+  roundLabel: string;
+  roundScore: number;
+  keywordHits: Record<string, boolean>;
+  clientReaction: ClientReaction;
+  clientReply: string;
+  feedback: string;
+  richFeedback: RichTurnFeedback;
+  hasConcreteDayAndTime: boolean;
+  won: boolean;
+}
+
+/** Outcome of atomically claiming the next round of a call. */
+export type TurnSlot =
+  | { kind: "reserved"; turnId: string; roundNumber: number }
+  | { kind: "replay"; turn: TurnRecord };
 
 export interface TurnRecord {
   turnId: string;
@@ -171,7 +191,7 @@ export class SessionRepository {
       difficulty_level: DifficultyLevel;
       mode: PracticeMode;
       status: CallStatus;
-      turns_completed: string;
+      last_round: string;
     }>(
       `SELECT
          ca.id,
@@ -183,7 +203,7 @@ export class SessionRepository {
          ca.difficulty_level,
          ca.mode,
          ca.status,
-         COUNT(ct.id)::text AS turns_completed
+         COALESCE(MAX(ct.round_number), 0)::text AS last_round
        FROM call_attempts ca
        JOIN scenarios s ON s.id = ca.scenario_id
        LEFT JOIN call_turns ct ON ct.call_attempt_id = ca.id
@@ -196,7 +216,6 @@ export class SessionRepository {
     if (result.rows.length === 0) return null;
 
     const row = result.rows[0];
-    const turnsCompleted = Number(row.turns_completed);
     const config = row.is_preset ? null : parseConfig(row.config);
     const totalRounds = getTotalRounds();
 
@@ -209,67 +228,120 @@ export class SessionRepository {
       difficultyLevel: row.difficulty_level,
       mode: row.mode,
       status: row.status,
-      currentRound: Math.min(turnsCompleted + 1, totalRounds),
+      currentRound: Number(row.last_round) + 1,
       totalRounds,
       config,
     };
   }
 
-  async saveTurn(
+  /**
+   * Claims the next round for this call in a single statement: the database
+   * assigns round_number under a row lock on the parent attempt, so two
+   * simultaneous submits can never compute the same number. A submit that
+   * carries an already-scored clientTurnId gets that turn back instead of a
+   * unique-constraint error.
+   */
+  async reserveTurnSlot(
     callAttemptId: string,
+    utterance: string,
+    options: { clientTurnId?: string | null; maxRounds: number },
+  ): Promise<TurnSlot> {
+    const { rows } = await this.client.query<{
+      allocation_status: string;
+      turn_id: string | null;
+      round_number: number | null;
+    }>(
+      `SELECT allocation_status, turn_id, round_number
+       FROM allocate_call_turn($1, $2, $3, $4)`,
+      [callAttemptId, utterance, options.clientTurnId ?? null, options.maxRounds],
+    );
+
+    const allocation = rows[0];
+
+    switch (allocation?.allocation_status) {
+      case "reserved":
+        return {
+          kind: "reserved",
+          turnId: allocation.turn_id!,
+          roundNumber: Number(allocation.round_number),
+        };
+      case "replay": {
+        const turn = await this.getTurn(allocation.turn_id!);
+        if (!turn) throw new SessionError("turn_failed");
+        return { kind: "replay", turn };
+      }
+      case "not_found":
+        throw new SessionError("session_not_found");
+      case "not_in_progress":
+        throw new SessionError("session_not_in_progress");
+      case "rounds_exhausted":
+        throw new SessionError("rounds_completed");
+      default:
+        throw new SessionError("turn_failed");
+    }
+  }
+
+  /** Fills a reserved slot with its round metadata and score. */
+  async completeTurn(
+    turnId: string,
     roundNumber: number,
     utterance: string,
-    score: {
-      roundType: RoundType | null;
-      roundKey: string;
-      roundLabel: string;
-      roundScore: number;
-      keywordHits: Record<string, boolean>;
-      clientReaction: ClientReaction;
-      clientReply: string;
-      feedback: string;
-      richFeedback: RichTurnFeedback;
-      hasConcreteDayAndTime: boolean;
-      won: boolean;
-    },
+    score: TurnScoreInput,
   ): Promise<TurnRecord> {
-    const turn = await this.client.query<{ id: string }>(
-      `INSERT INTO call_turns (
-         call_attempt_id, round_number, round_type, round_key, round_label,
-         trainee_utterance, expected_phrase
-       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id`,
-      [
-        callAttemptId,
-        roundNumber,
-        score.roundType,
-        score.roundKey,
-        score.roundLabel,
-        utterance,
-        score.richFeedback.strongerLine,
-      ],
-    );
+    try {
+      await this.client.query("BEGIN");
 
-    await this.client.query(
-      `INSERT INTO turn_scores (
-         turn_id, keyword_hits, round_score, has_concrete_day_and_time,
-         feedback, client_reaction, feedback_detail
-       )
-       VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7::jsonb)`,
-      [
-        turn.rows[0].id,
-        JSON.stringify(score.keywordHits),
-        score.roundScore,
-        score.hasConcreteDayAndTime,
-        score.feedback,
-        score.clientReaction,
-        JSON.stringify(score.richFeedback),
-      ],
-    );
+      await this.client.query(
+        `UPDATE call_turns
+         SET round_type = $2, round_key = $3, round_label = $4,
+             trainee_utterance = $5, expected_phrase = $6
+         WHERE id = $1`,
+        [
+          turnId,
+          score.roundType,
+          score.roundKey,
+          score.roundLabel,
+          utterance,
+          score.richFeedback.strongerLine,
+        ],
+      );
+
+      await this.client.query(
+        `INSERT INTO turn_scores (
+           turn_id, keyword_hits, round_score, has_concrete_day_and_time,
+           feedback, client_reaction, feedback_detail, client_reply, won
+         )
+         VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7::jsonb, $8, $9)
+         ON CONFLICT (turn_id) DO UPDATE SET
+           keyword_hits = EXCLUDED.keyword_hits,
+           round_score = EXCLUDED.round_score,
+           has_concrete_day_and_time = EXCLUDED.has_concrete_day_and_time,
+           feedback = EXCLUDED.feedback,
+           client_reaction = EXCLUDED.client_reaction,
+           feedback_detail = EXCLUDED.feedback_detail,
+           client_reply = EXCLUDED.client_reply,
+           won = EXCLUDED.won`,
+        [
+          turnId,
+          JSON.stringify(score.keywordHits),
+          score.roundScore,
+          score.hasConcreteDayAndTime,
+          score.feedback,
+          score.clientReaction,
+          JSON.stringify(score.richFeedback),
+          score.clientReply,
+          score.won,
+        ],
+      );
+
+      await this.client.query("COMMIT");
+    } catch (error) {
+      await this.client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    }
 
     return {
-      turnId: turn.rows[0].id,
+      turnId,
       roundNumber,
       roundType: score.roundType,
       roundKey: score.roundKey,
@@ -283,6 +355,64 @@ export class SessionRepository {
       richFeedback: score.richFeedback,
       hasConcreteDayAndTime: score.hasConcreteDayAndTime,
       won: score.won,
+    };
+  }
+
+  /** Frees a reservation whose scoring failed, so the round is not burned. */
+  async releaseTurnSlot(turnId: string): Promise<void> {
+    await this.client.query(
+      `DELETE FROM call_turns ct
+       WHERE ct.id = $1
+         AND NOT EXISTS (SELECT 1 FROM turn_scores ts WHERE ts.turn_id = ct.id)`,
+      [turnId],
+    );
+  }
+
+  async getTurn(turnId: string): Promise<TurnRecord | null> {
+    const { rows } = await this.client.query<{
+      round_number: number;
+      round_type: RoundType | null;
+      round_key: string | null;
+      round_label: string | null;
+      trainee_utterance: string | null;
+      round_score: string;
+      keyword_hits: Record<string, boolean>;
+      client_reaction: ClientReaction;
+      client_reply: string | null;
+      feedback: string | null;
+      feedback_detail: RichTurnFeedback;
+      has_concrete_day_and_time: boolean;
+      won: boolean;
+    }>(
+      `SELECT ct.round_number, ct.round_type, ct.round_key, ct.round_label,
+              ct.trainee_utterance, ts.round_score, ts.keyword_hits,
+              ts.client_reaction, ts.client_reply, ts.feedback,
+              ts.feedback_detail, ts.has_concrete_day_and_time, ts.won
+       FROM call_turns ct
+       JOIN turn_scores ts ON ts.turn_id = ct.id
+       WHERE ct.id = $1`,
+      [turnId],
+    );
+
+    if (rows.length === 0) return null;
+
+    const row = rows[0];
+
+    return {
+      turnId,
+      roundNumber: Number(row.round_number),
+      roundType: row.round_type,
+      roundKey: row.round_key ?? row.round_type ?? "round",
+      roundLabel: row.round_label ?? row.round_type ?? "Ronda",
+      traineeUtterance: row.trainee_utterance ?? "",
+      roundScore: Number(row.round_score),
+      keywordHits: row.keyword_hits,
+      clientReaction: row.client_reaction,
+      clientReply: row.client_reply ?? "",
+      feedback: row.feedback ?? "",
+      richFeedback: row.feedback_detail,
+      hasConcreteDayAndTime: row.has_concrete_day_and_time,
+      won: row.won,
     };
   }
 
@@ -396,7 +526,7 @@ export class SessionRepository {
 
     const round = session.config?.rounds[roundNumber - 1];
     if (!round) {
-      throw new Error("Invalid round number");
+      throw new SessionError("invalid_round");
     }
 
     return {

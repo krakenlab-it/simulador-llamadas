@@ -9,11 +9,14 @@ import { getConvaiSignedUrl } from "@/lib/voice/providers/elevenlabs";
 import { isBilledElevenLabsPathAvailable } from "@/lib/voice/gates";
 import { acquireConvaiSlot, releaseConvaiSlot } from "@/lib/voice/usage";
 import { gateElevenLabsCall } from "@/lib/voice/gates";
+import { resolveVoiceLadder } from "@/lib/voice/ladder";
 
 export async function POST(request: Request) {
-  if (!isBilledElevenLabsPathAvailable()) {
+  // ConvAI is opt-in; without it the call runs on browser mic + TTS and no
+  // agent is ever created.
+  if (!resolveVoiceLadder().convaiEnabled || !isBilledElevenLabsPathAvailable()) {
     return NextResponse.json(
-      { error: "ConvAI not configured.", fallbackToBrowser: true },
+      { error: "convai_disabled", fallbackToBrowser: true },
       { status: 503 },
     );
   }

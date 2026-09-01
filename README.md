@@ -78,6 +78,7 @@ Ver `.env.example`. Nunca commitear valores reales.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública (cliente) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave de servicio (solo servidor) |
 | `DATABASE_URL` | Postgres directo (tests de migración en CI) |
+| `ELEVENLABS_CONVAI_ENABLED` | Opt-in del agente ConvAI (vacío = llamada con micrófono del navegador + TTS) |
 | `NEXT_PUBLIC_APP_URL` | URL base de la app |
 
 ### Esquema de base de datos
@@ -95,7 +96,15 @@ call_history (vista) → historial agregado (reemplaza localStorage clinicav2:hi
 
 **Palabras clave de scoring:** problema, medición, jerga, reconocimiento, descalifica, gratis, reunión, día/hora, monólogo, telegrama.
 
-**Voz v1:** Web Speech API en el navegador (sin vendor STT externo).
+**Asignación de ronda:** `allocate_call_turn()` (migración `20250901000000`) reserva el `round_number` con un lock sobre `call_attempts`, así dos envíos simultáneos nunca reciben el mismo número. Cada envío lleva un `client_turn_id`: si se reintenta, el servidor devuelve el turno ya guardado en vez de crear otra ronda.
+
+### Cómo habla el cliente simulado
+
+1. Entrada de voz: Web Speech API del navegador.
+2. Un `POST /api/sessions/:id/turns` por ronda; ahí vuelven la puntuación y la respuesta del cliente.
+3. Salida de voz: TTS de ElevenLabs por `/api/voice/tts` cuando la sesión de voz facturada está activa; voz del navegador si no.
+
+El agente ConvAI es opcional (`ELEVENLABS_CONVAI_ENABLED=true`) y solo se hace cargo del audio mientras está conectado. Apagado, la llamada funciona igual.
 
 ### Puntos de extensión
 

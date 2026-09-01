@@ -60,6 +60,8 @@ export interface SessionResponse {
 
 export interface TurnRequest {
   utterance: string;
+  /** Idempotency key for one submit action; a retry of the same turn reuses it. */
+  clientTurnId?: string;
 }
 
 export interface TurnResponse {
@@ -246,6 +248,11 @@ export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
     currentRound: 1,
     totalRounds,
   };
+}
+
+/** True when the in-memory demo simulator owns this call. */
+export function stubHasSession(callAttemptId: string): boolean {
+  return sessions.has(callAttemptId);
 }
 
 export function stubSubmitTurn(

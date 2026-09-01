@@ -8,6 +8,7 @@ import {
   stubCreateSession,
   stubCreateScenario,
   stubEndSession,
+  stubHasSession,
   stubListScenarios,
   stubSubmitTurn,
   type CreateSessionRequest,
@@ -23,10 +24,44 @@ import {
  * History for the demo UI is device-local (see lib/history/local.ts).
  */
 
+const GENERIC_ERROR = "No se pudo completar la acción. Intenta de nuevo.";
+
+/** Database driver text must never reach a toast. */
+function looksLikeDriverError(message: string): boolean {
+  return /duplicate key|violates .*constraint|syntax error at or near|relation "|column "/i.test(
+    message,
+  );
+}
+
+async function readErrorMessage(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  if (!text) return GENERIC_ERROR;
+
+  let message = text;
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown; message?: unknown };
+    const field = parsed.error ?? parsed.message;
+    if (typeof field === "string" && field.trim()) message = field;
+  } catch {
+    // Non-JSON body: fall through to the sanitizer below.
+  }
+
+  return looksLikeDriverError(message) ? GENERIC_ERROR : message;
+}
+
+/**
+ * Calls the API, returning null when the caller can serve the request from the
+ * in-memory demo stub instead. A caller with no usable stub (a real session
+ * already created on the server) gets the server error, because silently
+ * answering with stub data would drop the trainee into a different simulation.
+ */
 async function tryFetch<T>(
   url: string,
   init?: RequestInit,
+  options: { stubAvailable?: boolean } = {},
 ): Promise<T | null> {
+  const { stubAvailable = true } = options;
+
   try {
     const res = await fetch(url, {
       ...init,
@@ -36,11 +71,11 @@ async function tryFetch<T>(
       },
     });
     if (res.status === 404 || res.status === 405 || res.status >= 500) {
+      if (!stubAvailable) throw new Error(await readErrorMessage(res));
       return null;
     }
     if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || `Error ${res.status}`);
+      throw new Error(await readErrorMessage(res));
     }
     return (await res.json()) as T;
   } catch (error) {
@@ -71,6 +106,7 @@ export async function submitTurn(
       method: "POST",
       body: JSON.stringify(body),
     },
+    { stubAvailable: stubHasSession(callAttemptId) },
   );
   return remote ?? stubSubmitTurn(callAttemptId, body);
 }
@@ -81,6 +117,7 @@ export async function endSession(
   const remote = await tryFetch<EndSessionResponse>(
     `/api/sessions/${callAttemptId}/end`,
     { method: "POST" },
+    { stubAvailable: stubHasSession(callAttemptId) },
   );
   return remote ?? stubEndSession(callAttemptId);
 }

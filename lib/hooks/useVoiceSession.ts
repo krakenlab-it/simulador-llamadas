@@ -18,11 +18,22 @@ export interface VoiceSessionState {
   fallbackToBrowser: boolean;
 }
 
+export interface VoiceSessionOptions {
+  /**
+   * Bill ConvAI seconds only while the ConvAI agent is actually carrying the
+   * audio. The ConvAI budget also gates ElevenLabs TTS, so metering it on
+   * wall-clock time would silence a browser-mic call after three minutes.
+   */
+  meterConvaiSeconds?: boolean;
+}
+
 export function useVoiceSession(
   verifiedUserId: string | null,
   callAttemptId: string | null,
   mode: "voz" | "texto",
+  options: VoiceSessionOptions = {},
 ): VoiceSessionState {
+  const { meterConvaiSeconds = false } = options;
   const voiceConfig = useVoiceConfig();
   const [sessionUsageId, setSessionUsageId] = useState<string | null>(null);
   const [resolvedVerifiedUserId, setResolvedVerifiedUserId] = useState<string | null>(
@@ -82,6 +93,8 @@ export function useVoiceSession(
         setWarnLowTime(data.warnLowTime);
       });
 
+    if (!meterConvaiSeconds) return;
+
     tickRef.current = setInterval(() => {
       void voiceSessionFetch("/api/voice/session/usage", {
         method: "POST",
@@ -106,7 +119,7 @@ export function useVoiceSession(
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
     };
-  }, [sessionUsageId, fallbackToBrowser]);
+  }, [sessionUsageId, fallbackToBrowser, meterConvaiSeconds]);
 
   return {
     sessionUsageId: fallbackToBrowser ? null : sessionUsageId,
