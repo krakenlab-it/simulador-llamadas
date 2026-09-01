@@ -9,6 +9,7 @@ import { stubGetOpeningLine } from "@/lib/api/stubs";
 import { getKeywordLabels } from "@/lib/simulation/keywords";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/lib/hooks/useSpeechSynthesis";
+import { useVoiceSession } from "@/lib/hooks/useVoiceSession";
 import { getClientLine, ROUNDS } from "@/lib/simulation/rounds";
 
 interface DialogueEntry {
@@ -25,6 +26,7 @@ interface LiveCallScreenProps {
   mode: PracticeMode;
   level: number;
   totalRounds: number;
+  verifiedUserId?: string;
   onHangUp: (turns: TurnSummary[]) => void;
 }
 
@@ -37,8 +39,18 @@ export function LiveCallScreen({
   mode,
   level,
   totalRounds,
+  verifiedUserId,
   onHangUp,
 }: LiveCallScreenProps) {
+  const voiceSession = useVoiceSession(
+    verifiedUserId ?? null,
+    callAttemptId,
+    mode,
+  );
+  const sessionUsageId = voiceSession.sessionUsageId;
+  const speech = useSpeechRecognition({ sessionUsageId });
+  const synthesis = useSpeechSynthesis({ sessionUsageId });
+  const dialogueRef = useRef<HTMLDivElement>(null);
   const [round, setRound] = useState(1);
   const [roundLabel, setRoundLabel] = useState("Apertura");
   const [dialogue, setDialogue] = useState<DialogueEntry[]>([]);
@@ -50,9 +62,6 @@ export function LiveCallScreen({
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const turnHistory = useRef<TurnSummary[]>([]);
-  const speech = useSpeechRecognition();
-  const synthesis = useSpeechSynthesis();
-  const dialogueRef = useRef<HTMLDivElement>(null);
 
   const roundMeta = isPreset ? ROUNDS[round - 1] : null;
 
@@ -74,6 +83,11 @@ export function LiveCallScreen({
 
   const handleMic = () => {
     if (mode !== "voz" || !speech.supported) return;
+    if (speech.listening) {
+      speech.stopListening();
+      return;
+    }
+    synthesis.cancel();
     speech.startListening();
   };
 
@@ -172,7 +186,7 @@ export function LiveCallScreen({
               onClick={handleMic}
               disabled={speech.listening || !speech.supported}
             >
-              {speech.listening ? "🎤 Escuchando…" : "🎤 Escuchar"}
+              {speech.listening ? "🎤 Detener" : "🎤 Escuchar"}
             </button>
           )}
           <button
@@ -192,6 +206,19 @@ export function LiveCallScreen({
         </div>
 
         {speech.error && <p className="note warn">{speech.error}</p>}
+
+        {voiceSession.warnLowTime && mode === "voz" && (
+          <p className="note warn">
+            Quedan {voiceSession.remainingConvaiSeconds}s de voz con IA en esta
+            sesión.
+          </p>
+        )}
+
+        {voiceSession.fallbackToBrowser && mode === "voz" && (
+          <p className="note">
+            Límite de voz con IA alcanzado; usando voz del navegador.
+          </p>
+        )}
 
         {turnEval && (
           <div

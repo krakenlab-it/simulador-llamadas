@@ -1,0 +1,116 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  endBilledVoiceSession,
+  startBilledVoiceSession,
+} from "@/lib/auth/voice-email";
+import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
+import { SESSION_CONVAI_MAX_SECONDS } from "@/lib/voice/brakes";
+
+export interface VoiceSessionState {
+  sessionUsageId: string | null;
+  verifiedUserId: string | null;
+  billedActive: boolean;
+  remainingConvaiSeconds: number;
+  warnLowTime: boolean;
+  fallbackToBrowser: boolean;
+}
+
+export function useVoiceSession(
+  verifiedUserId: string | null,
+  callAttemptId: string | null,
+  mode: "voz" | "texto",
+): VoiceSessionState {
+  const voiceConfig = useVoiceConfig();
+  const [sessionUsageId, setSessionUsageId] = useState<string | null>(null);
+  const [billedActive, setBilledActive] = useState(false);
+  const [remainingConvaiSeconds, setRemainingConvaiSeconds] = useState(
+    SESSION_CONVAI_MAX_SECONDS,
+  );
+  const [warnLowTime, setWarnLowTime] = useState(false);
+  const [fallbackToBrowser, setFallbackToBrowser] = useState(false);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startedRef = useRef(false);
+  const sessionUsageIdRef = useRef<string | null>(null);
+
+  const startSession = useCallback(async () => {
+    if (
+      mode !== "voz" ||
+      !verifiedUserId ||
+      !voiceConfig.requiresVoiceAuth ||
+      startedRef.current
+    ) {
+      return;
+    }
+    startedRef.current = true;
+
+    const result = await startBilledVoiceSession(
+      verifiedUserId,
+      callAttemptId ?? undefined,
+    );
+
+    if (result.fallbackToBrowser || !result.sessionUsageId) {
+      setFallbackToBrowser(true);
+      return;
+    }
+
+    sessionUsageIdRef.current = result.sessionUsageId;
+    setSessionUsageId(result.sessionUsageId);
+    setBilledActive(true);
+  }, [mode, verifiedUserId, voiceConfig.requiresVoiceAuth, callAttemptId]);
+
+  useEffect(() => {
+    void startSession();
+    return () => {
+      const id = sessionUsageIdRef.current;
+      if (id) void endBilledVoiceSession(id);
+    };
+  }, [startSession]);
+
+  useEffect(() => {
+    if (!sessionUsageId || fallbackToBrowser) return;
+
+    void fetch(`/api/voice/session/usage?sessionUsageId=${sessionUsageId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { remainingConvaiSeconds: number; warnLowTime: boolean } | null) => {
+        if (!data) return;
+        setRemainingConvaiSeconds(data.remainingConvaiSeconds);
+        setWarnLowTime(data.warnLowTime);
+      });
+
+    tickRef.current = setInterval(() => {
+      void fetch("/api/voice/session/usage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionUsageId, convaiSeconds: 1 }),
+      }).then(async (res) => {
+        if (res.status === 429) {
+          setFallbackToBrowser(true);
+          setBilledActive(false);
+          return;
+        }
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          remainingConvaiSeconds: number;
+          warnLowTime: boolean;
+        };
+        setRemainingConvaiSeconds(data.remainingConvaiSeconds);
+        setWarnLowTime(data.warnLowTime);
+      });
+    }, 1000);
+
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+    };
+  }, [sessionUsageId, fallbackToBrowser]);
+
+  return {
+    sessionUsageId: fallbackToBrowser ? null : sessionUsageId,
+    verifiedUserId,
+    billedActive: billedActive && !fallbackToBrowser,
+    remainingConvaiSeconds,
+    warnLowTime,
+    fallbackToBrowser,
+  };
+}
