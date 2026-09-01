@@ -10,6 +10,7 @@ import {
 import { ensureMigrated } from "../helpers/db";
 import { SessionRepository, SessionService, createTrainee } from "@/lib/session";
 import { POST as submitTurnRoute } from "@/app/api/sessions/[id]/turns/route";
+import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -133,7 +134,7 @@ describeIfDb("turn allocation (integration)", () => {
     }
   });
 
-  it("rejects a sixth round with a domain error, not a constraint error", async () => {
+  it("allows follow-up turns after the five clinic phases", async () => {
     const session = await startSession();
 
     for (const utterance of [
@@ -146,6 +147,27 @@ describeIfDb("turn allocation (integration)", () => {
       await service.submitTurn({
         callAttemptId: session.callAttemptId,
         utterance,
+      });
+    }
+
+    const sixth = await service.submitTurn({
+      callAttemptId: session.callAttemptId,
+      utterance:
+        "¿Le parece el martes a las 10:30 para revisar el impacto en visitas a caseta?",
+    });
+
+    expect(sixth.roundNumber).toBe(6);
+    expect(sixth.roundType).toBe("cierre");
+    expect(sixth.clientReply).toBeTruthy();
+  });
+
+  it("rejects turns beyond the allocation safety cap", async () => {
+    const session = await startSession();
+
+    for (let round = 1; round <= SESSION_MAX_TURN_ALLOCATIONS; round += 1) {
+      await service.submitTurn({
+        callAttemptId: session.callAttemptId,
+        utterance: `${APERTURA_UTTERANCE} ronda ${round}`,
       });
     }
 
@@ -168,7 +190,7 @@ describeIfDb("turn allocation (integration)", () => {
     const slot = await repository.reserveTurnSlot(
       session.callAttemptId,
       APERTURA_UTTERANCE,
-      { clientTurnId: null, maxRounds: 5 },
+      { clientTurnId: null },
     );
     expect(slot.kind).toBe("reserved");
     if (slot.kind !== "reserved") throw new Error("expected a reservation");
@@ -230,18 +252,12 @@ describeIfDb("turn allocation (integration)", () => {
     expect(bodies.map((body) => body.roundNumber).sort()).toEqual([1, 2]);
   });
 
-  it("POST /turns reports a finished call as a conflict, not a SQL error", async () => {
+  it("POST /turns reports a finished call as a conflict only past the allocation cap", async () => {
     const session = await startSession();
 
-    for (const utterance of [
-      APERTURA_UTTERANCE,
-      OBJECION_UTTERANCE,
-      CLARIDAD_UTTERANCE,
-      CORREO_UTTERANCE,
-      GOOD_CLOSE_UTTERANCE,
-    ]) {
+    for (let round = 1; round <= SESSION_MAX_TURN_ALLOCATIONS; round += 1) {
       await submitTurnRoute(
-        turnRequest({ utterance }),
+        turnRequest({ utterance: `${APERTURA_UTTERANCE} ronda ${round}` }),
         routeContext(session.callAttemptId),
       );
     }

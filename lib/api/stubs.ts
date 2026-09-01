@@ -4,7 +4,9 @@ import type {
   PracticeMode,
   RoundType,
 } from "@/lib/db/types";
-import { ROUND_ORDER } from "@/lib/db/types";
+import { getRoundTypeForNumber } from "@/lib/extension-points/session";
+import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
+import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
 import { getClientBySlug } from "@/lib/clients";
 import { buildScenarioConfig } from "@/lib/scenarios/defaults";
 import type {
@@ -220,7 +222,7 @@ export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
   }
 
   const callAttemptId = generateId("stub");
-  const totalRounds = 5;
+  const totalRounds = CLINIC_PHASE_COUNT;
 
   const session: StubSession = {
     callAttemptId,
@@ -263,9 +265,9 @@ export async function stubSubmitTurn(
   if (!session) throw new Error("Sesión no encontrada");
   if (session.status !== "in_progress") throw new Error("La sesión ya terminó");
 
-  const totalRounds = 5;
+  const phaseCount = CLINIC_PHASE_COUNT;
 
-  if (session.currentRound > totalRounds) {
+  if (session.currentRound > SESSION_MAX_TURN_ALLOCATIONS) {
     throw new Error("All rounds already completed");
   }
 
@@ -279,7 +281,9 @@ export async function stubSubmitTurn(
   let roundGoal = "";
 
   if (session.scenario.record.isPreset) {
-    roundType = ROUND_ORDER[roundNumber - 1];
+    const presetRound = getRoundTypeForNumber(roundNumber);
+    if (!presetRound) throw new Error("Invalid round");
+    roundType = presetRound;
     roundKey = roundType;
     const labels: Record<string, string> = {
       apertura: "Apertura",
@@ -290,11 +294,15 @@ export async function stubSubmitTurn(
     };
     roundLabel = labels[roundType];
   } else {
-    const round = session.scenario.record.config.rounds[roundNumber - 1];
+    const rounds = session.scenario.record.config.rounds;
+    const phaseIndex = Math.min(roundNumber - 1, rounds.length - 1);
+    const round = rounds[phaseIndex];
     roundKey = round.key;
     roundLabel = round.label;
     roundGoal = round.goal;
-    roundType = ROUND_ORDER[roundNumber - 1];
+    const customRound = getRoundTypeForNumber(roundNumber);
+    if (!customRound) throw new Error("Invalid round");
+    roundType = customRound;
   }
 
   const priorLines = session.turns.flatMap((turn) => {
@@ -312,7 +320,7 @@ export async function stubSubmitTurn(
     isPreset: session.scenario.record.isPreset,
     config: session.scenario.record.isPreset ? null : session.scenario.record.config,
     clientName: session.scenario.record.clientName,
-    isLastRound: roundNumber === totalRounds,
+    isLastRound: roundNumber === phaseCount,
     priorLines,
   });
 
@@ -354,7 +362,7 @@ export async function stubEndSession(callAttemptId: string): Promise<EndSessionR
 
   session.status = "completed";
 
-  const totalRounds = 5;
+  const totalRounds = CLINIC_PHASE_COUNT;
 
   const closeRoundKey = session.scenario.record.isPreset
     ? "cierre"

@@ -343,6 +343,32 @@ describe("live call voice path without ConvAI", () => {
     expect(screen.queryByText(/Error de micrófono: no-speech/i)).not.toBeInTheDocument();
   });
 
+  it("does not autosubmit very short false-starts", async () => {
+    vi.useFakeTimers();
+    const view = renderCall();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Micrófono" }));
+    });
+    speechState.listening = true;
+    await act(async () => {
+      view.rerender(callScreen());
+    });
+
+    speechState.transcript = "Hola";
+    speechState.listening = false;
+    await act(async () => {
+      view.rerender(callScreen());
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(AUTOSUBMIT_SILENCE_MS);
+    });
+
+    expect(submitTurn).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
   it("falls back to browser mic and TTS when ConvAI is enabled but not connected", async () => {
     convaiEnabled.value = true;
     const user = userEvent.setup();

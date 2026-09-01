@@ -47,7 +47,6 @@ export class SessionService {
     try {
       slot = await this.repository.reserveTurnSlot(input.callAttemptId, trimmed, {
         clientTurnId: input.clientTurnId ?? null,
-        maxRounds: session.totalRounds,
       });
     } catch (error) {
       throw toSessionError(error);

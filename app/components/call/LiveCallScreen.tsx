@@ -20,6 +20,7 @@ import { getClientLine, ROUNDS } from "@/lib/simulation/rounds";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
 import { AUTOSUBMIT_SILENCE_MS } from "@/lib/voice/timeouts";
+import { isAutosubmitReady } from "@/lib/voice/autosubmit";
 
 interface DialogueEntry {
   role: "client" | "you";
@@ -364,7 +365,7 @@ export function LiveCallScreen({
       return;
     }
     const pending = utterance.trim();
-    if (!pending) return;
+    if (!pending || !isAutosubmitReady(pending)) return;
 
     clearAutosubmitTimer();
     autosubmitTimerRef.current = setTimeout(() => {
@@ -372,6 +373,7 @@ export function LiveCallScreen({
       const text = utteranceRef.current.trim();
       if (
         !text ||
+        !isAutosubmitReady(text) ||
         submittingRef.current ||
         hangingUpRef.current ||
         endingRef.current ||

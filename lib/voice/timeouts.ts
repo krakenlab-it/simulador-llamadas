@@ -17,6 +17,9 @@ export const TTS_PLAY_TIMEOUT_MS = 30_000;
 /** End-of-speech quiet period before voice autosubmit (ms). */
 export const AUTOSUBMIT_SILENCE_MS = 1_750;
 
+/** Minimum spoken words before voice autosubmit (manual send unchanged). */
+export const AUTOSUBMIT_MIN_WORDS = 3;
+
 /** Safety valve when speechSynthesis or Audio never fires onend. */
 export const SPEAKING_WATCHDOG_MS = 45_000;
 
