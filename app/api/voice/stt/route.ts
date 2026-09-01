@@ -8,6 +8,11 @@ import {
 } from "@/lib/voice/ladder";
 import { gateElevenLabsCall } from "@/lib/voice/gates";
 import { recordTraineeAudioSeconds } from "@/lib/voice/usage";
+import {
+  assertSessionOwnership,
+  isVoiceAuthContext,
+  resolveVoiceAuth,
+} from "@/lib/auth/require-voice-session";
 
 function estimateAudioSeconds(byteLength: number): number {
   return Math.max(1, Math.ceil(byteLength / 16_000));
@@ -22,7 +27,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const sessionUsageId = request.headers.get("x-voice-session-id") ?? undefined;
+  const auth = isElevenLabsTier(tier) ? await resolveVoiceAuth(request) : null;
+  if (auth && !isVoiceAuthContext(auth)) return auth;
+
+  const sessionUsageId =
+    request.headers.get("x-voice-session-id") ?? undefined;
   const contentType = request.headers.get("content-type") ?? "";
 
   let audioBytes: Buffer;
@@ -54,16 +63,46 @@ export async function POST(request: Request) {
   }
 
   const audioSeconds = estimateAudioSeconds(audioBytes.length);
+  const effectiveSessionId = sessionUsageId;
 
   if (isElevenLabsTier(tier)) {
-    const gate = await withPgClient((client) =>
-      gateElevenLabsCall(
+    if (!auth || !isVoiceAuthContext(auth)) {
+      return NextResponse.json(
+        { error: "voice_auth_required", fallbackToBrowser: true },
+        { status: 401 },
+      );
+    }
+    if (!effectiveSessionId) {
+      return NextResponse.json(
+        { error: "sessionUsageId required", fallbackToBrowser: true },
+        { status: 400 },
+      );
+    }
+
+    const gate = await withPgClient(async (client) => {
+      const owned = await assertSessionOwnership(
+        client,
+        effectiveSessionId,
+        auth.verifiedUserId,
+      );
+      if (!owned) {
+        return {
+          allowed: false,
+          reason: "session_forbidden",
+          fallbackToBrowser: true,
+        };
+      }
+      return gateElevenLabsCall(
         client,
         tier,
-        { sessionUsageId },
+        {
+          sessionUsageId: effectiveSessionId,
+          verifiedUserId: auth.verifiedUserId,
+        },
         { audioSeconds },
-      ),
-    );
+      );
+    });
+
     if (!gate.allowed) {
       return NextResponse.json(
         { error: gate.reason, fallbackToBrowser: true },
@@ -80,9 +119,14 @@ export async function POST(request: Request) {
     );
   }
 
-  if (isElevenLabsTier(result.tier) && sessionUsageId) {
+  if (
+    isElevenLabsTier(result.tier) &&
+    effectiveSessionId &&
+    auth &&
+    isVoiceAuthContext(auth)
+  ) {
     await withPgClient((client) =>
-      recordTraineeAudioSeconds(client, sessionUsageId, audioSeconds),
+      recordTraineeAudioSeconds(client, effectiveSessionId, audioSeconds),
     );
   }
 

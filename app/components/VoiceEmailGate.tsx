@@ -36,13 +36,13 @@ export function VoiceEmailGate({ onVerified, onSkip }: VoiceEmailGateProps) {
             setMessage("No se pudo verificar el enlace. Intenta de nuevo.");
             return;
           }
-          const reg = await registerVerifiedVoiceUser(result.email);
+          const reg = await registerVerifiedVoiceUser();
           if (!reg) {
             setStatus("error");
             setMessage("Error al registrar la verificación.");
             return;
           }
-          onVerified(reg.verifiedUserId, result.email);
+          onVerified(reg.verifiedUserId, reg.email);
         });
       }
     }

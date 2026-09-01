@@ -41,9 +41,36 @@ export async function synthesizeWithElevenLabs(
   }
 }
 
+/** ElevenLabs audio isolation API — runs before Scribe v2 batch. */
+export async function isolateTraineeAudio(
+  audioBytes: Buffer,
+  mimeType: string,
+): Promise<Buffer> {
+  const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
+  if (!isElevenLabsEnabled() || !apiKey) return audioBytes;
+
+  try {
+    const form = new FormData();
+    const blob = new Blob([new Uint8Array(audioBytes)], {
+      type: mimeType || "audio/webm",
+    });
+    form.append("audio", blob, "audio.webm");
+
+    const response = await fetch("https://api.elevenlabs.io/v1/audio-isolation", {
+      method: "POST",
+      headers: { "xi-api-key": apiKey },
+      body: form,
+    });
+
+    if (!response.ok) return audioBytes;
+    return Buffer.from(await response.arrayBuffer());
+  } catch {
+    return audioBytes;
+  }
+}
+
 /**
- * Trainee STT: audio isolation (best-effort) then Scribe v2 batch.
- * Isolation is requested via the batch API tag when supported; otherwise raw audio.
+ * Trainee STT: isolation API first, then Scribe v2 batch on isolated audio.
  */
 export async function transcribeWithElevenLabsScribe(
   audioBytes: Buffer,
@@ -52,9 +79,13 @@ export async function transcribeWithElevenLabsScribe(
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
   if (!isElevenLabsEnabled() || !apiKey) return null;
 
+  const isolated = await isolateTraineeAudio(audioBytes, mimeType);
+
   try {
     const form = new FormData();
-    const blob = new Blob([new Uint8Array(audioBytes)], { type: mimeType || "audio/webm" });
+    const blob = new Blob([new Uint8Array(isolated)], {
+      type: mimeType || "audio/webm",
+    });
     form.append("file", blob, "audio.webm");
     form.append("model_id", SCRIBE_MODEL);
     form.append("language_code", LANGUAGE);
@@ -87,10 +118,6 @@ export function isConvaiAvailable(): boolean {
   return isElevenLabsEnabled();
 }
 
-/**
- * Obtain a signed ConvAI websocket URL for the patient agent.
- * Agent is created/cached server-side using the locked voice — no extra env names.
- */
 export async function getConvaiSignedUrl(
   clientName: string,
   scenarioContext: string,
@@ -139,6 +166,16 @@ async function ensureConvaiAgent(
       tts: voiceId
         ? { voice_id: voiceId, model_id: TTS_MODEL }
         : { model_id: TTS_MODEL },
+      conversation: {
+        client_events: {
+          agent_response: true,
+          audio: true,
+          interruption: true,
+        },
+      },
+      turn: {
+        turn_timeout: 25,
+      },
     },
   };
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isSpeechSynthesisSupported } from "@/lib/extension-points/session";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
+import { getVoiceAuthHeaders } from "@/lib/auth/voice-email";
 
 const SPEECH_LANG = "es-MX";
 
@@ -22,9 +23,10 @@ async function fetchServerAudio(
   text: string,
   sessionUsageId?: string | null,
 ): Promise<{ blob: Blob | null; fallback: boolean }> {
+  const authHeaders = await getVoiceAuthHeaders();
   const response = await fetch("/api/voice/tts", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...authHeaders, "Content-Type": "application/json" },
     body: JSON.stringify({ text, sessionUsageId }),
   });
   if (response.status === 429) return { blob: null, fallback: true };

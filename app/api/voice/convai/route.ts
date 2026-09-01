@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { withPgClient } from "@/lib/session";
+import {
+  assertSessionOwnership,
+  isVoiceAuthContext,
+  resolveVoiceAuth,
+} from "@/lib/auth/require-voice-session";
 import { getConvaiSignedUrl } from "@/lib/voice/providers/elevenlabs";
 import { isBilledElevenLabsPathAvailable } from "@/lib/voice/gates";
 import { acquireConvaiSlot, releaseConvaiSlot } from "@/lib/voice/usage";
@@ -12,6 +17,9 @@ export async function POST(request: Request) {
       { status: 503 },
     );
   }
+
+  const auth = await resolveVoiceAuth(request);
+  if (!isVoiceAuthContext(auth)) return auth;
 
   const body = (await request.json()) as {
     clientName?: string;
@@ -27,8 +35,21 @@ export async function POST(request: Request) {
     );
   }
 
+  const owned = await withPgClient((client) =>
+    assertSessionOwnership(client, sessionUsageId, auth.verifiedUserId),
+  );
+  if (!owned) {
+    return NextResponse.json(
+      { error: "session_forbidden", fallbackToBrowser: true },
+      { status: 403 },
+    );
+  }
+
   const gate = await withPgClient((client) =>
-    gateElevenLabsCall(client, "elevenlabs", { sessionUsageId }),
+    gateElevenLabsCall(client, "elevenlabs", {
+      sessionUsageId,
+      verifiedUserId: auth.verifiedUserId,
+    }),
   );
   if (!gate.allowed) {
     return NextResponse.json(

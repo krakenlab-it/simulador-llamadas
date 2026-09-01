@@ -17,7 +17,18 @@ export function clearStoredVoiceEmail(): void {
   localStorage.removeItem(VOICE_EMAIL_KEY);
 }
 
-export async function sendVoiceMagicLink(email: string): Promise<{ ok: boolean; error?: string }> {
+/** Returns Authorization header from active Supabase session, or null. */
+export async function getVoiceAuthHeaders(): Promise<Record<string, string>> {
+  const supabase = createBrowserSupabaseClient();
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+}
+
+export async function sendVoiceMagicLink(
+  email: string,
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const supabase = createBrowserSupabaseClient();
     const redirectTo =
@@ -43,58 +54,95 @@ export async function sendVoiceMagicLink(email: string): Promise<{ ok: boolean; 
 export async function verifyVoiceSession(): Promise<{
   verified: boolean;
   email?: string;
+  accessToken?: string;
 }> {
   try {
     const supabase = createBrowserSupabaseClient();
     const { data, error } = await supabase.auth.getSession();
-    if (error || !data.session?.user.email) {
+    if (error || !data.session?.user.email || !data.session.access_token) {
       return { verified: false };
     }
     const email = data.session.user.email;
     setStoredVoiceEmail(email);
-    return { verified: true, email };
+    return {
+      verified: true,
+      email,
+      accessToken: data.session.access_token,
+    };
   } catch {
     return { verified: false };
   }
 }
 
-export async function registerVerifiedVoiceUser(
-  email: string,
-  authUserId?: string,
-): Promise<{ verifiedUserId: string } | null> {
+/** Register verified user — requires live Supabase session JWT. */
+export async function registerVerifiedVoiceUser(): Promise<{
+  verifiedUserId: string;
+  email: string;
+} | null> {
+  const headers = await getVoiceAuthHeaders();
+  if (!headers.Authorization) return null;
+
   const response = await fetch("/api/voice/auth/verify", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, authUserId }),
+    headers: { ...headers, "Content-Type": "application/json" },
   });
   if (!response.ok) return null;
-  return response.json() as Promise<{ verifiedUserId: string }>;
+  return response.json() as Promise<{ verifiedUserId: string; email: string }>;
 }
 
 export async function startBilledVoiceSession(
-  verifiedUserId: string,
   callAttemptId?: string,
 ): Promise<{
   sessionUsageId?: string;
+  verifiedUserId?: string;
   fallbackToBrowser?: boolean;
   reason?: string;
 }> {
+  const headers = await getVoiceAuthHeaders();
+  if (!headers.Authorization) {
+    return { fallbackToBrowser: true, reason: "voice_auth_required" };
+  }
+
   const response = await fetch("/api/voice/session/start", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ verifiedUserId, callAttemptId }),
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ callAttemptId }),
   });
   return response.json() as Promise<{
     sessionUsageId?: string;
+    verifiedUserId?: string;
     fallbackToBrowser?: boolean;
     reason?: string;
   }>;
 }
 
 export async function endBilledVoiceSession(sessionUsageId: string): Promise<void> {
+  const headers = await getVoiceAuthHeaders();
   await fetch("/api/voice/session/end", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...headers, "Content-Type": "application/json" },
     body: JSON.stringify({ sessionUsageId }),
   });
+}
+
+export async function startConvaiSession(input: {
+  sessionUsageId: string;
+  clientName: string;
+  scenarioContext: string;
+}): Promise<{ signedUrl?: string; fallbackToBrowser?: boolean; reason?: string }> {
+  const headers = await getVoiceAuthHeaders();
+  if (!headers.Authorization) {
+    return { fallbackToBrowser: true, reason: "voice_auth_required" };
+  }
+
+  const response = await fetch("/api/voice/convai", {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return response.json() as Promise<{
+    signedUrl?: string;
+    fallbackToBrowser?: boolean;
+    reason?: string;
+  }>;
 }

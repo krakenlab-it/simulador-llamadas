@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { withPgClient } from "@/lib/session";
 import {
+  isVoiceAuthContext,
+  resolveVoiceAuth,
+} from "@/lib/auth/require-voice-session";
+import {
   checkDailyUserBudget,
   checkGlobalMonthlyBudget,
   reserveBilledSession,
@@ -25,20 +29,13 @@ export async function POST(request: Request) {
       });
     }
 
-    const body = (await request.json()) as {
-      verifiedUserId?: string;
-      callAttemptId?: string;
-    };
+    const auth = await resolveVoiceAuth(request);
+    if (!isVoiceAuthContext(auth)) return auth;
 
-    if (!body.verifiedUserId) {
-      return NextResponse.json(
-        { error: "verifiedUserId is required" },
-        { status: 400 },
-      );
-    }
+    const body = (await request.json()) as { callAttemptId?: string };
 
     const result = await withPgClient(async (client) => {
-      const daily = await checkDailyUserBudget(client, body.verifiedUserId!);
+      const daily = await checkDailyUserBudget(client, auth.verifiedUserId);
       if (!daily.allowed) return daily;
 
       const monthly = await checkGlobalMonthlyBudget(client);
@@ -46,7 +43,7 @@ export async function POST(request: Request) {
 
       return reserveBilledSession(
         client,
-        body.verifiedUserId!,
+        auth.verifiedUserId,
         body.callAttemptId,
       );
     });
@@ -58,6 +55,7 @@ export async function POST(request: Request) {
     if ("sessionUsageId" in result) {
       return NextResponse.json({
         sessionUsageId: result.sessionUsageId,
+        verifiedUserId: auth.verifiedUserId,
         limits: {
           sessionConvaiMaxSeconds: SESSION_CONVAI_MAX_SECONDS,
           sessionConvaiWarnRemainingSeconds: SESSION_CONVAI_WARN_REMAINING_SECONDS,

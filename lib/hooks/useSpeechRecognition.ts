@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isSpeechRecognitionSupported } from "@/lib/extension-points/session";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
+import { getVoiceAuthHeaders } from "@/lib/auth/voice-email";
 
 const SPEECH_LANG = "es-MX";
 
@@ -30,6 +31,8 @@ async function transcribeOnServer(
   form.append("audio", audioBlob, "recording.webm");
 
   const headers: Record<string, string> = {};
+  const authHeaders = await getVoiceAuthHeaders();
+  Object.assign(headers, authHeaders);
   if (sessionUsageId) headers["x-voice-session-id"] = sessionUsageId;
 
   const response = await fetch("/api/voice/stt", { method: "POST", body: form, headers });

@@ -5,6 +5,7 @@ import {
   endBilledVoiceSession,
   startBilledVoiceSession,
 } from "@/lib/auth/voice-email";
+import { voiceSessionFetch } from "@/lib/hooks/useConvaiConnection";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { SESSION_CONVAI_MAX_SECONDS } from "@/lib/voice/brakes";
 
@@ -24,6 +25,9 @@ export function useVoiceSession(
 ): VoiceSessionState {
   const voiceConfig = useVoiceConfig();
   const [sessionUsageId, setSessionUsageId] = useState<string | null>(null);
+  const [resolvedVerifiedUserId, setResolvedVerifiedUserId] = useState<string | null>(
+    verifiedUserId,
+  );
   const [billedActive, setBilledActive] = useState(false);
   const [remainingConvaiSeconds, setRemainingConvaiSeconds] = useState(
     SESSION_CONVAI_MAX_SECONDS,
@@ -37,7 +41,6 @@ export function useVoiceSession(
   const startSession = useCallback(async () => {
     if (
       mode !== "voz" ||
-      !verifiedUserId ||
       !voiceConfig.requiresVoiceAuth ||
       startedRef.current
     ) {
@@ -45,10 +48,7 @@ export function useVoiceSession(
     }
     startedRef.current = true;
 
-    const result = await startBilledVoiceSession(
-      verifiedUserId,
-      callAttemptId ?? undefined,
-    );
+    const result = await startBilledVoiceSession(callAttemptId ?? undefined);
 
     if (result.fallbackToBrowser || !result.sessionUsageId) {
       setFallbackToBrowser(true);
@@ -57,8 +57,9 @@ export function useVoiceSession(
 
     sessionUsageIdRef.current = result.sessionUsageId;
     setSessionUsageId(result.sessionUsageId);
+    setResolvedVerifiedUserId(result.verifiedUserId ?? verifiedUserId);
     setBilledActive(true);
-  }, [mode, verifiedUserId, voiceConfig.requiresVoiceAuth, callAttemptId]);
+  }, [mode, voiceConfig.requiresVoiceAuth, callAttemptId, verifiedUserId]);
 
   useEffect(() => {
     void startSession();
@@ -71,7 +72,9 @@ export function useVoiceSession(
   useEffect(() => {
     if (!sessionUsageId || fallbackToBrowser) return;
 
-    void fetch(`/api/voice/session/usage?sessionUsageId=${sessionUsageId}`)
+    void voiceSessionFetch(
+      `/api/voice/session/usage?sessionUsageId=${sessionUsageId}`,
+    )
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { remainingConvaiSeconds: number; warnLowTime: boolean } | null) => {
         if (!data) return;
@@ -80,7 +83,7 @@ export function useVoiceSession(
       });
 
     tickRef.current = setInterval(() => {
-      void fetch("/api/voice/session/usage", {
+      void voiceSessionFetch("/api/voice/session/usage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionUsageId, convaiSeconds: 1 }),
@@ -107,7 +110,7 @@ export function useVoiceSession(
 
   return {
     sessionUsageId: fallbackToBrowser ? null : sessionUsageId,
-    verifiedUserId,
+    verifiedUserId: resolvedVerifiedUserId,
     billedActive: billedActive && !fallbackToBrowser,
     remainingConvaiSeconds,
     warnLowTime,

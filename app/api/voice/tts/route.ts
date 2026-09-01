@@ -8,6 +8,11 @@ import {
 import { synthesizeSpeech } from "@/lib/voice/tts";
 import { gateElevenLabsCall } from "@/lib/voice/gates";
 import { recordExtraTtsChars } from "@/lib/voice/usage";
+import {
+  assertSessionOwnership,
+  isVoiceAuthContext,
+  resolveVoiceAuth,
+} from "@/lib/auth/require-voice-session";
 
 export async function POST(request: Request) {
   const tier = resolveTtsTier();
@@ -17,6 +22,9 @@ export async function POST(request: Request) {
       { status: 503 },
     );
   }
+
+  const auth = isElevenLabsTier(tier) ? await resolveVoiceAuth(request) : null;
+  if (auth && !isVoiceAuthContext(auth)) return auth;
 
   const body = (await request.json()) as {
     text?: string;
@@ -31,14 +39,43 @@ export async function POST(request: Request) {
   }
 
   if (isElevenLabsTier(tier)) {
-    const gate = await withPgClient((client) =>
-      gateElevenLabsCall(
+    if (!auth || !isVoiceAuthContext(auth)) {
+      return NextResponse.json(
+        { error: "voice_auth_required", fallbackToBrowser: true },
+        { status: 401 },
+      );
+    }
+    if (!sessionUsageId) {
+      return NextResponse.json(
+        { error: "sessionUsageId required", fallbackToBrowser: true },
+        { status: 400 },
+      );
+    }
+
+    const gate = await withPgClient(async (client) => {
+      const owned = await assertSessionOwnership(
+        client,
+        sessionUsageId,
+        auth.verifiedUserId,
+      );
+      if (!owned) {
+        return {
+          allowed: false,
+          reason: "session_forbidden",
+          fallbackToBrowser: true,
+        };
+      }
+      return gateElevenLabsCall(
         client,
         tier,
-        { sessionUsageId },
+        {
+          sessionUsageId,
+          verifiedUserId: auth.verifiedUserId,
+        },
         { ttsChars: text.length },
-      ),
-    );
+      );
+    });
+
     if (!gate.allowed) {
       return NextResponse.json(
         { error: gate.reason, fallbackToBrowser: true },
@@ -55,7 +92,12 @@ export async function POST(request: Request) {
     );
   }
 
-  if (isElevenLabsTier(result.tier) && sessionUsageId) {
+  if (
+    isElevenLabsTier(result.tier) &&
+    sessionUsageId &&
+    auth &&
+    isVoiceAuthContext(auth)
+  ) {
     await withPgClient((client) =>
       recordExtraTtsChars(client, sessionUsageId, text.length),
     );

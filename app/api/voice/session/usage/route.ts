@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { withPgClient } from "@/lib/session";
 import {
+  assertSessionOwnership,
+  isVoiceAuthContext,
+  resolveVoiceAuth,
+} from "@/lib/auth/require-voice-session";
+import {
   acquireConvaiSlot,
   getSessionUsage,
   recordConvaiSeconds,
@@ -13,15 +18,25 @@ import {
 import { gateElevenLabsCall } from "@/lib/voice/gates";
 
 export async function GET(request: Request) {
+  const auth = await resolveVoiceAuth(request);
+  if (!isVoiceAuthContext(auth)) return auth;
+
   const sessionUsageId = new URL(request.url).searchParams.get("sessionUsageId");
   if (!sessionUsageId) {
     return NextResponse.json({ error: "sessionUsageId required" }, { status: 400 });
   }
 
   try {
-    const usage = await withPgClient((client) =>
-      getSessionUsage(client, sessionUsageId),
-    );
+    const usage = await withPgClient(async (client) => {
+      const owned = await assertSessionOwnership(
+        client,
+        sessionUsageId,
+        auth.verifiedUserId,
+      );
+      if (!owned) return null;
+      return getSessionUsage(client, sessionUsageId);
+    });
+
     if (!usage) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
@@ -41,6 +56,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const auth = await resolveVoiceAuth(request);
+    if (!isVoiceAuthContext(auth)) return auth;
+
     const body = (await request.json()) as {
       sessionUsageId?: string;
       convaiSeconds?: number;
@@ -58,9 +76,23 @@ export async function POST(request: Request) {
     }
 
     const result = await withPgClient(async (client) => {
+      const owned = await assertSessionOwnership(
+        client,
+        body.sessionUsageId!,
+        auth.verifiedUserId,
+      );
+      if (!owned) {
+        return {
+          allowed: false,
+          reason: "session_forbidden",
+          fallbackToBrowser: true,
+        };
+      }
+
       if (body.acquireConvaiSlot) {
         const gate = await gateElevenLabsCall(client, "elevenlabs", {
           sessionUsageId: body.sessionUsageId,
+          verifiedUserId: auth.verifiedUserId,
         });
         if (!gate.allowed) return gate;
         const slot = await acquireConvaiSlot(client, body.sessionUsageId!);
@@ -75,7 +107,10 @@ export async function POST(request: Request) {
         const gate = await gateElevenLabsCall(
           client,
           "elevenlabs",
-          { sessionUsageId: body.sessionUsageId },
+          {
+            sessionUsageId: body.sessionUsageId,
+            verifiedUserId: auth.verifiedUserId,
+          },
         );
         if (!gate.allowed) return gate;
         await recordConvaiSeconds(client, body.sessionUsageId!, body.convaiSeconds);
@@ -85,7 +120,10 @@ export async function POST(request: Request) {
         const gate = await gateElevenLabsCall(
           client,
           "elevenlabs-scribe",
-          { sessionUsageId: body.sessionUsageId },
+          {
+            sessionUsageId: body.sessionUsageId,
+            verifiedUserId: auth.verifiedUserId,
+          },
           { audioSeconds: body.traineeAudioSeconds },
         );
         if (!gate.allowed) return gate;
@@ -100,7 +138,10 @@ export async function POST(request: Request) {
         const gate = await gateElevenLabsCall(
           client,
           "elevenlabs",
-          { sessionUsageId: body.sessionUsageId },
+          {
+            sessionUsageId: body.sessionUsageId,
+            verifiedUserId: auth.verifiedUserId,
+          },
           { ttsChars: body.extraTtsChars },
         );
         if (!gate.allowed) return gate;
