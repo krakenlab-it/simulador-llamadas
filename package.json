@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:migrations": "vitest run tests/schema",
-    "ci": "npm run lint && npm run typecheck && npm run test"
+    "ci": "npm run lint && npm run typecheck && npm run test",
+    "ci:build": "NEXT_PUBLIC_SUPABASE_URL=\"${NEXT_PUBLIC_SUPABASE_URL:-https://placeholder.supabase.co}\" NEXT_PUBLIC_SUPABASE_ANON_KEY=\"${NEXT_PUBLIC_SUPABASE_ANON_KEY:-placeholder-anon-key}\" next build",
+    "ci:local": "npm run lint && npm run typecheck && npm run test && npm run ci:build"
   },
   "dependencies": {
     "@elevenlabs/client": "^1.23.0",
