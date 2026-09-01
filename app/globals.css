@@ -1010,6 +1010,54 @@ body {
   margin-top: 0.75rem;
 }
 
+.call-devices {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .call-devices {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.call-devices__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.call-devices__label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.call-devices__select {
+  width: 100%;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--paper);
+  padding: 0.55rem 0.65rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.call-devices__select:focus {
+  outline: none;
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 45%, transparent);
+}
+
+.call-devices__note {
+  margin: 0 0 0.75rem;
+}
+
 .call-screen__note {
   margin: 0.75rem 0 0;
   font-size: 0.8rem;

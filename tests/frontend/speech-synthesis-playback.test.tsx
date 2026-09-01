@@ -64,6 +64,28 @@ describe("billed TTS playback", () => {
     vi.clearAllMocks();
   });
 
+  it("clears a stuck speaking flag via watchdog so STT can resume", async () => {
+    vi.useFakeTimers();
+    unlockClientPlayback();
+    const { result } = renderHook(() =>
+      useSpeechSynthesis({ sessionUsageId: "usage-1" }),
+    );
+
+    await act(async () => {
+      result.current.speak("¿Ustedes miden gente real o solo leads?");
+      await Promise.resolve();
+    });
+
+    expect(result.current.speaking).toBe(true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(46_000);
+    });
+
+    expect(result.current.speaking).toBe(false);
+    vi.useRealTimers();
+  });
+
   it("plays the billed audio on the shared element after unlock", async () => {
     unlockClientPlayback();
     const { result } = renderHook(() =>

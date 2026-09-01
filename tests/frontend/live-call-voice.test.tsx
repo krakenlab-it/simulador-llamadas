@@ -17,6 +17,7 @@ const speechState = vi.hoisted(() => ({
   startListening: vi.fn(),
   stopListening: vi.fn(),
   resetTranscript: vi.fn(),
+  ensureListening: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", () => ({
@@ -57,6 +58,21 @@ vi.mock("@/lib/hooks/useConvaiConnection", () => ({
 
 vi.mock("@/lib/hooks/useSpeechRecognition", () => ({
   useSpeechRecognition: () => speechState,
+}));
+
+vi.mock("@/lib/hooks/useCallAudioDevices", () => ({
+  useCallAudioDevices: () => ({
+    ready: false,
+    speakerSupported: false,
+    inputs: [],
+    outputs: [],
+    selectedMicId: "",
+    selectedSpeakerId: "",
+    micCaptureNote: null,
+    refreshDevices: vi.fn(),
+    selectMic: vi.fn(),
+    selectSpeaker: vi.fn(),
+  }),
 }));
 
 const convaiEnabled = { value: false };
@@ -233,6 +249,8 @@ describe("live call voice path without ConvAI", () => {
     const view = renderCall();
 
     await user.click(screen.getByRole("button", { name: "Micrófono" }));
+    speechState.listening = true;
+    view.rerender(callScreen());
     expect(screen.getByRole("button", { name: "Escuchando…" })).toBeInTheDocument();
 
     speechState.transcript = "Hola Mariana, hablo de KrakenLab.";
@@ -251,6 +269,22 @@ describe("live call voice path without ConvAI", () => {
 
     view.rerender(callScreen());
     expect(submitTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show Escuchando when recognition is not listening", async () => {
+    const user = userEvent.setup();
+    const view = renderCall();
+
+    await user.click(screen.getByRole("button", { name: "Micrófono" }));
+    speechState.listening = false;
+    view.rerender(callScreen());
+
+    expect(
+      screen.queryByRole("button", { name: "Escuchando…" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Reanudando micrófono…" }),
+    ).toBeInTheDocument();
   });
 
   it("does not autosubmit empty or no-speech results", async () => {

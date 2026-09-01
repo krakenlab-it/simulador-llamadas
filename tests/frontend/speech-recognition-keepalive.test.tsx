@@ -80,9 +80,13 @@ describe("speech recognition keep-alive", () => {
     vi.useRealTimers();
   });
 
-  it("does not restart immediately after a real utterance (parent submits)", async () => {
+  it("restarts after autosubmit once the mic is unpaused", async () => {
     vi.useFakeTimers();
-    renderHook(() => useSpeechRecognition({ keepAlive: true }));
+    const { rerender } = renderHook(
+      ({ paused }) =>
+        useSpeechRecognition({ keepAlive: true, paused }),
+      { initialProps: { paused: false } },
+    );
 
     await act(async () => {
       await Promise.resolve();
@@ -99,8 +103,16 @@ describe("speech recognition keep-alive", () => {
     await act(async () => {
       vi.advanceTimersByTime(250);
     });
-
     expect(instances).toHaveLength(1);
+
+    rerender({ paused: true });
+    rerender({ paused: false });
+
+    await act(async () => {
+      vi.advanceTimersByTime(250);
+    });
+
+    expect(instances.length).toBeGreaterThan(1);
     vi.useRealTimers();
   });
 
