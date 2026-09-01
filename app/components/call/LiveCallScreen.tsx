@@ -13,8 +13,8 @@ import { useVoiceSession } from "@/lib/hooks/useVoiceSession";
 import { useConvaiConnection } from "@/lib/hooks/useConvaiConnection";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { getClientLine, ROUNDS } from "@/lib/simulation/rounds";
-import { PendingButton } from "@/components/ui/PendingButton";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/app/components/ui/Button";
 
 interface DialogueEntry {
   role: "client" | "you";
@@ -34,6 +34,8 @@ interface LiveCallScreenProps {
   ending?: boolean;
   onHangUp: (turns: TurnSummary[]) => void;
 }
+
+const ROUND_LABELS = ["Apertura", "Objeción", "Claridad", "Correo", "Cierre"];
 
 export function LiveCallScreen({
   callAttemptId,
@@ -62,6 +64,7 @@ export function LiveCallScreen({
       : `Escenario ${scenarioSlug}`;
 
   const dialogueRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [round, setRound] = useState(1);
   const [roundLabel, setRoundLabel] = useState("Apertura");
   const [dialogue, setDialogue] = useState<DialogueEntry[]>([]);
@@ -72,6 +75,7 @@ export function LiveCallScreen({
     keywordHits: Record<string, boolean>;
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [hangingUp, setHangingUp] = useState(false);
   const turnHistory = useRef<TurnSummary[]>([]);
 
   const convai = useConvaiConnection({
@@ -103,7 +107,7 @@ export function LiveCallScreen({
   const synthesis = useSpeechSynthesis({ sessionUsageId });
 
   const roundMeta = isPreset ? ROUNDS[round - 1] : null;
-  const busy = submitting || ending;
+  const busy = submitting || hangingUp || ending;
 
   useEffect(() => {
     const opening =
@@ -114,6 +118,7 @@ export function LiveCallScreen({
     if (mode === "voz" && !voiceConfig.convaiEnabled) {
       synthesis.speak(opening);
     }
+    textareaRef.current?.focus();
   }, [client, isPreset, mode, scenarioSlug, synthesis, voiceConfig.convaiEnabled]);
 
   useEffect(() => {
@@ -139,13 +144,10 @@ export function LiveCallScreen({
   ]);
 
   useEffect(() => {
-    const el = dialogueRef.current;
-    if (!el) return;
-    if (typeof el.scrollTo === "function") {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    } else {
-      el.scrollTop = el.scrollHeight;
-    }
+    dialogueRef.current?.scrollTo({
+      top: dialogueRef.current.scrollHeight,
+      behavior: "smooth",
+    });
   }, [dialogue, turnEval]);
 
   const handleMic = () => {
@@ -170,7 +172,7 @@ export function LiveCallScreen({
 
   const handleSubmitTurn = async () => {
     const text = utterance.trim();
-    if (!text || submitting) return;
+    if (!text || submitting || busy) return;
 
     setSubmitting(true);
     try {
@@ -213,6 +215,7 @@ export function LiveCallScreen({
               }
             }
           }
+          textareaRef.current?.focus();
         }, 1800);
       }
     } catch (error) {
@@ -226,126 +229,173 @@ export function LiveCallScreen({
     }
   };
 
+  const handleHangUp = () => {
+    if (busy) return;
+    setHangingUp(true);
+    onHangUp([...turnHistory.current]);
+  };
+
   const keywordLabels = getKeywordLabels();
   const displayRoundLabel = roundMeta?.label ?? roundLabel;
+  const progressPct = Math.round(((round - 1) / totalRounds) * 100);
 
   return (
-    <section className="screen active" aria-label="Llamada en vivo">
-      <div className={`call-panel ${submitting ? "submitting" : ""}`}>
-        <div className="round-label">
-          Ronda {round}/{totalRounds} · {displayRoundLabel}
+    <section className="call-screen" aria-label="Llamada en vivo">
+      <header className="call-screen__header">
+        <div>
+          <p className="call-screen__status">
+            <span className="call-screen__live-dot" aria-hidden="true" />
+            En llamada
+          </p>
+          <h1 className="call-screen__client">{clientName}</h1>
+          <p className="call-screen__meta">
+            Nivel {level} · Modo {mode}
+          </p>
         </div>
-        <div className="client-line">
-          {clientName} · Nivel {level} · Modo {mode}
-        </div>
+        <Button variant="danger" onClick={handleHangUp} loading={hangingUp || ending}>
+          Colgar
+        </Button>
+      </header>
 
+      <div
+        className="round-progress"
+        role="progressbar"
+        aria-valuenow={round}
+        aria-valuemin={1}
+        aria-valuemax={totalRounds}
+        aria-label={`Ronda ${round} de ${totalRounds}`}
+      >
+        <div className="round-progress__track">
+          <div
+            className="round-progress__fill"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+        <ol className="round-progress__steps">
+          {ROUND_LABELS.slice(0, totalRounds).map((label, i) => {
+            const stepNum = i + 1;
+            const state =
+              stepNum < round
+                ? "done"
+                : stepNum === round
+                  ? "current"
+                  : "pending";
+            return (
+              <li
+                key={label}
+                className={`round-progress__step round-progress__step--${state}`}
+              >
+                <span className="round-progress__dot" aria-hidden="true" />
+                <span className="round-progress__label">{label}</span>
+              </li>
+            );
+          })}
+        </ol>
+        <p className="round-progress__current">
+          Ronda {round}/{totalRounds} · {displayRoundLabel}
+        </p>
+      </div>
+
+      <div className="call-screen__panel">
         <div className="dialogue" ref={dialogueRef} aria-live="polite">
           {dialogue.map((entry, i) => (
-            <div key={`${entry.role}-${i}`} className={entry.role}>
-              <strong>{entry.role === "client" ? "Cliente:" : "Tú:"}</strong>{" "}
-              {entry.text}
+            <div
+              key={`${entry.role}-${i}`}
+              className={`dialogue__bubble dialogue__bubble--${entry.role}`}
+            >
+              <span className="dialogue__speaker">
+                {entry.role === "client" ? "Cliente" : "Tú"}
+              </span>
+              <p>{entry.text}</p>
             </div>
           ))}
         </div>
 
-        <textarea
-          value={utterance}
-          onChange={(e) => setUtterance(e.target.value)}
-          placeholder={
-            mode === "voz"
-              ? "Escribe tu respuesta o usa el micrófono…"
-              : "Escribe tu respuesta…"
-          }
-          aria-label="Tu respuesta"
-          disabled={busy}
-        />
-
-        <div className="controls">
-          {mode === "voz" && (
-            <PendingButton
-              pending={speech.listening}
-              pendingLabel="🎤 Escuchando…"
-              onClick={handleMic}
-              disabled={!speech.supported || busy}
-            >
-              {speech.listening ? "🎤 Detener" : "🎤 Escuchar"}
-            </PendingButton>
-          )}
-          <PendingButton
-            variant="primary"
-            pending={submitting}
-            pendingLabel="Enviando turno…"
-            onClick={() => void handleSubmitTurn()}
-            disabled={!utterance.trim() || busy}
-          >
-            Enviar turno
-          </PendingButton>
-          <PendingButton
-            pending={ending}
-            pendingLabel="Evaluando…"
-            onClick={() => onHangUp([...turnHistory.current])}
+        <div className="call-screen__composer">
+          <textarea
+            ref={textareaRef}
+            value={utterance}
+            onChange={(e) => setUtterance(e.target.value)}
+            placeholder={
+              mode === "voz"
+                ? "Responde aquí o usa el micrófono…"
+                : "Escribe tu respuesta…"
+            }
+            aria-label="Tu respuesta"
             disabled={busy}
-          >
-            Colgar y evaluar
-          </PendingButton>
+          />
+
+          <div className="call-screen__actions">
+            {mode === "voz" ? (
+              <Button
+                variant="secondary"
+                onClick={handleMic}
+                disabled={speech.listening || !speech.supported || busy}
+              >
+                {speech.listening ? "Escuchando…" : "Micrófono"}
+              </Button>
+            ) : null}
+            <Button
+              variant="primary"
+              onClick={() => void handleSubmitTurn()}
+              disabled={!utterance.trim() || busy}
+              loading={submitting}
+            >
+              Enviar turno
+            </Button>
+          </div>
         </div>
 
-        {speech.error && <p className="note warn">{speech.error}</p>}
-
-        {voiceSession.warnLowTime && mode === "voz" && (
-          <p className="note warn">
-            Quedan {voiceSession.remainingConvaiSeconds}s de voz con IA en esta
-            sesión.
+        {voiceSession.warnLowTime ? (
+          <p className="call-screen__note call-screen__note--warn">
+            Queda poco tiempo de voz en esta sesión.
           </p>
-        )}
-
-        {voiceSession.fallbackToBrowser && mode === "voz" && (
-          <p className="note">
-            Límite de voz con IA alcanzado; usando voz del navegador.
+        ) : null}
+        {voiceSession.fallbackToBrowser ? (
+          <p className="call-screen__note">
+            Usando voz del navegador (sin facturación ElevenLabs).
           </p>
-        )}
+        ) : null}
+        {convaiConnected ? (
+          <p className="call-screen__note">Agente de voz conectado.</p>
+        ) : null}
+        {speech.error ? (
+          <p className="call-screen__note call-screen__note--warn">{speech.error}</p>
+        ) : null}
 
-        {convaiConnected && mode === "voz" && (
-          <p className="note">
-            ConvAI conectado · barge-in activo al usar el micrófono.
-          </p>
-        )}
-
-        {turnEval && (
+        {turnEval ? (
           <div
-            className={`eval rich eval-enter ${turnEval.roundScore >= 50 ? "good" : "bad"}`}
+            className={`coaching-card ${turnEval.roundScore >= 50 ? "coaching-card--good" : "coaching-card--low"}`}
+            role="status"
           >
-            <strong>
+            <p className="coaching-card__score">
               {turnEval.richFeedback.roundLabel}: {turnEval.roundScore}/100
-            </strong>
-            <p className="feedback-why">{turnEval.richFeedback.whyScore}</p>
-            <p className="exact-phrase">
-              Dijiste: &ldquo;{turnEval.richFeedback.utterance}&rdquo;
             </p>
-            <p className="exact-phrase expected">
+            <p className="coaching-card__why">{turnEval.richFeedback.whyScore}</p>
+            <p className="coaching-card__line">
               Línea más fuerte:{" "}
               <em>{turnEval.richFeedback.strongerLine}</em>
             </p>
-            {turnEval.richFeedback.missedCriteria.length > 0 && (
-              <p className="missed-criteria">
+            {turnEval.richFeedback.missedCriteria.length > 0 ? (
+              <p className="coaching-card__missed">
                 Criterios faltantes:{" "}
                 {turnEval.richFeedback.missedCriteria.join(", ")}
               </p>
-            )}
-            {isPreset && (
-              <div className="keywords">
+            ) : null}
+            {isPreset ? (
+              <div className="keyword-tags">
                 {keywordLabels.map(({ key, label }) => (
                   <span
                     key={key}
-                    className={`kw ${turnEval.keywordHits[key] ? "hit" : ""}`}
+                    className={`keyword-tags__item ${turnEval.keywordHits[key] ? "keyword-tags__item--hit" : ""}`}
                   >
                     {label}
                   </span>
                 ))}
               </div>
-            )}
+            ) : null}
           </div>
-        )}
+        ) : null}
       </div>
     </section>
   );

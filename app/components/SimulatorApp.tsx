@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   createSession,
   endSession,
@@ -8,43 +8,75 @@ import {
   type TurnSummary,
 } from "@/lib/api/client";
 import { appendLocalHistory } from "@/lib/history/local";
-import { BrandMark } from "@/components/brand/BrandMark";
-import { ScreenTransition } from "@/components/ui/ScreenTransition";
-import { Spinner } from "@/components/ui/Spinner";
+import { sessionToShellUser } from "@/lib/frontend/auth-shell";
+import {
+  beginStarting,
+  closeBuilder,
+  enterCall,
+  enterResults,
+  initialFlowState,
+  navigate,
+  openBuilder,
+  resetToTrain,
+  type AppView,
+  type FlowState,
+} from "@/lib/frontend/flow";
+import { AppShell, type ShellTab } from "@/app/components/shell/AppShell";
+import { ScreenTransition } from "@/app/components/ui/ScreenTransition";
+import { Spinner } from "@/app/components/ui/Spinner";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
-import { SetupScreen, type SetupConfig } from "@/app/components/SetupScreen";
-import { ScenarioBuilderScreen } from "@/app/components/ScenarioBuilderScreen";
-import { LiveCallScreen } from "@/app/components/LiveCallScreen";
-import { EvaluationScreen } from "@/app/components/EvaluationScreen";
+import {
+  ScenarioHub,
+  type SetupConfig,
+} from "@/app/components/training/ScenarioHub";
+import { ScenarioBuilderScreen } from "@/app/components/training/ScenarioBuilderScreen";
+import { LiveCallScreen } from "@/app/components/call/LiveCallScreen";
+import { ResultsScreen } from "@/app/components/results/ResultsScreen";
+import { HistoryView } from "@/app/components/history/HistoryView";
 import { AuthScreen } from "@/app/components/AuthScreen";
 import { AuthProvider, useAuth } from "@/lib/auth/context";
-
-type Screen = "setup" | "builder" | "call" | "evaluation";
 
 interface EvaluationState {
   result: EndSessionResponse;
   turns: TurnSummary[];
 }
 
+function shellTabFromView(view: AppView): ShellTab {
+  return view === "history" ? "history" : "train";
+}
+
 function SimulatorShell() {
   const { session, loading, signOut } = useAuth();
   const { showToast } = useToast();
   const [textOnly, setTextOnly] = useState(false);
-  const [screen, setScreen] = useState<Screen>("setup");
+  const [flow, setFlow] = useState<FlowState>(initialFlowState);
   const [callAttemptId, setCallAttemptId] = useState<string | null>(null);
   const [config, setConfig] = useState<SetupConfig | null>(null);
   const [evaluation, setEvaluation] = useState<EvaluationState | null>(null);
-  const [starting, setStarting] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
   const [ending, setEnding] = useState(false);
   const [callStartedAt, setCallStartedAt] = useState<string | null>(null);
   const [scenarioRefresh, setScenarioRefresh] = useState(0);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
   const [selectedSlugOnLoad, setSelectedSlugOnLoad] = useState<string | null>(
     null,
   );
 
+  const shellUser = useMemo(
+    () => (session?.user ? sessionToShellUser(session.user) : null),
+    [session],
+  );
+
+  const isStarting = flow.phase === "starting";
+
+  const handleTabChange = useCallback((tab: ShellTab) => {
+    const target: AppView = tab === "history" ? "history" : "train";
+    setFlow((prev) => navigate(prev, target));
+  }, []);
+
   const handleStart = useCallback(
     async (setup: SetupConfig) => {
-      setStarting(true);
+      setFlow((prev) => beginStarting(prev));
       try {
         const created = await createSession({
           scenarioSlug: setup.scenarioSlug,
@@ -57,15 +89,15 @@ function SimulatorShell() {
           ...setup,
           totalRounds: created.totalRounds ?? setup.totalRounds,
         });
-        setScreen("call");
+        setEvaluation(null);
+        setFlow(() => enterCall());
       } catch (error) {
         const message =
           error instanceof Error
             ? error.message
             : "No se pudo iniciar la llamada. Intenta de nuevo.";
         showToast(message, "error");
-      } finally {
-        setStarting(false);
+        setFlow((prev) => ({ ...prev, phase: "idle" }));
       }
     },
     [showToast],
@@ -74,7 +106,9 @@ function SimulatorShell() {
   const handleHangUp = useCallback(
     async (turns: TurnSummary[]) => {
       if (!callAttemptId || !config || ending) return;
+      setEvaluating(true);
       setEnding(true);
+      setFlow(() => enterResults());
       try {
         const result = await endSession(callAttemptId);
         appendLocalHistory({
@@ -89,7 +123,7 @@ function SimulatorShell() {
           startedAt: callStartedAt ?? new Date().toISOString(),
         });
         setEvaluation({ result, turns });
-        setScreen("evaluation");
+        setHistoryRefresh((k) => k + 1);
       } catch (error) {
         const message =
           error instanceof Error
@@ -97,6 +131,7 @@ function SimulatorShell() {
             : "No se pudo finalizar la llamada.";
         showToast(message, "error");
       } finally {
+        setEvaluating(false);
         setEnding(false);
       }
     },
@@ -104,35 +139,28 @@ function SimulatorShell() {
   );
 
   const handleRepeat = useCallback(async () => {
-    if (!config || starting) return;
+    if (!config || isStarting) return;
     setEvaluation(null);
     await handleStart(config);
-  }, [config, handleStart, starting]);
+  }, [config, handleStart, isStarting]);
 
-  const handleOtherClient = useCallback(() => {
+  const handleNewScenario = useCallback(() => {
     setCallAttemptId(null);
     setCallStartedAt(null);
     setConfig(null);
     setEvaluation(null);
-    setScreen("setup");
+    setFlow(resetToTrain);
   }, []);
 
   const handleScenarioSaved = useCallback(
     (slug: string) => {
       setScenarioRefresh((k) => k + 1);
       setSelectedSlugOnLoad(slug);
-      setScreen("setup");
-      showToast("Escenario guardado. Selecciónalo y pulsa Marcar.", "success");
+      setFlow((prev) => closeBuilder(prev));
+      showToast("Escenario guardado. Selecciónalo e inicia la llamada.", "success");
     },
     [showToast],
   );
-
-  const transitionKey =
-    screen === "call" && callAttemptId
-      ? `call-${callAttemptId}`
-      : screen === "evaluation" && evaluation
-        ? `eval-${evaluation.result.callAttemptId}`
-        : screen;
 
   if (loading) {
     return (
@@ -158,90 +186,79 @@ function SimulatorShell() {
     );
   }
 
+  const compactShell = flow.view === "call";
+
   return (
-    <main>
-      <div className="wrap">
-        <header className="site-header">
-          <BrandMark />
-          <p className="brand-wordmark">
-            Simulador de Llamadas <span>· CDC</span>
-          </p>
-          {session?.user.email && (
-            <button
-              type="button"
-              className="auth-signout"
-              onClick={() => void signOut()}
-            >
-              Cerrar sesión ({session.user.email})
-            </button>
-          )}
-        </header>
+    <AppShell
+      user={
+        shellUser ?? {
+          id: "guest",
+          displayName: "Invitado",
+          email: "modo texto",
+          initials: "TX",
+        }
+      }
+      activeTab={shellTabFromView(flow.view)}
+      onTabChange={handleTabChange}
+      onSignOut={session ? () => void signOut() : undefined}
+      compact={compactShell}
+    >
+      <ScreenTransition screenKey={flow.view}>
+        {flow.view === "train" && (
+          <ScenarioHub
+            refreshKey={scenarioRefresh}
+            selectedSlugOnLoad={selectedSlugOnLoad}
+            isStarting={isStarting}
+            onStart={(c) => void handleStart(c)}
+            onCreateScenario={() => setFlow((prev) => openBuilder(prev))}
+          />
+        )}
 
-        <p className="kicker">Formación comercial · Entrenamiento de ventas con IA</p>
-        <h1>Simulador de llamadas de venta</h1>
-        <p className="subtitle">
-          Practica llamadas en frío para cualquier industria. Cinco rondas por
-          defecto. Gana cerrando con día y hora concretos — o tu propio criterio de
-          éxito.
-        </p>
+        {flow.view === "history" && (
+          <HistoryView
+            refreshKey={historyRefresh}
+            onStartTraining={() => handleTabChange("train")}
+          />
+        )}
 
-        <div className="screen-content">
-          {starting && screen === "setup" && (
-            <div className="loading-overlay" role="status" aria-live="polite">
-              <Spinner label="Marcando" />
-              <span>Marcando…</span>
-            </div>
-          )}
+        {flow.view === "builder" && (
+          <ScenarioBuilderScreen
+            onCancel={() => setFlow((prev) => closeBuilder(prev))}
+            onSave={({ scenario }) => handleScenarioSaved(scenario.slug)}
+          />
+        )}
 
-          <ScreenTransition screenKey={transitionKey}>
-            {screen === "setup" && !starting && (
-              <SetupScreen
-                refreshKey={scenarioRefresh}
-                selectedSlugOnLoad={selectedSlugOnLoad}
-                onStart={(c) => void handleStart(c)}
-                onCreateScenario={() => setScreen("builder")}
-              />
-            )}
+        {flow.view === "call" && callAttemptId && config && (
+          <LiveCallScreen
+            callAttemptId={callAttemptId}
+            clientName={config.clientName}
+            scenarioSlug={config.scenarioSlug}
+            isPreset={config.isPreset}
+            client={config.client}
+            mode={config.mode}
+            level={config.difficultyLevel}
+            totalRounds={config.totalRounds}
+            verifiedUserId={config.verifiedUserId}
+            ending={ending}
+            onHangUp={(turns) => void handleHangUp(turns)}
+          />
+        )}
 
-            {screen === "builder" && (
-              <ScenarioBuilderScreen
-                onCancel={() => setScreen("setup")}
-                onSave={({ scenario }) => handleScenarioSaved(scenario.slug)}
-              />
-            )}
-
-            {screen === "call" && callAttemptId && config && (
-              <LiveCallScreen
-                callAttemptId={callAttemptId}
-                clientName={config.clientName}
-                scenarioSlug={config.scenarioSlug}
-                isPreset={config.isPreset}
-                client={config.client}
-                mode={config.mode}
-                level={config.difficultyLevel}
-                totalRounds={config.totalRounds}
-                verifiedUserId={config.verifiedUserId}
-                ending={ending}
-                onHangUp={(turns) => void handleHangUp(turns)}
-              />
-            )}
-
-            {screen === "evaluation" && evaluation && config && (
-              <EvaluationScreen
-                result={evaluation.result}
-                turns={evaluation.turns}
-                clientName={config.clientName}
-                scenarioSlug={config.scenarioSlug}
-                totalRounds={config.totalRounds}
-                repeating={starting}
-                onRepeat={() => void handleRepeat()}
-                onOtherClient={handleOtherClient}
-              />
-            )}
-          </ScreenTransition>
-        </div>
-      </div>
-    </main>
+        {flow.view === "results" && config && (
+          <ResultsScreen
+            result={evaluation?.result ?? null}
+            turns={evaluation?.turns ?? []}
+            clientName={config.clientName}
+            scenarioSlug={config.scenarioSlug}
+            totalRounds={config.totalRounds}
+            loading={evaluating}
+            onRepeat={() => void handleRepeat()}
+            onNewScenario={handleNewScenario}
+            onViewHistory={() => handleTabChange("history")}
+          />
+        )}
+      </ScreenTransition>
+    </AppShell>
   );
 }
 
