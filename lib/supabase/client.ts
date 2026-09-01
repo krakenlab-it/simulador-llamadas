@@ -19,11 +19,15 @@ export function createServerSupabaseClient(): SupabaseClient {
   return createClient(url, key);
 }
 
+let browserClient: SupabaseClient | null = null;
+
 /**
  * Browser Supabase client factory.
  * Use in client components once auth and screens land.
  */
 export function createBrowserSupabaseClient(): SupabaseClient {
+  if (browserClient) return browserClient;
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -33,5 +37,6 @@ export function createBrowserSupabaseClient(): SupabaseClient {
     );
   }
 
-  return createClient(url, key);
+  browserClient = createClient(url, key);
+  return browserClient;
 }

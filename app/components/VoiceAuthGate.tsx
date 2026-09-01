@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AuthForm, type AuthMode } from "@/app/components/AuthForm";
 import { registerVerifiedVoiceUser } from "@/lib/auth/voice-session";
 import { useAuth } from "@/lib/auth/context";
@@ -18,6 +18,8 @@ export function VoiceAuthGate({ onVerified, onSkip }: VoiceAuthGateProps) {
   const [mode, setMode] = useState<AuthMode>("signin");
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const onVerifiedRef = useRef(onVerified);
+  onVerifiedRef.current = onVerified;
 
   useEffect(() => {
     if (!session?.user.email) return;
@@ -33,13 +35,13 @@ export function VoiceAuthGate({ onVerified, onSkip }: VoiceAuthGateProps) {
         setRegisterError("No se pudo verificar la sesión para voz facturada.");
         return;
       }
-      onVerified(result.verifiedUserId, result.email);
+      onVerifiedRef.current(result.verifiedUserId, result.email);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [session, onVerified]);
+  }, [session?.user.id, session?.user.email]);
 
   if (!voiceConfig.requiresVoiceAuth) {
     return null;

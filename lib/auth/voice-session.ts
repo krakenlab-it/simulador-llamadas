@@ -21,6 +21,7 @@ export async function registerVerifiedVoiceUser(): Promise<{
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
   });
+  if (response.status >= 500) return null;
   if (!response.ok) return null;
   return response.json() as Promise<{ verifiedUserId: string; email: string }>;
 }
