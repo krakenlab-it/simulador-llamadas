@@ -12,7 +12,7 @@ export function Switch({ id, checked, onChange, label, disabled }: SwitchProps) 
   return (
     <label className={`switch ${disabled ? "disabled" : ""}`} htmlFor={id}>
       <span className="switch-label">{label}</span>
-      <span className="switch-track" aria-hidden="true">
+      <span className="switch-track">
         <input
           id={id}
           type="checkbox"
