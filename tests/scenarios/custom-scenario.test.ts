@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildScenarioConfig, buildDefaultRounds } from "@/lib/scenarios/defaults";
-import { analizarCustom, scoreCustomTurn } from "@/lib/scoring/custom";
+import { scoreLiveTurn } from "@/lib/scoring/live-turn";
+import { scoreTranscriptHeuristic } from "@/lib/scoring/heuristic-scorecard";
 import { isClinicPreset } from "@/lib/scenarios/types";
-import { scoreTurn } from "@/lib/scoring";
-import { GOOD_CLOSE_UTTERANCE } from "../fixtures/scoring/utterances";
+import { GOOD_DISCOVERY_TRANSCRIPT } from "../fixtures/scoring/transcripts";
 
 describe("custom scenarios", () => {
   const tireShopConfig = buildScenarioConfig({
@@ -11,38 +11,46 @@ describe("custom scenarios", () => {
     productSold: "llantas premium Michelin",
     clientProblem: "rotación de inventario lenta en temporada baja",
     objections: ["Ya tengo proveedor", "Los márgenes están apretados"],
-    winCriteria: "Visita al taller con día y hora",
+    winCriteria: "SPIN Advance: visita al taller con acción concreta",
     temperament: "Escéptico, directo",
     clientName: "Carlos Ruiz",
   });
 
-  it("builds industry-specific scoring criteria", () => {
-    expect(tireShopConfig.criteria.some((c) => c.id === "jerga")).toBe(true);
-    expect(tireShopConfig.criteria.some((c) => c.id === "producto")).toBe(true);
+  it("builds industry-specific scenario config", () => {
+    expect(tireShopConfig.criteria.length).toBeGreaterThan(5);
     expect(tireShopConfig.rounds).toHaveLength(5);
   });
 
-  it("scores tire shop utterance on sector keywords, not caseta", () => {
+  it("scores tire shop utterance on 6 dimensions, not caseta keywords", async () => {
     const utterance =
-      "Entiendo el problema de rotación en su taller de llantas. Mediríamos inventario de llantas premium semana a semana.";
-    const analisis = analizarCustom(utterance, tireShopConfig);
-    expect(analisis.hits.problema).toBe(true);
-    expect(analisis.hits.medicion).toBe(true);
-    expect(analisis.hits.jerga).toBe(true);
-
-    const result = scoreCustomTurn({
+      "Entiendo la rotación lenta en su taller de llantas. ¿Qué ha probado para mover inventario Michelin y qué resultado vio?";
+    const live = await scoreLiveTurn({
       utterance,
-      round: tireShopConfig.rounds[0],
-      config: tireShopConfig,
+      roundKey: "apertura",
+      roundLabel: "Apertura",
+      roundGoal: tireShopConfig.rounds[0].goal,
       difficultyLevel: 2,
+      scenarioSlug: "taller-carlos",
+      isPreset: false,
+      config: tireShopConfig,
       clientName: "Carlos Ruiz",
       isLastRound: false,
+      priorLines: [{ role: "client", text: "¿Quién habla?" }],
     });
 
-    expect(result.roundScore).toBeGreaterThan(0);
-    expect(result.richFeedback.whyScore).toBeTruthy();
-    expect(result.richFeedback.strongerLine).toBeTruthy();
-    expect(result.richFeedback.missedCriteria).toBeDefined();
+    expect(live.analytics.questionTypes.open).toBeGreaterThan(0);
+    expect(live.coaching.note).toBeTruthy();
+
+    const card = scoreTranscriptHeuristic({
+      lines: [
+        { role: "client", text: "¿Quién habla?" },
+        { role: "trainee", text: utterance },
+      ],
+      config: tireShopConfig,
+      isPreset: false,
+    });
+    expect(card.dimensions).toHaveLength(6);
+    expect(card.overallScore).toBeGreaterThan(0);
   });
 
   it("builds default rounds with client prompts from scenario", () => {
@@ -57,21 +65,28 @@ describe("custom scenarios", () => {
   });
 });
 
-describe("clinic preset unchanged", () => {
+describe("clinic preset", () => {
   it("identifies clinic presets", () => {
     expect(isClinicPreset("mariana")).toBe(true);
     expect(isClinicPreset("custom-gym")).toBe(false);
   });
 
-  it("clinic scoring remains byte-equivalent for mariana close", () => {
-    const result = scoreTurn({
-      utterance: GOOD_CLOSE_UTTERANCE,
-      roundType: "cierre",
-      difficultyLevel: 2,
-      scenarioSlug: "mariana",
+  it("scores gym discovery transcript without cpm/ctr/roi jerga dimension", () => {
+    const config = buildScenarioConfig({
+      industry: "gimnasio boutique",
+      productSold: "membresía premium",
+      clientProblem: "baja retención",
+      objections: ["Caro"],
+      winCriteria: "SPIN Advance",
+      temperament: "Escéptico",
+      clientName: "Ana",
     });
-    expect(result.won).toBe(true);
-    expect(result.clientReply).toContain("agendo");
-    expect(result.roundScore).toBeGreaterThan(0);
+    const card = scoreTranscriptHeuristic({
+      lines: GOOD_DISCOVERY_TRANSCRIPT.lines,
+      config,
+      isPreset: false,
+    });
+    expect(card.dimensions.find((d) => d.id === "valor_tailor")?.score).toBeGreaterThan(0);
   });
 });
+

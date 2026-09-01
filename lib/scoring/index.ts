@@ -7,6 +7,19 @@ export {
   type PuntuacionRonda,
 } from "./rondas";
 export { getClientReply, SCENARIO_REACTIONS } from "./reactions";
+export { scoreTurnAdaptive } from "./adaptive";
+export { scoreLiveTurn } from "./live-turn";
+export { scoreCall, scoreTranscriptHeuristic } from "./score-call";
+export { computeCallAnalytics, computeTurnAnalytics } from "./analytics";
+export type {
+  CallAnalytics,
+  CallDebrief,
+  CallScorecard,
+  CallTypeOverlay,
+  ScoreDimensionId,
+  SessionScoreResult,
+  TranscriptLine,
+} from "./types";
 
 import type { DifficultyLevel, RoundType } from "@/lib/db/types";
 import { analizar } from "./analizar";

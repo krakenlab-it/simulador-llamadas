@@ -7,7 +7,9 @@ import { submitTurn } from "@/lib/api/client";
 import type { RichTurnFeedback, TurnSummary } from "@/lib/api/client";
 import { stubGetOpeningLine } from "@/lib/api/stubs";
 import { newClientTurnId } from "@/lib/frontend/ids";
-import { getKeywordLabels } from "@/lib/simulation/keywords";
+import { unlockClientPlayback } from "@/lib/voice/client-playback";
+import { AnalyticsChips } from "@/app/components/call/AnalyticsChips";
+import type { CallAnalytics } from "@/lib/scoring/types";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/lib/hooks/useSpeechSynthesis";
 import { useCallAudioDevices } from "@/lib/hooks/useCallAudioDevices";
@@ -17,7 +19,6 @@ import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { getClientLine, ROUNDS } from "@/lib/simulation/rounds";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
-import { unlockClientPlayback } from "@/lib/voice/client-playback";
 import { AUTOSUBMIT_SILENCE_MS } from "@/lib/voice/timeouts";
 
 interface DialogueEntry {
@@ -69,8 +70,8 @@ export function LiveCallScreen({
   const sessionUsageId = voiceSession.sessionUsageId;
   const scenarioContext =
     isPreset && client
-      ? `${client.company} · ${client.indicator}`
-      : `Escenario ${scenarioSlug}`;
+      ? `${client.company} · ${client.indicator} · problema: ${client.pains[0] ?? "operación"}`
+      : `Escenario personalizado: ${scenarioSlug}`;
 
   const dialogueRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -80,9 +81,8 @@ export function LiveCallScreen({
   const [dialogue, setDialogue] = useState<DialogueEntry[]>([]);
   const [utterance, setUtterance] = useState("");
   const [turnEval, setTurnEval] = useState<{
-    roundScore: number;
     richFeedback: RichTurnFeedback;
-    keywordHits: Record<string, boolean>;
+    analytics: CallAnalytics;
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [hangingUp, setHangingUp] = useState(false);
@@ -275,9 +275,14 @@ export function LiveCallScreen({
         setUtterance("");
         setDialogue((prev) => [...prev, { role: "you", text }]);
         setTurnEval({
-          roundScore: response.roundScore,
           richFeedback: response.richFeedback,
-          keywordHits: response.keywordHits,
+          analytics: response.richFeedback.analytics ?? {
+            talkPercent: 0,
+            longestMonologueSeconds: 0,
+            questionTypes: { open: 0, closed: 0, clarifying: 0 },
+            patienceAfterBuyerTurnSeconds: null,
+            hasNextStep: false,
+          },
         });
 
         if (response.clientReply) {
@@ -402,7 +407,6 @@ export function LiveCallScreen({
     onHangUp([...turnHistory.current]);
   };
 
-  const keywordLabels = getKeywordLabels();
   const displayRoundLabel = roundMeta?.label ?? roundLabel;
   const progressPct = Math.round(((round - 1) / totalRounds) * 100);
   const billedTtsActive =
@@ -600,36 +604,9 @@ export function LiveCallScreen({
         ) : null}
 
         {turnEval ? (
-          <div
-            className={`coaching-card ${turnEval.roundScore >= 50 ? "coaching-card--good" : "coaching-card--low"}`}
-            role="status"
-          >
-            <p className="coaching-card__score">
-              {turnEval.richFeedback.roundLabel}: {turnEval.roundScore}/100
-            </p>
+          <div className="coaching-card" role="status">
             <p className="coaching-card__why">{turnEval.richFeedback.whyScore}</p>
-            <p className="coaching-card__line">
-              Línea más fuerte:{" "}
-              <em>{turnEval.richFeedback.strongerLine}</em>
-            </p>
-            {turnEval.richFeedback.missedCriteria.length > 0 ? (
-              <p className="coaching-card__missed">
-                Criterios faltantes:{" "}
-                {turnEval.richFeedback.missedCriteria.join(", ")}
-              </p>
-            ) : null}
-            {isPreset ? (
-              <div className="keyword-tags">
-                {keywordLabels.map(({ key, label }) => (
-                  <span
-                    key={key}
-                    className={`keyword-tags__item ${turnEval.keywordHits[key] ? "keyword-tags__item--hit" : ""}`}
-                  >
-                    {label}
-                  </span>
-                ))}
-              </div>
-            ) : null}
+            <AnalyticsChips analytics={turnEval.analytics} />
           </div>
         ) : null}
       </div>

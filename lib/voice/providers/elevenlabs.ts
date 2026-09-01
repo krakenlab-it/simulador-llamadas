@@ -184,7 +184,10 @@ export function buildConvaiAgentPayload(
   scenarioContext: string,
   voiceId?: string,
 ): Record<string, unknown> {
-  const prompt = `Eres ${clientName}, cliente mexicano en una llamada de ventas fría de una clínica de citas. ${scenarioContext}. Responde breve en español mexicano. Permite interrupciones (barge-in).`;
+  const prompt = `Eres ${clientName}, comprador en una llamada de ventas B2B en México.
+Contexto del escenario: ${scenarioContext}.
+Responde breve en español mexicano como el cliente del sector descrito (NO asumas clínica de citas ni paciente salvo que el contexto lo indique).
+Permite interrupciones (barge-in). Mantén objeciones acordes al sector y temperamento del escenario.`;
 
   return {
     name: CONVAI_AGENT_KEY,

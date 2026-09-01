@@ -4,7 +4,6 @@ import type {
   DifficultyLevel,
   PracticeMode,
   RoundType,
-  ScoringKeyword,
 } from "@/lib/db/types";
 import { getRoundTypeForNumber } from "@/lib/extension-points/session";
 import { buildSessionEvaluation } from "@/lib/feedback/evaluation";
@@ -14,8 +13,11 @@ import type {
   SessionEvaluationSummary,
 } from "@/lib/scenarios/types";
 import type { ClientReaction } from "@/lib/scoring/rondas";
+import { scoreCall } from "@/lib/scoring/score-call";
+import { buildTranscriptFromTurns } from "@/lib/scoring/transcript";
+import type { TranscriptLine } from "@/lib/scoring/types";
 import { SessionError } from "./errors";
-import { resolveEndSessionWin } from "./service";
+import { resolveEndSessionWin } from "./win";
 
 export interface CreateSessionInput {
   traineeId: string;
@@ -368,6 +370,31 @@ export class SessionRepository {
     );
   }
 
+  async getTranscriptLines(callAttemptId: string): Promise<TranscriptLine[]> {
+    const { rows } = await this.client.query<{
+      trainee_utterance: string | null;
+      client_reply: string | null;
+    }>(
+      `SELECT ct.trainee_utterance, ts.client_reply
+       FROM call_turns ct
+       JOIN turn_scores ts ON ts.turn_id = ct.id
+       WHERE ct.call_attempt_id = $1
+       ORDER BY ct.round_number`,
+      [callAttemptId],
+    );
+
+    const lines: TranscriptLine[] = [];
+    for (const row of rows) {
+      if (row.trainee_utterance) {
+        lines.push({ role: "trainee", text: row.trainee_utterance });
+      }
+      if (row.client_reply) {
+        lines.push({ role: "client", text: row.client_reply });
+      }
+    }
+    return lines;
+  }
+
   async getTurn(turnId: string): Promise<TurnRecord | null> {
     const { rows } = await this.client.query<{
       round_number: number;
@@ -426,12 +453,12 @@ export class SessionRepository {
       round_type: RoundType | null;
       round_score: string;
       feedback_detail: RichTurnFeedback;
-      keyword_hits: Partial<Record<ScoringKeyword, boolean>>;
       trainee_utterance: string | null;
+      client_reply: string | null;
     }>(
       `SELECT
          ct.round_key, ct.round_label, ct.round_type, ct.trainee_utterance,
-         ts.round_score, ts.feedback_detail, ts.keyword_hits
+         ts.round_score, ts.feedback_detail, ts.client_reply
        FROM call_turns ct
        JOIN turn_scores ts ON ts.turn_id = ct.id
        WHERE ct.call_attempt_id = $1
@@ -439,36 +466,44 @@ export class SessionRepository {
       [callAttemptId],
     );
 
-    const totalScore =
-      turnRows.rows.length > 0
-        ? turnRows.rows.reduce((sum, row) => sum + Number(row.round_score), 0) /
-          turnRows.rows.length
-        : 0;
+    const closeRoundKey = session.isPreset
+      ? "cierre"
+      : (session.config?.rounds[session.config.rounds.length - 1]?.key ?? "cierre");
 
     const turns = turnRows.rows.map((row) => ({
       roundType: row.round_type,
       roundKey: row.round_key,
       traineeUtterance: row.trainee_utterance,
-      keywordHits: row.keyword_hits,
     }));
 
-    const closeRoundKey = session.isPreset
-      ? "cierre"
-      : (session.config?.rounds[session.config.rounds.length - 1]?.key ?? "cierre");
-
-    const won = resolveEndSessionWin(
-      {
-        isPreset: session.isPreset,
-        difficultyLevel: session.difficultyLevel,
-        closeRoundKey,
-      },
-      turns,
+    const transcriptLines = buildTranscriptFromTurns(
+      turnRows.rows.map((row) => ({
+        utterance: row.trainee_utterance ?? "",
+        clientReply: row.client_reply ?? undefined,
+      })),
     );
 
     const historyForScenario = await this.listHistoryForTrainee(
       session.traineeId,
       session.scenarioSlug,
     );
+
+    const sessionScore = await scoreCall({
+      lines: transcriptLines,
+      config: session.config,
+      isPreset: session.isPreset,
+    });
+
+    const won = resolveEndSessionWin(
+      {
+        isPreset: session.isPreset,
+        closeRoundKey,
+        config: session.config,
+      },
+      turns,
+    );
+
+    const totalScore = sessionScore.scorecard.overallScore;
 
     const evaluation = buildSessionEvaluation(
       turnRows.rows.map((row) => ({
@@ -482,6 +517,7 @@ export class SessionRepository {
       historyForScenario
         .filter((h) => h.status === "completed")
         .map((h) => ({ totalScore: h.totalScore, startedAt: h.startedAt })),
+      sessionScore,
     );
 
     await this.client.query(

@@ -23,6 +23,7 @@ export interface LocalHistoryTrend {
   attempts: number;
   averageScore: number;
   improving: boolean;
+  showStableLabel?: boolean;
 }
 
 function canUseLocalStorage(): boolean {

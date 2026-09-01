@@ -4,6 +4,7 @@ import type { EndSessionResponse, TurnSummary } from "@/lib/api/client";
 import { computeLocalTrend } from "@/lib/history/local";
 import { Button } from "@/app/components/ui/Button";
 import { Spinner } from "@/app/components/ui/Spinner";
+import { AnalyticsChips } from "@/app/components/call/AnalyticsChips";
 
 interface ResultsScreenProps {
   result: EndSessionResponse | null;
@@ -37,6 +38,8 @@ export function ResultsScreen({
   }
 
   const { evaluation } = result;
+  const scorecard = evaluation.scorecard;
+  const debrief = evaluation.debrief;
   const localTrend = computeLocalTrend(scenarioSlug);
   const trend =
     evaluation.trend && evaluation.trend.attempts > 1
@@ -45,31 +48,113 @@ export function ResultsScreen({
         ? localTrend
         : null;
 
+  const trendLabel = trend
+    ? trend.improving
+      ? " · Vas mejorando"
+      : trend.showStableLabel === false && !trend.improving
+        ? " · Necesitas refuerzo"
+        : trend.showStableLabel !== false && !trend.improving
+          ? ""
+          : ""
+    : "";
+
   return (
     <section className="results-screen" aria-label="Resultados de la llamada">
       <header className="results-hero">
         <p className="results-hero__eyebrow">Evaluación completada</p>
         <h1 className={`results-hero__title ${result.won ? "results-hero__title--won" : ""}`}>
-          {result.won ? "¡Objetivo logrado!" : "Sigue practicando"}
+          {debrief?.outcomeLabel === "Advance" || result.won
+            ? "¡Advance logrado!"
+            : "Continuation — sigue practicando"}
         </h1>
         <p className="results-hero__verdict">{evaluation.verdict}</p>
         <div className="results-hero__score">
-          <span className="results-hero__score-value">{result.totalScore}</span>
-          <span className="results-hero__score-label">/100 promedio</span>
+          <span className="results-hero__score-value">
+            {scorecard?.overallScore ?? result.totalScore}
+          </span>
+          <span className="results-hero__score-label">
+            /100 · {scorecard?.overallStars ?? "—"}/5 estrellas
+          </span>
         </div>
         <p className="results-hero__meta">
           {turns.length}/{totalRounds} rondas · con {clientName}
         </p>
       </header>
 
+      {scorecard ? (
+        <section className="scorecard-panel" aria-labelledby="scorecard-title">
+          <h2 id="scorecard-title" className="scorecard-panel__title">
+            Scorecard · overlay {scorecard.callType}
+          </h2>
+          <ul className="scorecard-panel__list">
+            {scorecard.dimensions
+              .filter((dim) => !dim.notApplicable)
+              .map((dim) => (
+                <li key={dim.id} className="scorecard-panel__item">
+                  <div className="scorecard-panel__head">
+                    <strong>{dim.label}</strong>
+                    <span>{dim.score}/5</span>
+                  </div>
+                  <p>{dim.rationale}</p>
+                </li>
+              ))}
+          </ul>
+          <AnalyticsChips analytics={scorecard.analytics} />
+        </section>
+      ) : null}
+
+      {debrief ? (
+        <article className="debrief-panel">
+          <h2 className="debrief-panel__title">Debrief en una habilidad</h2>
+          <p className="debrief-panel__outcome">
+            Resultado: <strong>{debrief.outcomeLabel}</strong>
+          </p>
+          <p>
+            <strong>Fortaleza ({debrief.strength.dimension}):</strong> &ldquo;
+            {debrief.strength.quote}&rdquo;
+          </p>
+          <p>
+            <strong>Brecha ({debrief.primaryGap.dimension}):</strong> &ldquo;
+            {debrief.primaryGap.quote}&rdquo;
+          </p>
+          <div className="debrief-panel__lines">
+            <p>
+              <strong>Mejor línea (variante A):</strong>{" "}
+              <em>{debrief.betterLines.variantA}</em>
+            </p>
+            <p>
+              <strong>Mejor línea (variante B):</strong>{" "}
+              <em>{debrief.betterLines.variantB}</em>
+            </p>
+          </div>
+          <p className="debrief-panel__drill">
+            <strong>Drill:</strong> {debrief.drill}
+          </p>
+          {debrief.dimensionTrend.length > 0 ? (
+            <div className="dimension-sparkline" aria-label="Tendencia por dimensión">
+              {debrief.dimensionTrend.map((point) => (
+                <div key={point.dimensionId} className="dimension-sparkline__item">
+                  <span className="dimension-sparkline__label">{point.label}</span>
+                  <span
+                    className={`dimension-sparkline__bar dimension-sparkline__bar--${point.direction}`}
+                    style={{ width: `${point.current}%` }}
+                  />
+                  <span className="dimension-sparkline__value">{point.current}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </article>
+      ) : null}
+
       <div className="results-grid">
         <article className="insight-card insight-card--positive">
-          <h2 className="insight-card__title">Mejor ronda</h2>
+          <h2 className="insight-card__title">Mejor dimensión</h2>
           <p className="insight-card__value">
             {evaluation.strongestRound.label}
           </p>
           <p className="insight-card__detail">
-            {evaluation.strongestRound.score}/100
+            {evaluation.strongestRound.score}/5
           </p>
         </article>
         <article className="insight-card insight-card--focus">
@@ -78,7 +163,7 @@ export function ResultsScreen({
             {evaluation.weakestRound.label}
           </p>
           <p className="insight-card__detail">
-            {evaluation.weakestRound.score}/100
+            {evaluation.weakestRound.score} pts
           </p>
         </article>
       </div>
@@ -95,7 +180,7 @@ export function ResultsScreen({
           </h2>
           <p className="trend-panel__body">
             Promedio histórico: {trend.averageScore.toFixed(0)}/100
-            {trend.improving ? " · Vas mejorando" : " · Estable"}
+            {trendLabel}
           </p>
         </article>
       ) : null}
@@ -115,15 +200,14 @@ export function ResultsScreen({
               <li key={turn.roundKey} className="round-breakdown__item">
                 <div className="round-breakdown__head">
                   <strong>{turn.roundLabel}</strong>
-                  <span>{turn.roundScore} pts</span>
                 </div>
                 <p>{turn.richFeedback.whyScore}</p>
                 <p className="round-breakdown__quote">
                   Dijiste: &ldquo;{turn.utterance}&rdquo;
                 </p>
-                <p className="round-breakdown__stronger">
-                  Línea más fuerte: <em>{turn.richFeedback.strongerLine}</em>
-                </p>
+                {turn.richFeedback.analytics ? (
+                  <AnalyticsChips analytics={turn.richFeedback.analytics} />
+                ) : null}
               </li>
             ))}
           </ul>

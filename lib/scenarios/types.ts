@@ -68,6 +68,12 @@ export interface CreateCustomScenarioInput {
   traineeId?: string;
 }
 
+import type {
+  CallAnalytics,
+  CallDebrief,
+  CallScorecard,
+} from "@/lib/scoring/types";
+
 export interface RichTurnFeedback {
   score: number;
   utterance: string;
@@ -75,6 +81,7 @@ export interface RichTurnFeedback {
   strongerLine: string;
   missedCriteria: string[];
   roundLabel: string;
+  analytics?: CallAnalytics;
 }
 
 export interface SessionEvaluationSummary {
@@ -87,7 +94,11 @@ export interface SessionEvaluationSummary {
     averageScore: number;
     previousAverageScore: number | null;
     improving: boolean;
+    /** When false, UI must not label the trend as "Estable". */
+    showStableLabel: boolean;
   } | null;
+  scorecard?: CallScorecard;
+  debrief?: CallDebrief;
 }
 
 export interface ScenarioSessionContext {

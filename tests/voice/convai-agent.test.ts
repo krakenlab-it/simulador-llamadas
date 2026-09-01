@@ -26,6 +26,22 @@ describe("ConvAI agent payload", () => {
     );
   });
 
+  it("builds scenario-specific prompt without hardcoded clínica de citas", () => {
+    const payload = buildConvaiAgentPayload(
+      "Carlos Ruiz",
+      "Gimnasio boutique · membresía premium · problema: baja retención",
+      "voice-123",
+    );
+
+    const prompt = (
+      payload.conversation_config as { agent: { prompt: { prompt: string } } }
+    ).agent.prompt.prompt;
+
+    expect(prompt).toContain("Gimnasio boutique");
+    expect(prompt).toContain("Contexto del escenario:");
+    expect(prompt).not.toMatch(/^Eres .+ clínica de citas/i);
+  });
+
   it("uses eleven_flash_v2_5 for Spanish ConvAI TTS", () => {
     const payload = buildConvaiAgentPayload("Cliente", "contexto", "voice-123");
     const tts = (payload.conversation_config as {

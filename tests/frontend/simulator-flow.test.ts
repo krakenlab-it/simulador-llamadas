@@ -8,7 +8,6 @@ import {
 } from "@/lib/api/stubs";
 import { scoreUtterance } from "@/lib/extension-points/scoring";
 import { CLIENTS } from "@/lib/clients";
-import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
 import { GOOD_CLOSE_UTTERANCE } from "../fixtures/scoring/utterances";
 
 describe("API stubs", () => {
@@ -27,7 +26,7 @@ describe("API stubs", () => {
     expect(session.currentRound).toBe(1);
   });
 
-  it("runs a five-round loop and evaluates", () => {
+  it("runs a five-round loop and evaluates", async () => {
     const session = stubCreateSession({
       scenarioSlug: "efrain",
       mode: "voz",
@@ -35,26 +34,28 @@ describe("API stubs", () => {
     });
 
     const utterances = [
-      "Entiendo el problema de medición en visitas a caseta",
-      "Comprendo, el ROI y KPI son clave en su sector",
-      "Mediríamos el problema concreto de tráfico al piso",
-      "¿Le parece si le mando un correo breve con el caso?",
-      "Agendemos reunión el martes 15 a las 10:30",
+      "Entiendo el problema de medición en visitas a caseta. ¿Qué le cuesta más hoy?",
+      "Comprendo su duda. ¿Qué ha probado para mejorar el tráfico al piso?",
+      "¿Qué impacto tendría si el problema sigue tres meses más?",
+      "Con su permiso le envío un caso breve y hablamos el jueves.",
+      "Agendemos reunión el martes 15 a las 10:30 para definir el piloto.",
     ];
 
     for (let i = 0; i < utterances.length; i++) {
-      const res = stubSubmitTurn(session.callAttemptId, {
+      const res = await stubSubmitTurn(session.callAttemptId, {
         utterance: utterances[i],
       });
       expect(res.roundType).toBeDefined();
-      expect(res.feedback).toBe(ROUND_EXPECTED[res.roundType]);
+      expect(res.richFeedback.whyScore.length).toBeGreaterThan(5);
       expect(res.roundNumber).toBe(i + 1);
     }
 
-    const final = stubEndSession(session.callAttemptId);
+    const final = await stubEndSession(session.callAttemptId);
     expect(final.turnsCompleted).toBe(5);
     expect(final.won).toBe(true);
     expect(final.totalScore).toBeGreaterThan(0);
+    expect(final.evaluation.scorecard).toBeDefined();
+    expect(final.evaluation.debrief).toBeDefined();
     expect(final.callAttemptId).toBe(session.callAttemptId);
     expect(final.status).toBe("completed");
   });
@@ -69,33 +70,33 @@ describe("API stubs", () => {
     ).toThrow("Cliente no encontrado");
   });
 
-  it("does not award a clinic win when hanging up before cierre", () => {
+  it("does not award a clinic win when hanging up before cierre", async () => {
     const session = stubCreateSession({
       scenarioSlug: "mariana",
       mode: "texto",
       difficultyLevel: 2,
     });
 
-    stubSubmitTurn(session.callAttemptId, {
+    await stubSubmitTurn(session.callAttemptId, {
       utterance: GOOD_CLOSE_UTTERANCE,
     });
-    const ended = stubEndSession(session.callAttemptId);
+    const ended = await stubEndSession(session.callAttemptId);
 
     expect(ended.won).toBe(false);
     expect(ended.turnsCompleted).toBe(1);
   });
 
-  it("lists history for trainee after completed call", () => {
+  it("lists history for trainee after completed call", async () => {
     const session = stubCreateSession({
       scenarioSlug: "mariana",
       mode: "texto",
       difficultyLevel: 1,
     });
 
-    stubSubmitTurn(session.callAttemptId, {
-      utterance: "Entiendo el problema de medición",
+    await stubSubmitTurn(session.callAttemptId, {
+      utterance: "Entiendo el problema de medición. ¿Qué le cuesta más?",
     });
-    stubEndSession(session.callAttemptId);
+    await stubEndSession(session.callAttemptId);
 
     const history = stubListHistory(session.traineeId);
     expect(history).toHaveLength(1);
@@ -106,7 +107,7 @@ describe("API stubs", () => {
 });
 
 describe("scoring", () => {
-  it("detects win on cierre with day and time", () => {
+  it("detects win on cierre with day and time (legacy extension point)", () => {
     const result = scoreUtterance({
       utterance: "Agendemos reunión el martes 15 a las 10:30",
       roundType: "cierre",
@@ -117,7 +118,7 @@ describe("scoring", () => {
     expect(result.roundScore).toBeGreaterThan(0);
   });
 
-  it("does not win without concrete day and time", () => {
+  it("does not win without concrete day and time (legacy extension point)", () => {
     const result = scoreUtterance({
       utterance: "¿Podemos agendar una reunión pronto?",
       roundType: "cierre",

@@ -14,13 +14,13 @@ import type {
   SessionEvaluationSummary,
 } from "@/lib/scenarios/types";
 import { buildSessionEvaluation } from "@/lib/feedback/evaluation";
-import { templateClientReply } from "@/lib/feedback/evaluation";
-import { scoreTurn } from "@/lib/scoring";
-import { scoreCustomTurn } from "@/lib/scoring/custom";
-import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
+import { scoreTurnAdaptive } from "@/lib/scoring/adaptive";
+import { scoreCall } from "@/lib/scoring/score-call";
+import { buildTranscriptFromTurns } from "@/lib/scoring/transcript";
 import type { ClientReaction } from "@/lib/scoring/rondas";
+import { resolveEndSessionWin } from "@/lib/session/win";
+import { DEFAULT_WIN_CRITERIA } from "@/lib/scoring/outcome";
 import { getOpeningLine } from "@/lib/llm/client-replies";
-import { resolveEndSessionWin } from "@/lib/session/service";
 
 export interface CreateSessionRequest {
   scenarioSlug: string;
@@ -153,7 +153,7 @@ function buildPresetScenario(slug: string): StubScenario | null {
         productSold: client.indicator,
         clientProblem: client.pains[0] ?? "",
         objections: client.pains,
-        winCriteria: "Reunión con día y hora",
+        winCriteria: DEFAULT_WIN_CRITERIA,
         temperament: client.difficulty,
         clientName: client.name,
       }),
@@ -255,10 +255,10 @@ export function stubHasSession(callAttemptId: string): boolean {
   return sessions.has(callAttemptId);
 }
 
-export function stubSubmitTurn(
+export async function stubSubmitTurn(
   callAttemptId: string,
   body: TurnRequest,
-): TurnResponse {
+): Promise<TurnResponse> {
   const session = sessions.get(callAttemptId);
   if (!session) throw new Error("Sesión no encontrada");
   if (session.status !== "in_progress") throw new Error("La sesión ya terminó");
@@ -276,6 +276,7 @@ export function stubSubmitTurn(
   let roundKey: string;
   let roundLabel: string;
   let roundType: RoundType;
+  let roundGoal = "";
 
   if (session.scenario.record.isPreset) {
     roundType = ROUND_ORDER[roundNumber - 1];
@@ -292,70 +293,28 @@ export function stubSubmitTurn(
     const round = session.scenario.record.config.rounds[roundNumber - 1];
     roundKey = round.key;
     roundLabel = round.label;
+    roundGoal = round.goal;
     roundType = ROUND_ORDER[roundNumber - 1];
   }
 
-  let score: {
-    keywordHits: Record<string, boolean>;
-    roundScore: number;
-    feedback: string;
-    clientReaction: ClientReaction;
-    clientReply: string;
-    richFeedback: RichTurnFeedback;
-    hasConcreteDayAndTime: boolean;
-    won: boolean;
-  };
+  const priorLines = session.turns.flatMap((turn) => {
+    const lines = [{ role: "trainee" as const, text: turn.utterance }];
+    return lines;
+  });
 
-  if (session.scenario.record.isPreset) {
-    const clinicScore = scoreTurn({
-      utterance: trimmed,
-      roundType,
-      difficultyLevel: session.difficultyLevel,
-      scenarioSlug: session.scenario.record.slug,
-    });
-    score = {
-      keywordHits: clinicScore.keywordHits,
-      roundScore: clinicScore.roundScore,
-      feedback: clinicScore.feedback,
-      clientReaction: clinicScore.clientReaction,
-      clientReply: clinicScore.clientReply,
-      richFeedback: {
-        score: clinicScore.roundScore,
-        utterance: trimmed,
-        whyScore: clinicScore.feedback,
-        strongerLine: ROUND_EXPECTED[roundType],
-        missedCriteria: [],
-        roundLabel,
-      },
-      hasConcreteDayAndTime: clinicScore.hasConcreteDayAndTime,
-      won: clinicScore.won,
-    };
-  } else {
-    const custom = scoreCustomTurn({
-      utterance: trimmed,
-      round: session.scenario.record.config.rounds[roundNumber - 1],
-      config: session.scenario.record.config,
-      difficultyLevel: session.difficultyLevel,
-      clientName: session.scenario.record.clientName,
-      isLastRound: roundNumber === totalRounds,
-    });
-    const round = session.scenario.record.config.rounds[roundNumber - 1];
-    score = {
-      keywordHits: custom.keywordHits,
-      roundScore: custom.roundScore,
-      feedback: custom.feedback,
-      clientReaction: custom.reaction,
-      clientReply: templateClientReply(
-        session.scenario.record.config,
-        round,
-        custom.reaction,
-        session.scenario.record.clientName,
-      ),
-      richFeedback: custom.richFeedback,
-      hasConcreteDayAndTime: custom.hasConcreteDayAndTime,
-      won: custom.won,
-    };
-  }
+  const score = await scoreTurnAdaptive({
+    utterance: trimmed,
+    roundKey,
+    roundLabel,
+    roundGoal,
+    difficultyLevel: session.difficultyLevel,
+    scenarioSlug: session.scenario.record.slug,
+    isPreset: session.scenario.record.isPreset,
+    config: session.scenario.record.isPreset ? null : session.scenario.record.config,
+    clientName: session.scenario.record.clientName,
+    isLastRound: roundNumber === totalRounds,
+    priorLines,
+  });
 
   const summary: TurnSummary = {
     roundKey,
@@ -365,7 +324,6 @@ export function stubSubmitTurn(
     expectedPhrase: score.richFeedback.strongerLine,
     roundScore: score.roundScore,
     richFeedback: score.richFeedback,
-    keywordHits: score.keywordHits,
   };
 
   session.turns.push(summary);
@@ -380,7 +338,7 @@ export function stubSubmitTurn(
     roundLabel,
     traineeUtterance: trimmed,
     roundScore: score.roundScore,
-    keywordHits: score.keywordHits,
+    keywordHits: {},
     clientReaction: score.clientReaction,
     clientReply: score.clientReply,
     feedback: score.feedback,
@@ -390,7 +348,7 @@ export function stubSubmitTurn(
   };
 }
 
-export function stubEndSession(callAttemptId: string): EndSessionResponse {
+export async function stubEndSession(callAttemptId: string): Promise<EndSessionResponse> {
   const session = sessions.get(callAttemptId);
   if (!session) throw new Error("Sesión no encontrada");
 
@@ -398,34 +356,36 @@ export function stubEndSession(callAttemptId: string): EndSessionResponse {
 
   const totalRounds = 5;
 
-  const totalScore =
-    session.turns.length > 0
-      ? Math.round(
-          (session.turns.reduce((sum, t) => sum + t.roundScore, 0) /
-            session.turns.length) *
-            100,
-        ) / 100
-      : 0;
-
   const closeRoundKey = session.scenario.record.isPreset
     ? "cierre"
     : (session.scenario.record.config.rounds[
         session.scenario.record.config.rounds.length - 1
       ]?.key ?? "cierre");
 
+  const transcriptLines = buildTranscriptFromTurns(
+    session.turns.map((turn) => ({ utterance: turn.utterance })),
+  );
+
+  const sessionScore = await scoreCall({
+    lines: transcriptLines,
+    config: session.scenario.record.isPreset ? null : session.scenario.record.config,
+    isPreset: session.scenario.record.isPreset,
+  });
+
   session.won = resolveEndSessionWin(
     {
       isPreset: session.scenario.record.isPreset,
-      difficultyLevel: session.difficultyLevel,
       closeRoundKey,
+      config: session.scenario.record.isPreset ? null : session.scenario.record.config,
     },
     session.turns.map((turn) => ({
       roundType: turn.roundType,
       roundKey: turn.roundKey,
       traineeUtterance: turn.utterance,
-      keywordHits: turn.keywordHits ?? {},
     })),
   );
+
+  const totalScore = sessionScore.scorecard.overallScore;
 
   const evaluation = buildSessionEvaluation(
     session.turns.map((t) => ({
@@ -437,6 +397,7 @@ export function stubEndSession(callAttemptId: string): EndSessionResponse {
     session.won,
     session.scenario.record.isPreset ? null : session.scenario.record.config,
     [],
+    sessionScore,
   );
 
   const endedAt = new Date().toISOString();

@@ -12,7 +12,7 @@ describe("custom scenario stubs", () => {
     resetStubSessions();
   });
 
-  it("creates and runs a custom scenario session with rich evaluation", () => {
+  it("creates and runs a custom scenario session with rich evaluation", async () => {
     const scenario = stubCreateScenario({
       industry: "gimnasio",
       productSold: "membresía anual",
@@ -23,7 +23,7 @@ describe("custom scenario stubs", () => {
       difficultyLabel: "Media",
       clientProblem: "baja retención de socios",
       objections: ["Muy caro"],
-      winCriteria: "Visita con día y hora",
+      winCriteria: "SPIN Advance: visita con acción concreta",
     });
 
     const session = stubCreateSession({
@@ -35,17 +35,18 @@ describe("custom scenario stubs", () => {
     expect(session.isPreset).toBe(false);
     expect(session.totalRounds).toBe(5);
 
-    const turn = stubSubmitTurn(session.callAttemptId, {
+    const turn = await stubSubmitTurn(session.callAttemptId, {
       utterance:
-        "Entiendo el problema de retención en su gimnasio y propongo medir socios activos.",
+        "Entiendo la retención en su gimnasio. ¿Qué ha probado y qué resultado vio?",
     });
 
     expect(turn.richFeedback.whyScore).toBeTruthy();
-    expect(turn.richFeedback.strongerLine).toBeTruthy();
+    expect(turn.richFeedback.analytics).toBeDefined();
 
-    const ended = stubEndSession(session.callAttemptId);
+    const ended = await stubEndSession(session.callAttemptId);
     expect(ended.evaluation).toBeDefined();
     expect(ended.evaluation.nextDrill).toBeTruthy();
+    expect(ended.evaluation.scorecard).toBeDefined();
     expect(ended.totalRounds).toBe(5);
   });
 });

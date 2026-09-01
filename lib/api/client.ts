@@ -108,7 +108,7 @@ export async function submitTurn(
     },
     { stubAvailable: stubHasSession(callAttemptId) },
   );
-  return remote ?? stubSubmitTurn(callAttemptId, body);
+  return remote ?? (await stubSubmitTurn(callAttemptId, body));
 }
 
 export async function endSession(
@@ -119,7 +119,7 @@ export async function endSession(
     { method: "POST" },
     { stubAvailable: stubHasSession(callAttemptId) },
   );
-  return remote ?? stubEndSession(callAttemptId);
+  return remote ?? (await stubEndSession(callAttemptId));
 }
 
 export async function listScenarios(): Promise<ScenarioRecord[]> {
