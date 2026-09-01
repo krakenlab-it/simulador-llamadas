@@ -6,13 +6,28 @@ import {
   isElevenLabsTier,
 } from "@/lib/voice/ladder";
 import { describeTtsFailures, synthesizeSpeech } from "@/lib/voice/tts";
+import {
+  isSpeakableTtsText,
+  sessionExtraTtsRemainingChars,
+  truncateForBilledTts,
+} from "@/lib/voice/tts-budget";
 import { gateElevenLabsCall } from "@/lib/voice/gates";
-import { recordExtraTtsChars } from "@/lib/voice/usage";
+import { getSessionUsage, recordExtraTtsChars } from "@/lib/voice/usage";
 import {
   assertSessionOwnership,
   isVoiceAuthContext,
   resolveVoiceAuth,
 } from "@/lib/auth/require-voice-session";
+
+function logTtsSpend(payload: {
+  charsRequested: number;
+  charsSent: number;
+  sessionExtraTtsRemaining: number | null;
+  fallbackToBrowser: boolean;
+  reason?: string;
+}): void {
+  console.info("voice.tts.spend", payload);
+}
 
 export async function POST(request: Request) {
   const tier = resolveTtsTier();
@@ -30,13 +45,29 @@ export async function POST(request: Request) {
     text?: string;
     sessionUsageId?: string;
   };
-  const text = body.text?.trim();
+  const rawText = body.text?.trim() ?? "";
   const sessionUsageId =
     body.sessionUsageId ?? request.headers.get("x-voice-session-id") ?? undefined;
 
-  if (!text) {
+  if (!rawText) {
     return NextResponse.json({ error: "Missing text." }, { status: 400 });
   }
+
+  if (!isSpeakableTtsText(rawText)) {
+    logTtsSpend({
+      charsRequested: rawText.length,
+      charsSent: 0,
+      sessionExtraTtsRemaining: null,
+      fallbackToBrowser: true,
+      reason: "not_speakable",
+    });
+    return NextResponse.json(
+      { error: "not_speakable", fallbackToBrowser: true },
+      { status: 400 },
+    );
+  }
+
+  const { requestedChars, spokenText, sentChars } = truncateForBilledTts(rawText);
 
   if (isElevenLabsTier(tier)) {
     if (!auth || !isVoiceAuthContext(auth)) {
@@ -63,20 +94,36 @@ export async function POST(request: Request) {
           allowed: false,
           reason: "session_forbidden",
           fallbackToBrowser: true,
+          sessionExtraTtsRemaining: null as number | null,
         };
       }
-      return gateElevenLabsCall(
+
+      const usage = await getSessionUsage(client, sessionUsageId);
+      const sessionExtraTtsRemaining = usage
+        ? sessionExtraTtsRemainingChars(usage)
+        : 0;
+
+      const brake = await gateElevenLabsCall(
         client,
         tier,
         {
           sessionUsageId,
           verifiedUserId: auth.verifiedUserId,
         },
-        { ttsChars: text.length },
+        { ttsChars: sentChars },
       );
+
+      return { ...brake, sessionExtraTtsRemaining };
     });
 
     if (!gate.allowed) {
+      logTtsSpend({
+        charsRequested: requestedChars,
+        charsSent: 0,
+        sessionExtraTtsRemaining: gate.sessionExtraTtsRemaining,
+        fallbackToBrowser: true,
+        reason: gate.reason,
+      });
       return NextResponse.json(
         { error: gate.reason, fallbackToBrowser: true },
         { status: 429 },
@@ -84,19 +131,34 @@ export async function POST(request: Request) {
     }
   }
 
-  const synthesis = await synthesizeSpeech(text);
+  const synthesis = await synthesizeSpeech(spokenText);
+
+  let sessionExtraTtsRemaining: number | null = null;
+  if (isElevenLabsTier(tier) && sessionUsageId) {
+    sessionExtraTtsRemaining = await withPgClient(async (client) => {
+      const usage = await getSessionUsage(client, sessionUsageId);
+      return usage ? sessionExtraTtsRemainingChars(usage) : 0;
+    });
+  }
 
   // The browser discards the 502 body, so this log is the only place the
   // ElevenLabs reason survives. Details are secret-scrubbed upstream.
   if (synthesis.failures.length > 0) {
     console.error("voice.tts.elevenlabs_failed", {
       recovered: Boolean(synthesis.result),
-      textLength: text.length,
+      textLength: sentChars,
       attempts: describeTtsFailures(synthesis.failures),
     });
   }
 
   if (!synthesis.result) {
+    logTtsSpend({
+      charsRequested: requestedChars,
+      charsSent: 0,
+      sessionExtraTtsRemaining,
+      fallbackToBrowser: true,
+      reason: "synthesis_failed",
+    });
     return NextResponse.json(
       {
         error: "Synthesis failed.",
@@ -115,10 +177,19 @@ export async function POST(request: Request) {
     auth &&
     isVoiceAuthContext(auth)
   ) {
-    await withPgClient((client) =>
-      recordExtraTtsChars(client, sessionUsageId, text.length),
-    );
+    sessionExtraTtsRemaining = await withPgClient(async (client) => {
+      await recordExtraTtsChars(client, sessionUsageId, sentChars);
+      const usage = await getSessionUsage(client, sessionUsageId);
+      return usage ? sessionExtraTtsRemainingChars(usage) : 0;
+    });
   }
+
+  logTtsSpend({
+    charsRequested: requestedChars,
+    charsSent: sentChars,
+    sessionExtraTtsRemaining,
+    fallbackToBrowser: false,
+  });
 
   return new NextResponse(new Uint8Array(result.audio), {
     status: 200,

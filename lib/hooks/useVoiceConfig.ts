@@ -37,7 +37,7 @@ const BROWSER_DEFAULT: VoiceConfig = {
     sessionConvaiMaxSeconds: 180,
     sessionConvaiWarnRemainingSeconds: 30,
     sessionMaxRounds: 5,
-    sessionExtraTtsMaxChars: 2500,
+    sessionExtraTtsMaxChars: 800,
     dailyBilledSessionsPerUser: 1,
     globalMaxConcurrentConvai: 2,
     globalMonthlyConvaiMinutes: 300,

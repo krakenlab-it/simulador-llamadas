@@ -24,7 +24,10 @@ export const SESSION_MAX_ROUNDS = 5;
 export const SESSION_MAX_TURN_ALLOCATIONS = 10;
 
 /** Extra streaming TTS outside ConvAI, per billed session (characters). */
-export const SESSION_EXTRA_TTS_MAX_CHARS = 2500;
+export const SESSION_EXTRA_TTS_MAX_CHARS = 800;
+
+/** Max characters billed to ElevenLabs for one patient spoken turn. */
+export const SESSION_TTS_MAX_CHARS_PER_TURN = 220;
 
 /** Public URL: exactly one billed ConvAI session per user per UTC day (not 3, not 540s). */
 export const DAILY_BILLED_SESSIONS_PER_USER = 1;

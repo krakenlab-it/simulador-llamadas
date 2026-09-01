@@ -24,6 +24,14 @@ vi.mock("@/lib/voice/gates", () => ({
 
 vi.mock("@/lib/voice/usage", () => ({
   recordExtraTtsChars: vi.fn(async () => undefined),
+  getSessionUsage: vi.fn(async () => ({
+    id: "usage-1",
+    verifiedUserId: "verified-1",
+    convaiSecondsUsed: 0,
+    traineeAudioSecondsUsed: 0,
+    extraTtsCharsUsed: 0,
+    convaiSlotHeld: false,
+  })),
 }));
 
 vi.mock("@/lib/auth/require-voice-session", () => ({
@@ -38,6 +46,8 @@ vi.mock("@/lib/auth/require-voice-session", () => ({
 }));
 
 import { POST } from "@/app/api/voice/tts/route";
+import { gateElevenLabsCall } from "@/lib/voice/gates";
+import { getSessionUsage } from "@/lib/voice/usage";
 import { synthesizeSpeech } from "@/lib/voice/tts";
 
 function ttsRequest(text = "¿Quién habla?"): Request {
@@ -53,10 +63,12 @@ function ttsRequest(text = "¿Quién habla?"): Request {
 
 describe("POST /api/voice/tts", () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
+  let infoSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.stubEnv("ELEVENLABS_API_KEY", API_KEY);
     errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    infoSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -92,6 +104,15 @@ describe("POST /api/voice/tts", () => {
       attempts:
         'convert:elevenlabs_http_error status=402 detail={"detail":{"status":"quota_exceeded"}}',
     });
+    expect(infoSpy).toHaveBeenCalledWith(
+      "voice.tts.spend",
+      expect.objectContaining({
+        charsRequested: "¿Quién habla?".length,
+        charsSent: 0,
+        fallbackToBrowser: true,
+        reason: "synthesis_failed",
+      }),
+    );
   });
 
   it("logs a recovered turn so a degraded endpoint is visible before it dies", async () => {
@@ -133,6 +154,93 @@ describe("POST /api/voice/tts", () => {
 
     expect(response.status).toBe(200);
     expect(errorSpy).not.toHaveBeenCalled();
+    expect(infoSpy).toHaveBeenCalledWith(
+      "voice.tts.spend",
+      expect.objectContaining({
+        charsRequested: "¿Quién habla?".length,
+        charsSent: "¿Quién habla?".length,
+        fallbackToBrowser: false,
+        sessionExtraTtsRemaining: 800,
+      }),
+    );
+  });
+
+  it("refuses punctuation-only lines without billing ElevenLabs", async () => {
+    const response = await POST(ttsRequest("..."));
+
+    expect(response.status).toBe(400);
+    expect(synthesizeSpeech).not.toHaveBeenCalled();
+    expect(infoSpy).toHaveBeenCalledWith(
+      "voice.tts.spend",
+      expect.objectContaining({
+        charsRequested: 3,
+        charsSent: 0,
+        fallbackToBrowser: true,
+        reason: "not_speakable",
+      }),
+    );
+  });
+
+  it("truncates long patient lines before synthesis and meters sent chars", async () => {
+    const long =
+      "Mire, yo entiendo lo que dice, pero en la clínica ya tenemos muchos proveedores " +
+      "y la verdad es que no veo cómo esto me ayuda con las citas de la tarde ni con el personal " +
+      "que ya está saturado atendiendo pacientes en recepción y en consultorio todos los días.";
+    vi.mocked(synthesizeSpeech).mockResolvedValue({
+      result: {
+        audio: Buffer.from([0x49, 0x44, 0x33, 0x04]),
+        mimeType: "audio/mpeg",
+        tier: "elevenlabs",
+        endpoint: "convert",
+      },
+      failures: [],
+    });
+
+    const response = await POST(ttsRequest(long));
+
+    expect(response.status).toBe(200);
+    const spoken = vi.mocked(synthesizeSpeech).mock.calls[0]?.[0] as string;
+    expect(spoken.length).toBeLessThan(long.length);
+    expect(spoken.length).toBeLessThanOrEqual(220);
+    expect(infoSpy).toHaveBeenCalledWith(
+      "voice.tts.spend",
+      expect.objectContaining({
+        charsRequested: long.length,
+        charsSent: spoken.length,
+        fallbackToBrowser: false,
+      }),
+    );
+  });
+
+  it("returns browser fallback when the session extra TTS cap is exceeded", async () => {
+    vi.mocked(getSessionUsage).mockResolvedValueOnce({
+      id: "usage-1",
+      verifiedUserId: "verified-1",
+      convaiSecondsUsed: 0,
+      traineeAudioSecondsUsed: 0,
+      extraTtsCharsUsed: 788,
+      convaiSlotHeld: false,
+    });
+    vi.mocked(gateElevenLabsCall).mockResolvedValueOnce({
+      allowed: false,
+      reason: "session_extra_tts_limit",
+      fallbackToBrowser: true,
+    });
+
+    const response = await POST(ttsRequest("Hola Mariana."));
+
+    expect(response.status).toBe(429);
+    expect(synthesizeSpeech).not.toHaveBeenCalled();
+    expect(infoSpy).toHaveBeenCalledWith(
+      "voice.tts.spend",
+      expect.objectContaining({
+        charsRequested: "Hola Mariana.".length,
+        charsSent: 0,
+        sessionExtraTtsRemaining: 12,
+        fallbackToBrowser: true,
+        reason: "session_extra_tts_limit",
+      }),
+    );
   });
 
   it("never writes the ElevenLabs API key into the log line", async () => {
