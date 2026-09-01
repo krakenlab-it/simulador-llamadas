@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { startConvaiSession } from "@/lib/auth/voice-email";
-import { getVoiceAuthHeaders } from "@/lib/auth/voice-email";
+import {
+  getVoiceAuthHeaders,
+  startConvaiSession,
+} from "@/lib/auth/voice-session";
 
 export interface UseConvaiConnectionOptions {
   sessionUsageId: string | null;

@@ -9,8 +9,9 @@ import type { ScenarioRecord } from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
-import { VoiceEmailGate } from "@/app/components/VoiceEmailGate";
-import { getStoredVoiceEmail } from "@/lib/auth/voice-email";
+import { VoiceAuthGate } from "@/app/components/VoiceAuthGate";
+import { registerVerifiedVoiceUser } from "@/lib/auth/voice-session";
+import { useAuth } from "@/lib/auth/context";
 
 export interface SetupConfig {
   scenarioSlug: string;
@@ -47,12 +48,26 @@ export function SetupScreen({
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<LocalHistoryEntry[]>([]);
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
-  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(
-    () => getStoredVoiceEmail(),
-  );
+  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   const [voiceAuthSkipped, setVoiceAuthSkipped] = useState(false);
   const voiceConfig = useVoiceConfig();
+  const { session } = useAuth();
   const speech = useSpeechRecognition();
+
+  useEffect(() => {
+    if (!session?.user.email || verifiedUserId) return;
+
+    let cancelled = false;
+    void registerVerifiedVoiceUser().then((result) => {
+      if (cancelled || !result) return;
+      setVerifiedUserId(result.verifiedUserId);
+      setVerifiedEmail(result.email);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session, verifiedUserId]);
 
   useEffect(() => {
     void listScenarios().then(setScenarios);
@@ -242,7 +257,7 @@ export function SetupScreen({
       </div>
 
       {mode === "voz" && needsVoiceAuth && (
-        <VoiceEmailGate
+        <VoiceAuthGate
           onVerified={(id, email) => {
             setVerifiedUserId(id);
             setVerifiedEmail(email);

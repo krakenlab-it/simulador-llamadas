@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isSpeechSynthesisSupported } from "@/lib/extension-points/session";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
-import { getVoiceAuthHeaders } from "@/lib/auth/voice-email";
+import { getVoiceAuthHeaders } from "@/lib/auth/voice-session";
 
 const SPEECH_LANG = "es-MX";
 

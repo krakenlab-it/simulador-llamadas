@@ -13,6 +13,8 @@ import { SetupScreen, type SetupConfig } from "@/app/components/SetupScreen";
 import { ScenarioBuilderScreen } from "@/app/components/ScenarioBuilderScreen";
 import { LiveCallScreen } from "@/app/components/LiveCallScreen";
 import { EvaluationScreen } from "@/app/components/EvaluationScreen";
+import { AuthScreen } from "@/app/components/AuthScreen";
+import { AuthProvider, useAuth } from "@/lib/auth/context";
 
 type Screen = "setup" | "builder" | "call" | "evaluation";
 
@@ -21,7 +23,9 @@ interface EvaluationState {
   turns: TurnSummary[];
 }
 
-export function SimulatorApp() {
+function SimulatorShell() {
+  const { session, loading, signOut } = useAuth();
+  const [textOnly, setTextOnly] = useState(false);
   const [screen, setScreen] = useState<Screen>("setup");
   const [callAttemptId, setCallAttemptId] = useState<string | null>(null);
   const [config, setConfig] = useState<SetupConfig | null>(null);
@@ -94,67 +98,107 @@ export function SimulatorApp() {
     setScreen("setup");
   }, []);
 
+  if (loading) {
+    return (
+      <main>
+        <p className="note">Cargando…</p>
+      </main>
+    );
+  }
+
+  if (!session && !textOnly) {
+    return (
+      <main>
+        <AuthScreen
+          onAuthenticated={() => {
+            /* AuthProvider picks up the new session automatically. */
+          }}
+          onContinueTextOnly={() => setTextOnly(true)}
+        />
+      </main>
+    );
+  }
+
   return (
-    <div className="wrap">
-      <header className="site-header">
-        <BrandMark />
-        <p className="brand-wordmark">
-          Simulador de Llamadas <span>· CDC</span>
+    <main>
+      <div className="wrap">
+        <header className="site-header">
+          <BrandMark />
+          <p className="brand-wordmark">
+            Simulador de Llamadas <span>· CDC</span>
+          </p>
+          {session?.user.email && (
+            <button
+              type="button"
+              className="auth-signout"
+              onClick={() => void signOut()}
+            >
+              Cerrar sesión ({session.user.email})
+            </button>
+          )}
+        </header>
+
+        <p className="kicker">Formación comercial · Entrenamiento de ventas con IA</p>
+        <h1>Simulador de llamadas de venta</h1>
+        <p className="subtitle">
+          Practica llamadas en frío para cualquier industria. Cinco rondas por
+          defecto. Gana cerrando con día y hora concretos — o tu propio criterio de
+          éxito.
         </p>
-      </header>
 
-      <p className="kicker">Formación comercial · Entrenamiento de ventas con IA</p>
-      <h1>Simulador de llamadas de venta</h1>
-      <p className="subtitle">
-        Practica llamadas en frío para cualquier industria. Cinco rondas por
-        defecto. Gana cerrando con día y hora concretos — o tu propio criterio de
-        éxito.
-      </p>
+        {starting && <p className="note">Marcando…</p>}
 
-      {starting && <p className="note">Marcando…</p>}
+        {screen === "setup" && !starting && (
+          <SetupScreen
+            refreshKey={scenarioRefresh}
+            selectedSlugOnLoad={selectedSlugOnLoad}
+            onStart={(c) => void handleStart(c)}
+            onCreateScenario={() => setScreen("builder")}
+          />
+        )}
 
-      {screen === "setup" && !starting && (
-        <SetupScreen
-          refreshKey={scenarioRefresh}
-          selectedSlugOnLoad={selectedSlugOnLoad}
-          onStart={(c) => void handleStart(c)}
-          onCreateScenario={() => setScreen("builder")}
-        />
-      )}
+        {screen === "builder" && (
+          <ScenarioBuilderScreen
+            onCancel={() => setScreen("setup")}
+            onSave={({ scenario }) => handleScenarioSaved(scenario.slug)}
+          />
+        )}
 
-      {screen === "builder" && (
-        <ScenarioBuilderScreen
-          onCancel={() => setScreen("setup")}
-          onSave={({ scenario }) => handleScenarioSaved(scenario.slug)}
-        />
-      )}
+        {screen === "call" && callAttemptId && config && (
+          <LiveCallScreen
+            callAttemptId={callAttemptId}
+            clientName={config.clientName}
+            scenarioSlug={config.scenarioSlug}
+            isPreset={config.isPreset}
+            client={config.client}
+            mode={config.mode}
+            level={config.difficultyLevel}
+            totalRounds={config.totalRounds}
+            verifiedUserId={config.verifiedUserId}
+            onHangUp={(turns) => void handleHangUp(turns)}
+          />
+        )}
 
-      {screen === "call" && callAttemptId && config && (
-        <LiveCallScreen
-          callAttemptId={callAttemptId}
-          clientName={config.clientName}
-          scenarioSlug={config.scenarioSlug}
-          isPreset={config.isPreset}
-          client={config.client}
-          mode={config.mode}
-          level={config.difficultyLevel}
-          totalRounds={config.totalRounds}
-          verifiedUserId={config.verifiedUserId}
-          onHangUp={(turns) => void handleHangUp(turns)}
-        />
-      )}
+        {screen === "evaluation" && evaluation && config && (
+          <EvaluationScreen
+            result={evaluation.result}
+            turns={evaluation.turns}
+            clientName={config.clientName}
+            scenarioSlug={config.scenarioSlug}
+            totalRounds={config.totalRounds}
+            onRepeat={() => void handleRepeat()}
+            onOtherClient={handleOtherClient}
+          />
+        )}
+      </div>
+    </main>
+  );
+}
 
-      {screen === "evaluation" && evaluation && config && (
-        <EvaluationScreen
-          result={evaluation.result}
-          turns={evaluation.turns}
-          clientName={config.clientName}
-          scenarioSlug={config.scenarioSlug}
-          totalRounds={config.totalRounds}
-          onRepeat={() => void handleRepeat()}
-          onOtherClient={handleOtherClient}
-        />
-      )}
-    </div>
+export function SimulatorApp() {
+  return (
+    <AuthProvider>
+      <SimulatorShell />
+    </AuthProvider>
   );
 }
