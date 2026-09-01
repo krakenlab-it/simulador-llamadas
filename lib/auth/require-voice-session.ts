@@ -23,7 +23,7 @@ export function extractBearerTokenForTest(request: Request): string | null {
   return extractBearerToken(request);
 }
 
-/** Validate Supabase access token (magic-link or email OTP). */
+/** Validate Supabase access token (email+password session JWT). */
 export async function verifySupabaseAccessToken(
   accessToken: string,
 ): Promise<{ userId: string; email: string } | null> {

@@ -10,7 +10,7 @@ const MIGRATION = join(
 describe("voice brakes migration (static)", () => {
   const sql = readFileSync(MIGRATION, "utf-8");
 
-  it("creates voice_verified_users for magic-link proof", () => {
+  it("creates voice_verified_users for authenticated voice billing", () => {
     expect(sql).toContain("CREATE TABLE voice_verified_users");
     expect(sql).toContain("email TEXT NOT NULL UNIQUE");
   });

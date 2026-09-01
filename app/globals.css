@@ -28,6 +28,7 @@
   --font-display: var(--font-archivo), system-ui, sans-serif;
   --font-body: var(--font-ibm-plex-sans), system-ui, sans-serif;
   --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
+  --font-auth-display: var(--font-instrument-serif), "Iowan Old Style", "Times New Roman", serif;
 }
 
 * {
@@ -92,9 +93,28 @@ main {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-wrap: wrap;
   margin-bottom: 1.5rem;
   padding-bottom: 1.25rem;
   border-bottom: 1px solid var(--border);
+}
+
+.auth-signout {
+  margin-left: auto;
+  font-size: 0.8rem;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--teal);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .brand-mark {

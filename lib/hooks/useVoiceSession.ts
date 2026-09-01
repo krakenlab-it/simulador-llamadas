@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   endBilledVoiceSession,
   startBilledVoiceSession,
-} from "@/lib/auth/voice-email";
+} from "@/lib/auth/voice-session";
 import { voiceSessionFetch } from "@/lib/hooks/useConvaiConnection";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { SESSION_CONVAI_MAX_SECONDS } from "@/lib/voice/brakes";
