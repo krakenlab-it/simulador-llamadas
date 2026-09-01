@@ -4,8 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { isSpeechSynthesisSupported } from "@/lib/extension-points/session";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { getVoiceAuthHeaders } from "@/lib/auth/voice-session";
-
-const SPEECH_LANG = "es-MX";
+import {
+  applySpanishVoice,
+  getSharedCallAudio,
+  isClientPlaybackUnlocked,
+  onClientPlaybackUnlocked,
+  playSharedAudio,
+} from "@/lib/voice/client-playback";
 
 export interface UseSpeechSynthesisOptions {
   sessionUsageId?: string | null;
@@ -19,19 +24,58 @@ export interface UseSpeechSynthesisResult {
   cancel: () => void;
 }
 
+const BROWSER_SPEAK_DELAY_MS = 60;
+
 async function fetchServerAudio(
   text: string,
   sessionUsageId?: string | null,
 ): Promise<{ blob: Blob | null; fallback: boolean }> {
   const authHeaders = await getVoiceAuthHeaders();
+  const headers: Record<string, string> = {
+    ...authHeaders,
+    "Content-Type": "application/json",
+  };
+  if (sessionUsageId) headers["x-voice-session-id"] = sessionUsageId;
+
   const response = await fetch("/api/voice/tts", {
     method: "POST",
-    headers: { ...authHeaders, "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ text, sessionUsageId }),
   });
   if (response.status === 429) return { blob: null, fallback: true };
-  if (!response.ok) return { blob: null, fallback: false };
+  if (!response.ok) return { blob: null, fallback: true };
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.startsWith("audio/")) return { blob: null, fallback: true };
   return { blob: await response.blob(), fallback: false };
+}
+
+function speakWithBrowserSynthesis(text: string, onEnd: () => void): void {
+  if (!isSpeechSynthesisSupported()) {
+    onEnd();
+    return;
+  }
+
+  const synth = window.speechSynthesis;
+  synth.cancel();
+  synth.resume();
+
+  let started = false;
+  const start = () => {
+    if (started) return;
+    started = true;
+    const utterance = new SpeechSynthesisUtterance(text);
+    applySpanishVoice(utterance);
+    utterance.onend = onEnd;
+    utterance.onerror = onEnd;
+    synth.resume();
+    synth.speak(utterance);
+  };
+
+  const voicesReady = synth.getVoices().length > 0;
+  window.setTimeout(start, voicesReady ? BROWSER_SPEAK_DELAY_MS : 120);
+  if (!voicesReady) {
+    synth.addEventListener("voiceschanged", start, { once: true });
+  }
 }
 
 export function useSpeechSynthesis(
@@ -41,8 +85,10 @@ export function useSpeechSynthesis(
   const voiceConfig = useVoiceConfig();
   const [supported, setSupported] = useState(false);
   const [speaking, setSpeaking] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const generationRef = useRef(0);
+  const pendingTextRef = useRef<string | null>(null);
+  const cancelledRef = useRef(false);
 
   const useServerTts =
     voiceConfig.serverTts &&
@@ -60,67 +106,110 @@ export function useSpeechSynthesis(
 
   const revokeObjectUrl = useCallback(() => {
     if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
+      if (typeof URL.revokeObjectURL === "function") {
+        URL.revokeObjectURL(objectUrlRef.current);
+      }
       objectUrlRef.current = null;
     }
   }, []);
 
   const cancel = useCallback(() => {
+    cancelledRef.current = true;
+    generationRef.current += 1;
+    pendingTextRef.current = null;
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
-    audioRef.current?.pause();
-    if (audioRef.current) audioRef.current.currentTime = 0;
+    const audio = getSharedCallAudio();
+    audio?.pause();
+    if (audio) audio.currentTime = 0;
     revokeObjectUrl();
     setSpeaking(false);
   }, [revokeObjectUrl]);
 
   const speakBrowser = useCallback(
     (text: string) => {
-      if (!isSpeechSynthesisSupported()) return;
-
-      cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = SPEECH_LANG;
-      utterance.onstart = () => setSpeaking(true);
-      utterance.onend = () => setSpeaking(false);
-      utterance.onerror = () => setSpeaking(false);
-      window.speechSynthesis.speak(utterance);
+      if (!isSpeechSynthesisSupported()) {
+        setSpeaking(false);
+        return;
+      }
+      cancelledRef.current = false;
+      setSpeaking(true);
+      speakWithBrowserSynthesis(text, () => {
+        if (!cancelledRef.current) setSpeaking(false);
+      });
     },
-    [cancel],
+    [],
   );
 
   const speakServer = useCallback(
     async (text: string) => {
-      cancel();
+      cancelledRef.current = false;
+      const generation = generationRef.current;
+      setSpeaking(true);
+
       const { blob, fallback } = await fetchServerAudio(text, sessionUsageId);
+      if (generation !== generationRef.current || cancelledRef.current) return;
+
       if (!blob || fallback) {
         speakBrowser(text);
         return;
       }
 
-      const url = URL.createObjectURL(blob);
+      const url =
+        typeof URL.createObjectURL === "function"
+          ? URL.createObjectURL(blob)
+          : "blob:tts";
       objectUrlRef.current = url;
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onplay = () => setSpeaking(true);
-      audio.onended = () => {
-        setSpeaking(false);
-        revokeObjectUrl();
+
+      const play = async () => {
+        if (generation !== generationRef.current || cancelledRef.current) return;
+        try {
+          await playSharedAudio(url);
+        } catch {
+          if (generation !== generationRef.current || cancelledRef.current) return;
+          if (!isClientPlaybackUnlocked()) {
+            pendingTextRef.current = text;
+            return;
+          }
+          speakBrowser(text);
+        }
       };
-      audio.onerror = () => {
-        setSpeaking(false);
-        revokeObjectUrl();
-        speakBrowser(text);
-      };
-      void audio.play();
+
+      const audio = getSharedCallAudio();
+      if (audio) {
+        audio.onplay = () => {
+          if (generation === generationRef.current) setSpeaking(true);
+        };
+        audio.onended = () => {
+          if (generation !== generationRef.current) return;
+          setSpeaking(false);
+          revokeObjectUrl();
+        };
+        audio.onerror = () => {
+          if (generation !== generationRef.current || cancelledRef.current) return;
+          setSpeaking(false);
+          revokeObjectUrl();
+          speakBrowser(text);
+        };
+      }
+
+      await play();
     },
-    [cancel, revokeObjectUrl, sessionUsageId, speakBrowser],
+    [revokeObjectUrl, sessionUsageId, speakBrowser],
   );
 
   const speak = useCallback(
     (text: string) => {
       if (!text.trim()) return;
+      cancelledRef.current = false;
+
+      if (!isClientPlaybackUnlocked()) {
+        pendingTextRef.current = text;
+        setSpeaking(true);
+        return;
+      }
+
       if (useServerTts) {
         void speakServer(text);
         return;
@@ -129,6 +218,19 @@ export function useSpeechSynthesis(
     },
     [useServerTts, speakServer, speakBrowser],
   );
+
+  useEffect(() => {
+    return onClientPlaybackUnlocked(() => {
+      const pending = pendingTextRef.current;
+      if (!pending) return;
+      pendingTextRef.current = null;
+      if (useServerTts) {
+        void speakServer(pending);
+        return;
+      }
+      speakBrowser(pending);
+    });
+  }, [useServerTts, speakServer, speakBrowser]);
 
   useEffect(() => cancel, [cancel]);
 

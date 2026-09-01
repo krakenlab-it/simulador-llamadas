@@ -8,6 +8,17 @@ import type { TurnResponse } from "@/lib/api/stubs";
 const speak = vi.fn();
 const cancel = vi.fn();
 
+const speechState = vi.hoisted(() => ({
+  supported: true,
+  listening: false,
+  transcript: "",
+  error: null as string | null,
+  sttTier: "browser",
+  startListening: vi.fn(),
+  stopListening: vi.fn(),
+  resetTranscript: vi.fn(),
+}));
+
 vi.mock("@/lib/api/client", () => ({
   submitTurn: vi.fn(),
 }));
@@ -45,15 +56,7 @@ vi.mock("@/lib/hooks/useConvaiConnection", () => ({
 }));
 
 vi.mock("@/lib/hooks/useSpeechRecognition", () => ({
-  useSpeechRecognition: () => ({
-    supported: true,
-    listening: false,
-    transcript: "",
-    error: null,
-    startListening: vi.fn(),
-    stopListening: vi.fn(),
-    resetTranscript: vi.fn(),
-  }),
+  useSpeechRecognition: () => speechState,
 }));
 
 const convaiEnabled = { value: false };
@@ -103,8 +106,8 @@ function turnResponse(overrides: Partial<TurnResponse> = {}): TurnResponse {
   };
 }
 
-function renderCall() {
-  return render(
+function callScreen() {
+  return (
     <ToastProvider>
       <LiveCallScreen
         callAttemptId="call-1"
@@ -116,13 +119,24 @@ function renderCall() {
         totalRounds={5}
         onHangUp={vi.fn()}
       />
-    </ToastProvider>,
+    </ToastProvider>
   );
+}
+
+function renderCall() {
+  return render(callScreen());
 }
 
 describe("live call voice path without ConvAI", () => {
   beforeEach(() => {
     convaiEnabled.value = false;
+    speechState.listening = false;
+    speechState.transcript = "";
+    speechState.error = null;
+    speechState.resetTranscript.mockImplementation(() => {
+      speechState.transcript = "";
+      speechState.error = null;
+    });
     vi.mocked(submitTurn).mockResolvedValue(turnResponse());
   });
 
@@ -138,6 +152,9 @@ describe("live call voice path without ConvAI", () => {
       expect(speak).toHaveBeenCalledTimes(1);
     });
     expect(speak.mock.calls[0][0]).toBeTruthy();
+    expect(
+      screen.queryByText(/sin facturación ElevenLabs/i),
+    ).not.toBeInTheDocument();
   });
 
   it("shows and speaks the client reply returned by the turn", async () => {
@@ -211,6 +228,45 @@ describe("live call voice path without ConvAI", () => {
     expect(retryCall[1].clientTurnId).toBe(firstCall[1].clientTurnId);
   });
 
+  it("autosubmits when recognition ends with a transcript and does not double-post", async () => {
+    const user = userEvent.setup();
+    const view = renderCall();
+
+    await user.click(screen.getByRole("button", { name: "Micrófono" }));
+    expect(screen.getByRole("button", { name: "Escuchando…" })).toBeInTheDocument();
+
+    speechState.transcript = "Hola Mariana, hablo de KrakenLab.";
+    speechState.listening = false;
+    view.rerender(callScreen());
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledTimes(1);
+    });
+    expect(vi.mocked(submitTurn).mock.calls[0][1]).toEqual(
+      expect.objectContaining({
+        utterance: "Hola Mariana, hablo de KrakenLab.",
+        clientTurnId: expect.any(String),
+      }),
+    );
+
+    view.rerender(callScreen());
+    expect(submitTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not autosubmit empty or no-speech results", async () => {
+    const user = userEvent.setup();
+    const view = renderCall();
+
+    await user.click(screen.getByRole("button", { name: "Micrófono" }));
+    speechState.transcript = "";
+    speechState.listening = false;
+    speechState.error = null;
+    view.rerender(callScreen());
+
+    expect(submitTurn).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Error de micrófono: no-speech/i)).not.toBeInTheDocument();
+  });
+
   it("falls back to browser mic and TTS when ConvAI is enabled but not connected", async () => {
     convaiEnabled.value = true;
     const user = userEvent.setup();
@@ -223,6 +279,9 @@ describe("live call voice path without ConvAI", () => {
     expect(
       screen.getByText(/Agente de voz no conectado/i),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/sin facturación ElevenLabs/i),
+    ).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Tu respuesta"), "Hola Mariana.");
     await user.click(screen.getByRole("button", { name: "Enviar turno" }));

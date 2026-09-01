@@ -11,6 +11,8 @@ export interface VoiceConfig {
   serverTts: boolean;
   elevenlabsBilledAvailable: boolean;
   requiresVoiceAuth: boolean;
+  /** False until /api/voice/config resolves. Omitted in tests means ready. */
+  ready?: boolean;
   brakes: {
     sessionConvaiMaxSeconds: number;
     sessionConvaiWarnRemainingSeconds: number;
@@ -43,7 +45,10 @@ const BROWSER_DEFAULT: VoiceConfig = {
 };
 
 export function useVoiceConfig(): VoiceConfig {
-  const [config, setConfig] = useState<VoiceConfig>(BROWSER_DEFAULT);
+  const [config, setConfig] = useState<VoiceConfig>({
+    ...BROWSER_DEFAULT,
+    ready: false,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -51,10 +56,10 @@ export function useVoiceConfig(): VoiceConfig {
     void fetch("/api/voice/config")
       .then((res) => (res.ok ? res.json() : BROWSER_DEFAULT))
       .then((data: VoiceConfig) => {
-        if (!cancelled) setConfig(data);
+        if (!cancelled) setConfig({ ...data, ready: true });
       })
       .catch(() => {
-        if (!cancelled) setConfig(BROWSER_DEFAULT);
+        if (!cancelled) setConfig({ ...BROWSER_DEFAULT, ready: true });
       });
 
     return () => {

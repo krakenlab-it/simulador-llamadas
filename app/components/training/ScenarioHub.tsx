@@ -22,6 +22,7 @@ import { Button } from "@/app/components/ui/Button";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { SegmentedControl, Switch } from "@/app/components/ui/Switch";
+import { unlockClientPlayback } from "@/lib/voice/client-playback";
 
 export interface SetupConfig {
   scenarioSlug: string;
@@ -146,12 +147,14 @@ export function ScenarioHub({
 
   const handleMicTest = () => {
     if (mode !== "voz" || !speech.supported) return;
+    unlockClientPlayback();
     speech.startListening();
     setMicVerified(true);
   };
 
   const handleStart = () => {
     if (!selected || !canStart) return;
+    unlockClientPlayback();
     onStart({
       scenarioSlug: selected.slug,
       clientName: selected.clientName,
