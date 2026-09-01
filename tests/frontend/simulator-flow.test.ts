@@ -9,6 +9,7 @@ import {
 import { scoreUtterance } from "@/lib/extension-points/scoring";
 import { CLIENTS } from "@/lib/clients";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
+import { GOOD_CLOSE_UTTERANCE } from "../fixtures/scoring/utterances";
 
 describe("API stubs", () => {
   beforeEach(() => {
@@ -66,6 +67,22 @@ describe("API stubs", () => {
         difficultyLevel: 1,
       }),
     ).toThrow("Cliente no encontrado");
+  });
+
+  it("does not award a clinic win when hanging up before cierre", () => {
+    const session = stubCreateSession({
+      scenarioSlug: "mariana",
+      mode: "texto",
+      difficultyLevel: 2,
+    });
+
+    stubSubmitTurn(session.callAttemptId, {
+      utterance: GOOD_CLOSE_UTTERANCE,
+    });
+    const ended = stubEndSession(session.callAttemptId);
+
+    expect(ended.won).toBe(false);
+    expect(ended.turnsCompleted).toBe(1);
   });
 
   it("lists history for trainee after completed call", () => {

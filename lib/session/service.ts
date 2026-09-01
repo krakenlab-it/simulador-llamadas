@@ -1,6 +1,7 @@
 import type { Client } from "pg";
-import type { DifficultyLevel } from "@/lib/db/types";
-import { scoreTurn } from "@/lib/scoring";
+import type { DifficultyLevel, RoundType, ScoringKeyword } from "@/lib/db/types";
+import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
+import { scoreTurnAdaptive } from "@/lib/scoring/adaptive";
 import {
   SessionRepository,
   type CreateSessionInput,
@@ -29,35 +30,31 @@ export class SessionService {
   async submitTurn(input: SubmitTurnInput): Promise<TurnRecord> {
     const session = await this.repository.getSession(input.callAttemptId);
 
-    if (!session) {
-      throw new Error("Session not found");
-    }
-
-    if (session.status !== "in_progress") {
-      throw new Error("Session is not in progress");
-    }
-
-    if (session.currentRound > 5) {
+    if (!session) throw new Error("Session not found");
+    if (session.status !== "in_progress") throw new Error("Session is not in progress");
+    if (session.currentRound > session.totalRounds) {
       throw new Error("All rounds already completed");
     }
 
-    const roundType = this.repository.getRoundType(session.currentRound);
-
-    if (!roundType) {
-      throw new Error("Invalid round number");
-    }
-
     const trimmed = input.utterance.trim();
+    if (!trimmed) throw new Error("Utterance cannot be empty");
 
-    if (!trimmed) {
-      throw new Error("Utterance cannot be empty");
-    }
+    const roundDef = this.repository.getRoundDef(session, session.currentRound);
+    const isLastRound = session.currentRound === session.totalRounds;
 
-    const score = scoreTurn({
+    const score = await scoreTurnAdaptive({
       utterance: trimmed,
-      roundType,
+      roundKey: roundDef.key,
+      roundLabel: roundDef.label,
+      roundGoal:
+        roundDef.goal ||
+        (roundDef.roundType ? ROUND_EXPECTED[roundDef.roundType] : ""),
       difficultyLevel: session.difficultyLevel,
       scenarioSlug: session.scenarioSlug,
+      isPreset: session.isPreset,
+      config: session.config,
+      clientName: session.clientName,
+      isLastRound,
     });
 
     return this.repository.saveTurn(
@@ -65,12 +62,15 @@ export class SessionService {
       session.currentRound,
       trimmed,
       {
-        roundType,
+        roundType: roundDef.roundType,
+        roundKey: roundDef.key,
+        roundLabel: roundDef.label,
         roundScore: score.roundScore,
         keywordHits: score.keywordHits,
         clientReaction: score.clientReaction,
         clientReply: score.clientReply,
         feedback: score.feedback,
+        richFeedback: score.richFeedback,
         hasConcreteDayAndTime: score.hasConcreteDayAndTime,
         won: score.won,
       },
@@ -79,11 +79,7 @@ export class SessionService {
 
   async endSession(callAttemptId: string): Promise<EndSessionResult> {
     const session = await this.repository.getSession(callAttemptId);
-
-    if (!session) {
-      throw new Error("Session not found");
-    }
-
+    if (!session) throw new Error("Session not found");
     return this.repository.endSession(callAttemptId);
   }
 
@@ -91,8 +87,11 @@ export class SessionService {
     return this.repository.getSession(callAttemptId);
   }
 
-  async listHistory(traineeId: string): Promise<HistoryEntry[]> {
-    return this.repository.listHistoryForTrainee(traineeId);
+  async listHistory(
+    traineeId: string,
+    scenarioSlug?: string,
+  ): Promise<HistoryEntry[]> {
+    return this.repository.listHistoryForTrainee(traineeId, scenarioSlug);
   }
 }
 
@@ -105,6 +104,68 @@ export async function createTrainee(
     [displayName],
   );
   return result.rows[0].id;
+}
+
+export interface EndSessionTurnInput {
+  roundType: RoundType | null;
+  roundKey: string | null;
+  traineeUtterance: string | null;
+  keywordHits: Partial<Record<ScoringKeyword, boolean>>;
+}
+
+export function utteranceHasDay(utterance: string): boolean {
+  return /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s+de)/i.test(
+    utterance,
+  );
+}
+
+export function utteranceHasTime(utterance: string): boolean {
+  return /\d{1,2}[:h]\d{2}|\d{1,2}\s*(am|pm|hrs?)/i.test(utterance);
+}
+
+/**
+ * Session-level win at hang-up. Clinic presets require a submitted cierre turn
+ * (matches main @ 5475a77). Custom scenarios evaluate only on the final round.
+ */
+export function resolveEndSessionWin(
+  options: {
+    isPreset: boolean;
+    difficultyLevel: DifficultyLevel;
+    closeRoundKey: string | null;
+  },
+  turns: EndSessionTurnInput[],
+): boolean {
+  if (turns.length === 0) {
+    return false;
+  }
+
+  let closeTurn: EndSessionTurnInput | undefined;
+
+  if (options.isPreset) {
+    closeTurn = turns.find((turn) => turn.roundType === "cierre");
+    if (!closeTurn) {
+      return false;
+    }
+  } else {
+    const lastTurn = turns[turns.length - 1];
+    const closeKeys = new Set(
+      ["cierre", options.closeRoundKey].filter((key): key is string => Boolean(key)),
+    );
+    if (!lastTurn.roundKey || !closeKeys.has(lastTurn.roundKey)) {
+      return false;
+    }
+    closeTurn = lastTurn;
+  }
+
+  const utterance = closeTurn.traineeUtterance ?? "";
+
+  return evaluateCloseWinFromScore(
+    options.difficultyLevel,
+    utteranceHasDay(utterance),
+    utteranceHasTime(utterance),
+    Boolean(closeTurn.keywordHits.reunion),
+    Boolean(closeTurn.keywordHits.dia_hora),
+  );
 }
 
 export function evaluateCloseWinFromScore(

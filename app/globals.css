@@ -454,3 +454,104 @@ textarea {
 .history-panel {
   margin-top: 1rem;
 }
+
+/* Scenario builder */
+.builder-cta {
+  margin-top: 1rem;
+}
+
+.builder-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.builder-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.builder-grid label.full-width {
+  grid-column: 1 / -1;
+}
+
+.builder-grid input,
+.builder-grid textarea {
+  font-weight: 400;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.9rem;
+  background: var(--ink-soft);
+  color: var(--ink);
+}
+
+.badge.custom {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+
+/* Rich feedback */
+.eval.rich {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: var(--radius-sm);
+}
+
+.feedback-why {
+  margin: 0.5rem 0;
+  font-size: 0.88rem;
+}
+
+.missed-criteria {
+  font-size: 0.82rem;
+  color: var(--warn);
+  margin: 0.35rem 0 0;
+}
+
+.eval-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.summary-card {
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.summary-card.good {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+}
+
+.summary-card.bad {
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+}
+
+.drill-card,
+.trend-card {
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin-bottom: 1rem;
+  font-size: 0.88rem;
+}
+
+.verdict {
+  font-size: 0.95rem;
+  margin: 0.5rem 0;
+}
+
+.history-item.rich {
+  padding: 0.85rem 0;
+}

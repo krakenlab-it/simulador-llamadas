@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ClientPersona } from "@/lib/clients";
 import type { PracticeMode } from "@/lib/db/types";
 import { submitTurn } from "@/lib/api/client";
-import type { TurnSummary } from "@/lib/api/client";
+import type { RichTurnFeedback, TurnSummary } from "@/lib/api/client";
+import { stubGetOpeningLine } from "@/lib/api/stubs";
 import { getKeywordLabels } from "@/lib/simulation/keywords";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/lib/hooks/useSpeechSynthesis";
@@ -15,46 +16,54 @@ interface DialogueEntry {
   text: string;
 }
 
-interface TurnEval {
-  roundScore: number;
-  expectedPhrase: string;
-  keywordHits: Record<string, boolean>;
-}
-
 interface LiveCallScreenProps {
   callAttemptId: string;
-  client: ClientPersona;
+  clientName: string;
+  scenarioSlug: string;
+  isPreset: boolean;
+  client?: ClientPersona;
   mode: PracticeMode;
   level: number;
+  totalRounds: number;
   onHangUp: (turns: TurnSummary[]) => void;
 }
 
 export function LiveCallScreen({
   callAttemptId,
+  clientName,
+  scenarioSlug,
+  isPreset,
   client,
   mode,
   level,
+  totalRounds,
   onHangUp,
 }: LiveCallScreenProps) {
   const [round, setRound] = useState(1);
+  const [roundLabel, setRoundLabel] = useState("Apertura");
   const [dialogue, setDialogue] = useState<DialogueEntry[]>([]);
   const [utterance, setUtterance] = useState("");
-  const [turnEval, setTurnEval] = useState<TurnEval | null>(null);
+  const [turnEval, setTurnEval] = useState<{
+    roundScore: number;
+    richFeedback: RichTurnFeedback;
+    keywordHits: Record<string, boolean>;
+  } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const turnHistory = useRef<TurnSummary[]>([]);
   const speech = useSpeechRecognition();
   const synthesis = useSpeechSynthesis();
   const dialogueRef = useRef<HTMLDivElement>(null);
 
-  const roundMeta = ROUNDS[round - 1];
+  const roundMeta = isPreset ? ROUNDS[round - 1] : null;
 
   useEffect(() => {
-    const opening = getClientLine(client, 0);
+    const opening =
+      isPreset && client
+        ? getClientLine(client, 0)
+        : stubGetOpeningLine(scenarioSlug);
     setDialogue([{ role: "client", text: opening }]);
-    if (mode === "voz") {
-      synthesis.speak(opening);
-    }
-  }, [client, mode, synthesis]);
+    if (mode === "voz") synthesis.speak(opening);
+  }, [client, isPreset, mode, scenarioSlug, synthesis]);
 
   useEffect(() => {
     dialogueRef.current?.scrollTo({
@@ -64,9 +73,7 @@ export function LiveCallScreen({
   }, [dialogue, turnEval]);
 
   const handleMic = () => {
-    if (mode !== "voz" || !speech.supported) {
-      return;
-    }
+    if (mode !== "voz" || !speech.supported) return;
     speech.startListening();
   };
 
@@ -81,44 +88,44 @@ export function LiveCallScreen({
 
   const handleSubmitTurn = async () => {
     const text = utterance.trim();
-    if (!text || submitting) {
-      return;
-    }
+    if (!text || submitting) return;
 
     setSubmitting(true);
     try {
       const response = await submitTurn(callAttemptId, { utterance: text });
 
       const summary: TurnSummary = {
+        roundKey: response.roundKey,
+        roundLabel: response.roundLabel,
         roundType: response.roundType,
         utterance: response.traineeUtterance,
-        expectedPhrase: response.feedback,
+        expectedPhrase: response.richFeedback.strongerLine,
         roundScore: response.roundScore,
+        richFeedback: response.richFeedback,
       };
       turnHistory.current.push(summary);
 
       setDialogue((prev) => [...prev, { role: "you", text }]);
       setTurnEval({
         roundScore: response.roundScore,
-        expectedPhrase: response.feedback,
-        keywordHits: response.keywordHits as Record<string, boolean>,
+        richFeedback: response.richFeedback,
+        keywordHits: response.keywordHits,
       });
 
-      if (response.roundNumber < 5) {
+      if (response.roundNumber < totalRounds) {
         setTimeout(() => {
           setUtterance("");
           setTurnEval(null);
           setRound(response.roundNumber + 1);
+          setRoundLabel(response.roundLabel);
           if (response.clientReply) {
             setDialogue((prev) => [
               ...prev,
               { role: "client", text: response.clientReply },
             ]);
-            if (mode === "voz") {
-              synthesis.speak(response.clientReply);
-            }
+            if (mode === "voz") synthesis.speak(response.clientReply);
           }
-        }, 1200);
+        }, 1800);
       }
     } finally {
       setSubmitting(false);
@@ -126,17 +133,16 @@ export function LiveCallScreen({
   };
 
   const keywordLabels = getKeywordLabels();
+  const displayRoundLabel = roundMeta?.label ?? roundLabel;
 
   return (
     <section className="screen active" aria-label="Llamada en vivo">
       <div className="call-panel">
         <div className="round-label">
-          {roundMeta
-            ? `Ronda ${round} · ${roundMeta.label}`
-            : `Ronda ${round}`}
+          Ronda {round}/{totalRounds} · {displayRoundLabel}
         </div>
         <div className="client-line">
-          {client.name} · Nivel {level} · Modo {mode}
+          {clientName} · Nivel {level} · Modo {mode}
         </div>
 
         <div className="dialogue" ref={dialogueRef} aria-live="polite">
@@ -189,23 +195,37 @@ export function LiveCallScreen({
 
         {turnEval && (
           <div
-            className={`eval ${turnEval.roundScore >= 50 ? "good" : "bad"}`}
+            className={`eval rich ${turnEval.roundScore >= 50 ? "good" : "bad"}`}
           >
-            <strong>Puntuación ronda: {turnEval.roundScore}/100</strong>
-            <p>
-              Debería haber dicho algo como:{" "}
-              <em>{turnEval.expectedPhrase}</em>
+            <strong>
+              {turnEval.richFeedback.roundLabel}: {turnEval.roundScore}/100
+            </strong>
+            <p className="feedback-why">{turnEval.richFeedback.whyScore}</p>
+            <p className="exact-phrase">
+              Dijiste: &ldquo;{turnEval.richFeedback.utterance}&rdquo;
             </p>
-            <div className="keywords">
-              {keywordLabels.map(({ key, label }) => (
-                <span
-                  key={key}
-                  className={`kw ${turnEval.keywordHits[key] ? "hit" : ""}`}
-                >
-                  {label}
-                </span>
-              ))}
-            </div>
+            <p className="exact-phrase expected">
+              Línea más fuerte:{" "}
+              <em>{turnEval.richFeedback.strongerLine}</em>
+            </p>
+            {turnEval.richFeedback.missedCriteria.length > 0 && (
+              <p className="missed-criteria">
+                Criterios faltantes:{" "}
+                {turnEval.richFeedback.missedCriteria.join(", ")}
+              </p>
+            )}
+            {isPreset && (
+              <div className="keywords">
+                {keywordLabels.map(({ key, label }) => (
+                  <span
+                    key={key}
+                    className={`kw ${turnEval.keywordHits[key] ? "hit" : ""}`}
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
