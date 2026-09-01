@@ -8,6 +8,9 @@ import { loadLocalHistory, type LocalHistoryEntry } from "@/lib/history/local";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
+import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
+import { VoiceEmailGate } from "@/app/components/VoiceEmailGate";
+import { getStoredVoiceEmail } from "@/lib/auth/voice-email";
 
 export interface SetupConfig {
   scenarioSlug: string;
@@ -16,6 +19,8 @@ export interface SetupConfig {
   mode: PracticeMode;
   difficultyLevel: DifficultyLevel;
   totalRounds: number;
+  verifiedUserId?: string;
+  verifiedEmail?: string;
   /** @deprecated use scenarioSlug — kept for clinic preset compatibility */
   client?: ClientPersona;
 }
@@ -41,6 +46,12 @@ export function SetupScreen({
   const [micTested, setMicTested] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<LocalHistoryEntry[]>([]);
+  const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
+  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(
+    () => getStoredVoiceEmail(),
+  );
+  const [voiceAuthSkipped, setVoiceAuthSkipped] = useState(false);
+  const voiceConfig = useVoiceConfig();
   const speech = useSpeechRecognition();
 
   useEffect(() => {
@@ -82,12 +93,24 @@ export function SetupScreen({
 
   const handleMicTest = () => {
     if (mode !== "voz" || !speech.supported) return;
+    if (speech.listening) {
+      speech.stopListening();
+      setMicTested(true);
+      return;
+    }
     speech.startListening();
-    setMicTested(true);
   };
 
+  const needsVoiceAuth =
+    mode === "voz" &&
+    voiceConfig.requiresVoiceAuth &&
+    !voiceAuthSkipped &&
+    !verifiedUserId;
+
   const canCall =
-    selected !== null && (mode === "texto" || (speech.supported && micTested));
+    selected !== null &&
+    (mode === "texto" ||
+      (speech.supported && micTested && (!needsVoiceAuth || verifiedUserId)));
 
   const handleMarcar = () => {
     if (!selected || !canCall) return;
@@ -99,6 +122,8 @@ export function SetupScreen({
       difficultyLevel: level,
       totalRounds: 5,
       client: selectedClient ?? undefined,
+      verifiedUserId: verifiedUserId ?? undefined,
+      verifiedEmail: verifiedEmail ?? undefined,
     });
   };
 
@@ -216,6 +241,16 @@ export function SetupScreen({
         ))}
       </div>
 
+      {mode === "voz" && needsVoiceAuth && (
+        <VoiceEmailGate
+          onVerified={(id, email) => {
+            setVerifiedUserId(id);
+            setVerifiedEmail(email);
+          }}
+          onSkip={() => setVoiceAuthSkipped(true)}
+        />
+      )}
+
       {mode === "voz" && (
         <div className="mic-test">
           <p className="section-label">
@@ -223,7 +258,7 @@ export function SetupScreen({
           </p>
           {!speech.supported ? (
             <p className="note warn">
-              Web Speech API no disponible. Usa modo texto o Chrome/Edge.
+              Reconocimiento de voz no disponible. Usa modo texto o Chrome/Edge.
             </p>
           ) : (
             <>
@@ -232,7 +267,7 @@ export function SetupScreen({
                 onClick={handleMicTest}
                 disabled={speech.listening}
               >
-                {speech.listening ? "🎤 Escuchando…" : "🎤 Probar micrófono"}
+                {speech.listening ? "🎤 Detener" : "🎤 Probar micrófono"}
               </button>
               {speech.transcript && (
                 <p className="mic-result">

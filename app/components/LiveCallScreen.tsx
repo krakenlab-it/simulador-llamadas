@@ -9,6 +9,9 @@ import { stubGetOpeningLine } from "@/lib/api/stubs";
 import { getKeywordLabels } from "@/lib/simulation/keywords";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/lib/hooks/useSpeechSynthesis";
+import { useVoiceSession } from "@/lib/hooks/useVoiceSession";
+import { useConvaiConnection } from "@/lib/hooks/useConvaiConnection";
+import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { getClientLine, ROUNDS } from "@/lib/simulation/rounds";
 
 interface DialogueEntry {
@@ -25,6 +28,7 @@ interface LiveCallScreenProps {
   mode: PracticeMode;
   level: number;
   totalRounds: number;
+  verifiedUserId?: string;
   onHangUp: (turns: TurnSummary[]) => void;
 }
 
@@ -37,8 +41,22 @@ export function LiveCallScreen({
   mode,
   level,
   totalRounds,
+  verifiedUserId,
   onHangUp,
 }: LiveCallScreenProps) {
+  const voiceConfig = useVoiceConfig();
+  const voiceSession = useVoiceSession(
+    verifiedUserId ?? null,
+    callAttemptId,
+    mode,
+  );
+  const sessionUsageId = voiceSession.sessionUsageId;
+  const scenarioContext =
+    isPreset && client
+      ? `${client.company} · ${client.indicator}`
+      : `Escenario ${scenarioSlug}`;
+
+  const dialogueRef = useRef<HTMLDivElement>(null);
   const [round, setRound] = useState(1);
   const [roundLabel, setRoundLabel] = useState("Apertura");
   const [dialogue, setDialogue] = useState<DialogueEntry[]>([]);
@@ -50,9 +68,29 @@ export function LiveCallScreen({
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const turnHistory = useRef<TurnSummary[]>([]);
-  const speech = useSpeechRecognition();
-  const synthesis = useSpeechSynthesis();
-  const dialogueRef = useRef<HTMLDivElement>(null);
+
+  const convai = useConvaiConnection({
+    sessionUsageId,
+    clientName,
+    scenarioContext,
+    enabled:
+      mode === "voz" &&
+      voiceConfig.convaiEnabled &&
+      voiceSession.billedActive &&
+      !voiceSession.fallbackToBrowser,
+    onAgentTranscript: (text) => {
+      setDialogue((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "client" && last.text === text) return prev;
+        return [...prev, { role: "client", text }];
+      });
+    },
+  });
+
+  const { connect: connectConvai, disconnect: disconnectConvai, interrupt: interruptConvai, connected: convaiConnected } = convai;
+
+  const speech = useSpeechRecognition({ sessionUsageId });
+  const synthesis = useSpeechSynthesis({ sessionUsageId });
 
   const roundMeta = isPreset ? ROUNDS[round - 1] : null;
 
@@ -62,8 +100,32 @@ export function LiveCallScreen({
         ? getClientLine(client, 0)
         : stubGetOpeningLine(scenarioSlug);
     setDialogue([{ role: "client", text: opening }]);
-    if (mode === "voz") synthesis.speak(opening);
-  }, [client, isPreset, mode, scenarioSlug, synthesis]);
+    if (mode === "voz" && !voiceConfig.convaiEnabled) {
+      synthesis.speak(opening);
+    }
+  }, [client, isPreset, mode, scenarioSlug, synthesis, voiceConfig.convaiEnabled]);
+
+  useEffect(() => {
+    if (
+      mode !== "voz" ||
+      !voiceConfig.convaiEnabled ||
+      !voiceSession.billedActive ||
+      voiceSession.fallbackToBrowser ||
+      !sessionUsageId
+    ) {
+      return;
+    }
+    connectConvai();
+    return () => disconnectConvai();
+  }, [
+    mode,
+    voiceConfig.convaiEnabled,
+    voiceSession.billedActive,
+    voiceSession.fallbackToBrowser,
+    sessionUsageId,
+    connectConvai,
+    disconnectConvai,
+  ]);
 
   useEffect(() => {
     dialogueRef.current?.scrollTo({
@@ -74,6 +136,12 @@ export function LiveCallScreen({
 
   const handleMic = () => {
     if (mode !== "voz" || !speech.supported) return;
+    if (speech.listening) {
+      speech.stopListening();
+      return;
+    }
+    interruptConvai();
+    synthesis.cancel();
     speech.startListening();
   };
 
@@ -123,7 +191,13 @@ export function LiveCallScreen({
               ...prev,
               { role: "client", text: response.clientReply },
             ]);
-            if (mode === "voz") synthesis.speak(response.clientReply);
+            if (mode === "voz") {
+              if (convaiConnected) {
+                interruptConvai();
+              } else {
+                synthesis.speak(response.clientReply);
+              }
+            }
           }
         }, 1800);
       }
@@ -172,7 +246,7 @@ export function LiveCallScreen({
               onClick={handleMic}
               disabled={speech.listening || !speech.supported}
             >
-              {speech.listening ? "🎤 Escuchando…" : "🎤 Escuchar"}
+              {speech.listening ? "🎤 Detener" : "🎤 Escuchar"}
             </button>
           )}
           <button
@@ -192,6 +266,23 @@ export function LiveCallScreen({
         </div>
 
         {speech.error && <p className="note warn">{speech.error}</p>}
+
+        {voiceSession.warnLowTime && mode === "voz" && (
+          <p className="note warn">
+            Quedan {voiceSession.remainingConvaiSeconds}s de voz con IA en esta
+            sesión.
+          </p>
+        )}
+
+        {voiceSession.fallbackToBrowser && mode === "voz" && (
+          <p className="note">
+            Límite de voz con IA alcanzado; usando voz del navegador.
+          </p>
+        )}
+
+        {convaiConnected && mode === "voz" && (
+          <p className="note">ConvAI conectado · barge-in activo al usar el micrófono.</p>
+        )}
 
         {turnEval && (
           <div

@@ -139,6 +139,7 @@ export function SimulatorApp() {
           mode={config.mode}
           level={config.difficultyLevel}
           totalRounds={config.totalRounds}
+          verifiedUserId={config.verifiedUserId}
           onHangUp={(turns) => void handleHangUp(turns)}
         />
       )}
