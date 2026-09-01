@@ -1,4 +1,4 @@
-import type { DifficultyLevel } from "@/lib/db/types";
+import type { DifficultyLevel, RoundType } from "@/lib/db/types";
 import type { RichTurnFeedback, ScenarioConfig } from "@/lib/scenarios/types";
 import { scoreLiveTurn, type LiveTurnInput } from "./live-turn";
 import type { CallAnalytics, TranscriptLine } from "./types";
@@ -7,6 +7,7 @@ import type { ClientReaction } from "./rondas";
 export interface AdaptiveScoreInput {
   utterance: string;
   roundKey: string;
+  roundType?: RoundType | null;
   roundLabel: string;
   roundGoal: string;
   difficultyLevel: DifficultyLevel;

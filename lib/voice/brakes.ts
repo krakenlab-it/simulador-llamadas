@@ -13,8 +13,15 @@ export const SESSION_CONVAI_MAX_SECONDS = 180;
 /** Warn trainee when this many seconds remain in the session ConvAI budget. */
 export const SESSION_CONVAI_WARN_REMAINING_SECONDS = 30;
 
-/** Max rounds per session (engine already enforces five). */
+/** Clinic scoring phases shown in the UI (apertura → cierre). */
 export const SESSION_MAX_ROUNDS = 5;
+
+/**
+ * Safety cap on trainee messages per call. Must exceed SESSION_MAX_ROUNDS so
+ * follow-up lines after the fifth phase are not rejected with 409. Matches
+ * call_turns_round_number_check (BETWEEN 1 AND 10) in the database.
+ */
+export const SESSION_MAX_TURN_ALLOCATIONS = 10;
 
 /** Extra streaming TTS outside ConvAI, per billed session (characters). */
 export const SESSION_EXTRA_TTS_MAX_CHARS = 2500;

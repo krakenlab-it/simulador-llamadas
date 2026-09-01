@@ -30,8 +30,11 @@ export function createInitialSessionState(): SessionState {
 
 export function getRoundTypeForNumber(roundNumber: number): RoundType | null {
   const index = roundNumber - 1;
-  if (index < 0 || index >= ROUND_ORDER.length) {
+  if (index < 0) {
     return null;
+  }
+  if (index >= ROUND_ORDER.length) {
+    return "cierre";
   }
   return ROUND_ORDER[index];
 }

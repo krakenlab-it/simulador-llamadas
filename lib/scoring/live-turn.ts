@@ -1,4 +1,4 @@
-import type { DifficultyLevel } from "@/lib/db/types";
+import type { DifficultyLevel, RoundType } from "@/lib/db/types";
 import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import {
   generateClientReply,
@@ -7,6 +7,7 @@ import {
 } from "@/lib/llm/client-replies";
 import { templateClientReply } from "@/lib/feedback/evaluation";
 import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
+import { isClinicRoundType, phaseKeyFromPersistenceKey } from "@/lib/simulation/round-keys";
 import { getClientReply } from "@/lib/scoring/reactions";
 import { isClinicPreset } from "@/lib/scenarios/types";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
@@ -17,6 +18,7 @@ import type { ClientReaction } from "./rondas";
 export interface LiveTurnInput {
   utterance: string;
   roundKey: string;
+  roundType?: RoundType | null;
   roundLabel: string;
   roundGoal: string;
   difficultyLevel: DifficultyLevel;
@@ -90,6 +92,12 @@ function buildCoachingNote(
   return `${roundLabel}: escucha activa; profundiza en el impacto del problema.`;
 }
 
+function resolveScoringRoundType(input: LiveTurnInput): RoundType | null {
+  if (input.roundType) return input.roundType;
+  const phaseKey = phaseKeyFromPersistenceKey(input.roundKey);
+  return isClinicRoundType(phaseKey) ? phaseKey : null;
+}
+
 export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
   const analytics = computeTurnAnalytics({
     utterance: input.utterance,
@@ -106,7 +114,10 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   let clientReply: string;
 
   if (input.isPreset && isClinicPreset(input.scenarioSlug)) {
-    const roundType = input.roundKey as Parameters<typeof getClientReply>[1];
+    const roundType = resolveScoringRoundType(input);
+    if (!roundType) {
+      throw new Error(`Unknown clinic round for key ${input.roundKey}`);
+    }
     const templatedReply = getClientReply(
       input.scenarioSlug,
       roundType,
@@ -118,8 +129,8 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       const presetConfig = buildPresetScenarioConfig(input.scenarioSlug);
       if (presetConfig) {
         const roundDef: ScenarioRoundDef = {
-          key: input.roundKey,
-          label: ROUND_LABELS[input.roundKey] ?? input.roundLabel,
+          key: roundType,
+          label: ROUND_LABELS[roundType] ?? input.roundLabel,
           goal: ROUND_EXPECTED[roundType],
           clientPrompt: templatedReply,
           positiveCriteria: [],
@@ -139,8 +150,9 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       }
     }
   } else if (input.config) {
+    const phaseKey = phaseKeyFromPersistenceKey(input.roundKey);
     const round: ScenarioRoundDef =
-      input.config.rounds.find((r) => r.key === input.roundKey) ?? {
+      input.config.rounds.find((r) => r.key === phaseKey) ?? {
         key: input.roundKey,
         label: input.roundLabel,
         goal: input.roundGoal,

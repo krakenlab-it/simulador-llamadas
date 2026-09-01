@@ -16,6 +16,9 @@ export const ROUNDS: readonly RoundMeta[] = [
   { key: "cierre", label: "Cierre" },
 ] as const;
 
+/** Scoring phases in the clinic ladder (UI progress, not a message cap). */
+export const CLINIC_PHASE_COUNT = ROUNDS.length;
+
 export const EXPECTED_PHRASES: Record<RoundType, string> = ROUND_EXPECTED;
 
 const CLIENT_LINES_BY_ROUND: Record<number, string> = {

@@ -47,7 +47,6 @@ export class SessionService {
     try {
       slot = await this.repository.reserveTurnSlot(input.callAttemptId, trimmed, {
         clientTurnId: input.clientTurnId ?? null,
-        maxRounds: session.totalRounds,
       });
     } catch (error) {
       throw toSessionError(error);
@@ -63,6 +62,7 @@ export class SessionService {
       const score = await scoreTurnAdaptive({
         utterance: trimmed,
         roundKey: roundDef.key,
+        roundType: roundDef.roundType,
         roundLabel: roundDef.label,
         roundGoal:
           roundDef.goal ||

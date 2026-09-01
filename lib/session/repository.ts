@@ -16,6 +16,9 @@ import type { ClientReaction } from "@/lib/scoring/rondas";
 import { scoreCall } from "@/lib/scoring/score-call";
 import { buildTranscriptFromTurns } from "@/lib/scoring/transcript";
 import type { TranscriptLine } from "@/lib/scoring/types";
+import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
+import { resolveRoundKey } from "@/lib/simulation/round-keys";
+import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
 import { SessionError } from "./errors";
 import { resolveEndSessionWin } from "./win";
 
@@ -119,10 +122,12 @@ function parseConfig(raw: unknown): ScenarioConfig | null {
   return config;
 }
 
-const FIVE_ROUND_ENGINE = 5;
+function getScoringPhaseCount(): number {
+  return CLINIC_PHASE_COUNT;
+}
 
-function getTotalRounds(): number {
-  return FIVE_ROUND_ENGINE;
+function getMaxTurnAllocations(): number {
+  return SESSION_MAX_TURN_ALLOCATIONS;
 }
 
 export class SessionRepository {
@@ -153,7 +158,7 @@ export class SessionRepository {
       clientName: row.client_name,
       isPreset: row.is_preset,
       config,
-      totalRounds: getTotalRounds(),
+      totalRounds: getScoringPhaseCount(),
     };
   }
 
@@ -219,7 +224,7 @@ export class SessionRepository {
 
     const row = result.rows[0];
     const config = row.is_preset ? null : parseConfig(row.config);
-    const totalRounds = getTotalRounds();
+    const totalRounds = getScoringPhaseCount();
 
     return {
       callAttemptId: row.id,
@@ -246,7 +251,7 @@ export class SessionRepository {
   async reserveTurnSlot(
     callAttemptId: string,
     utterance: string,
-    options: { clientTurnId?: string | null; maxRounds: number },
+    options: { clientTurnId?: string | null } = {},
   ): Promise<TurnSlot> {
     const { rows } = await this.client.query<{
       allocation_status: string;
@@ -255,7 +260,12 @@ export class SessionRepository {
     }>(
       `SELECT allocation_status, turn_id, round_number
        FROM allocate_call_turn($1, $2, $3, $4)`,
-      [callAttemptId, utterance, options.clientTurnId ?? null, options.maxRounds],
+      [
+        callAttemptId,
+        utterance,
+        options.clientTurnId ?? null,
+        getMaxTurnAllocations(),
+      ],
     );
 
     const allocation = rows[0];
@@ -553,20 +563,22 @@ export class SessionRepository {
         cierre: "Cierre",
       };
       return {
-        key: roundType ?? `round-${roundNumber}`,
+        key: resolveRoundKey(roundType ?? `round-${roundNumber}`, roundNumber),
         label: roundType ? labels[roundType] : `Ronda ${roundNumber}`,
         goal: "",
         roundType,
       };
     }
 
-    const round = session.config?.rounds[roundNumber - 1];
+    const rounds = session.config?.rounds ?? [];
+    const phaseIndex = Math.min(roundNumber - 1, rounds.length - 1);
+    const round = rounds[phaseIndex];
     if (!round) {
       throw new SessionError("invalid_round");
     }
 
     return {
-      key: round.key,
+      key: resolveRoundKey(round.key, roundNumber, rounds.length),
       label: round.label,
       goal: round.goal,
       roundType: null,
