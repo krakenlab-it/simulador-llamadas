@@ -19,6 +19,8 @@ import { PendingButton } from "@/components/ui/PendingButton";
 import { ScenarioCardSkeleton } from "@/components/ui/Skeleton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
+import { Switch } from "@/components/ui/Switch";
+import { SegmentedSwitch } from "@/components/ui/SegmentedSwitch";
 
 export interface SetupConfig {
   scenarioSlug: string;
@@ -239,7 +241,7 @@ export function SetupScreen({
         micrófono antes de marcar.
       </p>
 
-      <h3 className="section-label">Clínica de Citas (preset)</h3>
+      <h3 className="section-label">Escenarios incluidos</h3>
       {scenariosError && (
         <p className="note warn" role="alert">
           {scenariosError}
@@ -272,47 +274,34 @@ export function SetupScreen({
         </button>
       </div>
 
-      <p className="section-label">
-        <strong>Modo</strong>
-      </p>
-      <div className="toggle-group" role="group" aria-label="Modo de práctica">
-        <button
-          type="button"
-          className={mode === "voz" ? "active" : ""}
-          onClick={() => {
-            setMode("voz");
-            setMicTested(false);
+      <div className="switch-row">
+        <Switch
+          id="practice-mode"
+          label="Modo voz"
+          checked={mode === "voz"}
+          disabled={scenariosLoading}
+          onChange={(checked) => {
+            setMode(checked ? "voz" : "texto");
+            if (checked) setMicTested(false);
           }}
-          disabled={scenariosLoading}
-        >
-          Voz
-        </button>
-        <button
-          type="button"
-          className={mode === "texto" ? "active" : ""}
-          onClick={() => setMode("texto")}
-          disabled={scenariosLoading}
-        >
-          Texto
-        </button>
+        />
+        <span className="switch-hint">
+          {mode === "voz" ? "Practica hablando en el micrófono" : "Escribe cada turno"}
+        </span>
       </div>
 
-      <p className="section-label">
-        <strong>Nivel de dificultad</strong>
-      </p>
-      <div className="toggle-group" role="group" aria-label="Nivel de dificultad">
-        {([1, 2, 3] as const).map((n) => (
-          <button
-            key={n}
-            type="button"
-            className={level === n ? "active" : ""}
-            onClick={() => setLevel(n)}
-            disabled={scenariosLoading}
-          >
-            {n}
-          </button>
-        ))}
-      </div>
+      <SegmentedSwitch
+        id="difficulty-level"
+        label="Nivel de dificultad"
+        options={[
+          { value: 1 as const, label: "1" },
+          { value: 2 as const, label: "2" },
+          { value: 3 as const, label: "3" },
+        ]}
+        value={level}
+        disabled={scenariosLoading}
+        onChange={setLevel}
+      />
 
       {mode === "voz" && needsVoiceAuth && (
         <VoiceAuthGate

@@ -1,29 +1,20 @@
 .page {
-  --landing-bg: #070b14;
-  --landing-surface: rgba(255, 255, 255, 0.04);
-  --landing-border: rgba(255, 255, 255, 0.08);
-  --landing-text: #f4f7fb;
-  --landing-muted: rgba(244, 247, 251, 0.62);
-  --landing-accent: #6d5cff;
-  --landing-accent-hot: #ff5e62;
-  --landing-glow: rgba(109, 92, 255, 0.35);
-
   position: relative;
   min-height: 100vh;
   overflow: hidden;
-  color: var(--landing-text);
+  color: var(--text);
   background:
     radial-gradient(
-      1200px 600px at 10% -10%,
-      rgba(109, 92, 255, 0.22),
-      transparent 60%
+      1000px 520px at 12% -8%,
+      color-mix(in srgb, var(--accent) 12%, transparent),
+      transparent 58%
     ),
     radial-gradient(
-      900px 500px at 90% 0%,
-      rgba(255, 94, 98, 0.14),
-      transparent 55%
+      800px 440px at 88% 4%,
+      color-mix(in srgb, var(--accent-2) 10%, transparent),
+      transparent 52%
     ),
-    var(--landing-bg);
+    var(--bg);
 }
 
 .orb {
@@ -31,7 +22,7 @@
   border-radius: 50%;
   filter: blur(80px);
   pointer-events: none;
-  opacity: 0.55;
+  opacity: 0.45;
 }
 
 .orbOne {
@@ -39,8 +30,8 @@
   height: 420px;
   top: -120px;
   left: -80px;
-  background: rgba(109, 92, 255, 0.35);
-  animation: drift 18s ease-in-out infinite alternate;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  animation: drift 18s var(--ease-out) infinite alternate;
 }
 
 .orbTwo {
@@ -48,16 +39,16 @@
   height: 360px;
   top: 20%;
   right: -100px;
-  background: rgba(255, 94, 98, 0.22);
-  animation: drift 22s ease-in-out infinite alternate-reverse;
+  background: color-mix(in srgb, var(--accent-2) 18%, transparent);
+  animation: drift 22s var(--ease-out) infinite alternate-reverse;
 }
 
 .gridOverlay {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, black, transparent);
   pointer-events: none;
@@ -83,7 +74,7 @@
   align-items: center;
   gap: 0.75rem;
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.03em;
   font-size: 1rem;
 }
@@ -91,9 +82,9 @@
 .logoMark {
   width: 2.25rem;
   height: 2.25rem;
-  border-radius: 0.75rem;
-  background: linear-gradient(135deg, var(--landing-accent), var(--landing-accent-hot));
-  box-shadow: 0 12px 40px var(--landing-glow);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  border: 1px solid var(--border);
   display: grid;
   place-items: center;
   font-size: 0.95rem;
@@ -117,10 +108,10 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.35rem 0.75rem;
-  border-radius: 999px;
-  border: 1px solid var(--landing-border);
-  background: var(--landing-surface);
-  color: var(--landing-muted);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -131,8 +122,8 @@
   width: 0.45rem;
   height: 0.45rem;
   border-radius: 50%;
-  background: var(--landing-accent-hot);
-  box-shadow: 0 0 12px var(--landing-accent-hot);
+  background: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .headline {
@@ -141,20 +132,17 @@
   line-height: 1.02;
   letter-spacing: -0.04em;
   margin: 0 0 1.25rem;
-  max-width: 12ch;
+  max-width: 13ch;
 }
 
 .headlineAccent {
-  background: linear-gradient(120deg, #ffffff 0%, #c7bcff 45%, #ffb4b6 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--accent);
 }
 
 .subheadline {
   margin: 0 0 2rem;
   max-width: 46ch;
-  color: var(--landing-muted);
+  color: var(--muted);
   font-size: 1.05rem;
   line-height: 1.65;
 }
@@ -173,55 +161,53 @@
   gap: 0.55rem;
   min-width: 11rem;
   padding: 0.95rem 1.5rem;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  background: linear-gradient(135deg, var(--landing-accent), #8b7dff 55%, var(--landing-accent-hot));
-  color: #fff;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent);
   font-weight: 600;
   font-size: 1rem;
   text-decoration: none;
-  box-shadow:
-    0 18px 50px rgba(109, 92, 255, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  box-shadow: var(--shadow-soft);
   transition:
-    transform 0.25s ease,
-    box-shadow 0.25s ease;
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--transition),
+    box-shadow var(--transition);
 }
 
 .cta:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 22px 60px rgba(109, 92, 255, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 35%, transparent);
 }
 
 .cta:active {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 
 .ctaHint {
-  color: var(--landing-muted);
+  color: var(--muted);
   font-size: 0.88rem;
 }
 
 .preview {
   position: relative;
-  border-radius: 1.5rem;
-  border: 1px solid var(--landing-border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
-  box-shadow:
-    0 30px 80px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
   padding: 1.25rem;
-  backdrop-filter: blur(18px);
 }
 
 .previewGlow {
   position: absolute;
   inset: 10% 8% auto;
   height: 40%;
-  border-radius: 999px;
-  background: radial-gradient(circle, rgba(109, 92, 255, 0.35), transparent 70%);
+  border-radius: var(--radius-pill);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--accent) 25%, transparent),
+    transparent 70%
+  );
   filter: blur(30px);
   pointer-events: none;
 }
@@ -232,7 +218,7 @@
   justify-content: space-between;
   margin-bottom: 1rem;
   padding-bottom: 0.85rem;
-  border-bottom: 1px solid var(--landing-border);
+  border-bottom: 1px solid var(--border);
 }
 
 .previewDots {
@@ -244,14 +230,15 @@
   width: 0.55rem;
   height: 0.55rem;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--line);
 }
 
 .previewStatus {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--landing-muted);
+  color: var(--muted);
+  font-family: var(--font-mono);
 }
 
 .waveform {
@@ -264,10 +251,10 @@
 
 .waveBar {
   flex: 1;
-  border-radius: 999px;
-  background: linear-gradient(180deg, var(--landing-accent-hot), var(--landing-accent));
+  border-radius: var(--radius-pill);
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent-2) 55%, var(--accent)));
   transform-origin: bottom;
-  animation: pulse 1.4s ease-in-out infinite;
+  animation: pulse 1.4s var(--ease-out) infinite;
 }
 
 .transcript {
@@ -278,21 +265,21 @@
 .bubble {
   max-width: 88%;
   padding: 0.75rem 0.9rem;
-  border-radius: 1rem;
+  border-radius: var(--radius-control);
   font-size: 0.9rem;
   line-height: 1.45;
 }
 
 .bubbleClient {
   justify-self: start;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid var(--landing-border);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
 }
 
 .bubbleYou {
   justify-self: end;
-  background: rgba(109, 92, 255, 0.18);
-  border: 1px solid rgba(109, 92, 255, 0.35);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
 }
 
 .features {
@@ -309,17 +296,17 @@
 
 .featureCard {
   padding: 1.25rem 1.35rem;
-  border-radius: 1.1rem;
-  border: 1px solid var(--landing-border);
-  background: var(--landing-surface);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--border);
+  background: var(--surface);
   transition:
-    transform 0.25s ease,
-    border-color 0.25s ease;
+    transform var(--transition),
+    border-color var(--transition);
 }
 
 .featureCard:hover {
   transform: translateY(-4px);
-  border-color: rgba(109, 92, 255, 0.35);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
 }
 
 .featureTitle {
@@ -330,7 +317,7 @@
 
 .featureDescription {
   margin: 0;
-  color: var(--landing-muted);
+  color: var(--muted);
   font-size: 0.92rem;
   line-height: 1.55;
 }
@@ -341,24 +328,25 @@
   gap: 1rem;
   margin-top: 2.5rem;
   padding-top: 2rem;
-  border-top: 1px solid var(--landing-border);
+  border-top: 1px solid var(--border);
 }
 
 .statValue {
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-size: 1.75rem;
   letter-spacing: -0.03em;
+  color: var(--accent);
 }
 
 .statLabel {
   margin-top: 0.25rem;
-  color: var(--landing-muted);
+  color: var(--muted);
   font-size: 0.82rem;
 }
 
 .footer {
   margin-top: 4rem;
-  color: var(--landing-muted);
+  color: var(--muted);
   font-size: 0.82rem;
   text-align: center;
 }
@@ -366,7 +354,7 @@
 .reveal {
   opacity: 0;
   transform: translateY(18px);
-  animation: reveal 0.8s ease forwards;
+  animation: reveal var(--duration-slow) var(--ease-out) forwards;
 }
 
 .revealDelay1 {
