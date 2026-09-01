@@ -25,6 +25,8 @@ export interface UseSpeechSynthesisResult {
 }
 
 const BROWSER_SPEAK_DELAY_MS = 60;
+/** Safety valve when play()/speechSynthesis never fires onend (would block STT). */
+const SPEAKING_WATCHDOG_MS = 45_000;
 
 async function fetchServerAudio(
   text: string,
@@ -233,6 +235,14 @@ export function useSpeechSynthesis(
   }, [useServerTts, speakServer, speakBrowser]);
 
   useEffect(() => cancel, [cancel]);
+
+  useEffect(() => {
+    if (!speaking) return;
+    const timer = window.setTimeout(() => {
+      setSpeaking(false);
+    }, SPEAKING_WATCHDOG_MS);
+    return () => window.clearTimeout(timer);
+  }, [speaking]);
 
   return {
     supported,

@@ -4,6 +4,11 @@
  * speechSynthesis fallback that actually speaks.
  */
 
+import {
+  loadStoredDeviceId,
+  CALL_SPEAKER_STORAGE_KEY,
+} from "@/lib/voice/call-devices";
+
 const SPEECH_LANG = "es-MX";
 
 /** Tiny silent WAV so play() can unlock autoplay in the same user gesture. */
@@ -25,11 +30,21 @@ export function getSharedCallAudio(): HTMLAudioElement | null {
       sharedAudio = new Audio();
       sharedAudio.preload = "auto";
       sharedAudio.setAttribute("playsinline", "true");
+      const storedSpeaker = loadStoredDeviceId(CALL_SPEAKER_STORAGE_KEY);
+      if (storedSpeaker && typeof sharedAudio.setSinkId === "function") {
+        void sharedAudio.setSinkId(storedSpeaker).catch(() => undefined);
+      }
     } catch {
       return null;
     }
   }
   return sharedAudio;
+}
+
+export async function applyCallSpeaker(deviceId: string): Promise<void> {
+  const audio = getSharedCallAudio();
+  if (!audio || typeof audio.setSinkId !== "function" || !deviceId) return;
+  await audio.setSinkId(deviceId);
 }
 
 export function onClientPlaybackUnlocked(listener: () => void): () => void {
@@ -126,6 +141,14 @@ export function applySpanishVoice(utterance: SpeechSynthesisUtterance): void {
 export async function playSharedAudio(url: string): Promise<void> {
   const audio = getSharedCallAudio();
   if (!audio) throw new Error("audio_unavailable");
+  const storedSpeaker = loadStoredDeviceId(CALL_SPEAKER_STORAGE_KEY);
+  if (storedSpeaker && typeof audio.setSinkId === "function") {
+    try {
+      await audio.setSinkId(storedSpeaker);
+    } catch {
+      // Fall back to the default output device.
+    }
+  }
   audio.muted = false;
   audio.volume = 1;
   audio.src = url;

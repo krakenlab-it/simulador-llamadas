@@ -11,6 +11,7 @@ import {
   acquireConvaiSlot,
   releaseConvaiSlot,
   recordConvaiSeconds,
+  recordExtraTtsChars,
   checkSessionConvaiBudget,
   getSessionUsage,
 } from "@/lib/voice/usage";
@@ -30,14 +31,31 @@ describe.skipIf(!databaseUrl)("KLM-45 voice usage (integration)", () => {
     await client.end();
   });
 
-  it("allows one billed session per user per UTC day", async () => {
+  it("allows reserve until billed audio is actually used", async () => {
     const userId = await getOrCreateVerifiedUser(client, "test@example.com");
     const first = await reserveBilledSession(client, userId);
     expect("sessionUsageId" in first).toBe(true);
 
+    const beforeTts = await checkDailyUserBudget(client, userId);
+    expect(beforeTts.allowed).toBe(true);
+
+    if (!("sessionUsageId" in first)) return;
+    await recordExtraTtsChars(client, first.sessionUsageId, 12);
+
     const daily = await checkDailyUserBudget(client, userId);
     expect(daily.allowed).toBe(false);
     expect(daily.reason).toBe("daily_session_limit");
+  });
+
+  it("does not consume the daily slot on ConvAI noise without TTS", async () => {
+    const userId = await getOrCreateVerifiedUser(client, "storm@example.com");
+    const session = await reserveBilledSession(client, userId);
+    if (!("sessionUsageId" in session)) return;
+
+    await recordConvaiSeconds(client, session.sessionUsageId, 1);
+
+    const daily = await checkDailyUserBudget(client, userId);
+    expect(daily.allowed).toBe(true);
   });
 
   it("enforces global concurrent ConvAI slot limit", async () => {

@@ -22,6 +22,12 @@ export const SESSION_EXTRA_TTS_MAX_CHARS = 2500;
 /** Public URL: exactly one billed ConvAI session per user per UTC day (not 3, not 540s). */
 export const DAILY_BILLED_SESSIONS_PER_USER = 1;
 
+/**
+ * ConvAI wall-clock below this does not consume the daily billed slot (failed
+ * connect storms, slot acquire without audible agent, etc.).
+ */
+export const MIN_CONVAI_SECONDS_TO_CONSUME_DAILY_SLOT = 5;
+
 /** Global concurrent ConvAI sessions. Third caller falls back to Web Speech. */
 export const GLOBAL_MAX_CONCURRENT_CONVAI = 2;
 

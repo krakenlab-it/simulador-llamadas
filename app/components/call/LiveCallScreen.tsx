@@ -10,6 +10,7 @@ import { newClientTurnId } from "@/lib/frontend/ids";
 import { getKeywordLabels } from "@/lib/simulation/keywords";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/lib/hooks/useSpeechSynthesis";
+import { useCallAudioDevices } from "@/lib/hooks/useCallAudioDevices";
 import { useVoiceSession } from "@/lib/hooks/useVoiceSession";
 import { useConvaiConnection } from "@/lib/hooks/useConvaiConnection";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
@@ -125,31 +126,31 @@ export function LiveCallScreen({
     failed: convaiConnectionFailed,
   } = convai;
 
+  /** ConvAI only owns audio when connected; otherwise browser mic + TTS. */
+  const clientVoiceIsConvai = mode === "voz" && convaiConnected;
+  const useBrowserMic = mode === "voz" && !clientVoiceIsConvai;
+
   const synthesis = useSpeechSynthesis({ sessionUsageId });
   const busy = submitting || hangingUp || ending;
   const holdMic = busy || synthesis.speaking;
+  const callDevices = useCallAudioDevices(
+    mode === "voz" && useBrowserMic,
+    voiceConfig.sttTier === "browser" || !voiceConfig.serverStt,
+  );
   const speech = useSpeechRecognition({
     sessionUsageId,
     keepAlive: micArmed && mode === "voz",
     paused: holdMic,
+    micDeviceId: callDevices.selectedMicId,
   });
 
   const roundMeta = isPreset ? ROUNDS[round - 1] : null;
   utteranceRef.current = utterance;
 
-  /**
-   * ConvAI only owns the audio when it is actually connected. In every other
-   * state — disabled, connecting, failed — the call runs on the browser mic
-   * and on speech synthesis, which uses billed ElevenLabs TTS through
-   * /api/voice/tts whenever the voice session is active.
-   */
-  const clientVoiceIsConvai = mode === "voz" && convaiConnected;
-
   useEffect(() => {
     setConvaiAudioActive(clientVoiceIsConvai);
   }, [clientVoiceIsConvai]);
 
-  const useBrowserMic = mode === "voz" && !clientVoiceIsConvai;
   const convaiConnecting =
     mode === "voz" &&
     voiceConfig.convaiEnabled &&
@@ -313,6 +314,8 @@ export function LiveCallScreen({
 
   const resetTranscriptRef = useRef(speech.resetTranscript);
   resetTranscriptRef.current = speech.resetTranscript;
+  const ensureListeningRef = useRef(speech.ensureListening);
+  ensureListeningRef.current = speech.ensureListening;
 
   useEffect(() => {
     if (!speech.transcript || speech.listening) return;
@@ -327,6 +330,11 @@ export function LiveCallScreen({
       void handleSubmitTurn(next);
     }
   }, [handleSubmitTurn, micArmed, mode, speech.listening, speech.transcript]);
+
+  useEffect(() => {
+    if (!micArmed || mode !== "voz" || holdMic) return;
+    ensureListeningRef.current();
+  }, [holdMic, micArmed, mode, synthesis.speaking]);
 
   const handleHangUp = () => {
     if (busy) return;
@@ -422,6 +430,52 @@ export function LiveCallScreen({
         </div>
 
         <div className="call-screen__composer">
+          {useBrowserMic && callDevices.ready ? (
+            <div className="call-devices" aria-label="Dispositivos de audio">
+              <label className="call-devices__field">
+                <span className="call-devices__label">Micrófono</span>
+                <select
+                  className="call-devices__select"
+                  value={callDevices.selectedMicId}
+                  onChange={(event) => {
+                    void callDevices.selectMic(event.target.value);
+                  }}
+                  disabled={hangingUp || ending}
+                >
+                  {callDevices.inputs.map((device) => (
+                    <option key={device.deviceId} value={device.deviceId}>
+                      {device.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {callDevices.speakerSupported ? (
+                <label className="call-devices__field">
+                  <span className="call-devices__label">Altavoz</span>
+                  <select
+                    className="call-devices__select"
+                    value={callDevices.selectedSpeakerId}
+                    onChange={(event) => {
+                      void callDevices.selectSpeaker(event.target.value);
+                    }}
+                    disabled={hangingUp || ending}
+                  >
+                    {callDevices.outputs.map((device) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          ) : null}
+          {callDevices.micCaptureNote ? (
+            <p className="call-screen__note call-devices__note">
+              {callDevices.micCaptureNote}
+            </p>
+          ) : null}
+
           <textarea
             ref={textareaRef}
             value={utterance}
@@ -442,7 +496,11 @@ export function LiveCallScreen({
                 onClick={handleMic}
                 disabled={!speech.supported || hangingUp || ending}
               >
-                {micArmed ? "Escuchando…" : "Micrófono"}
+                {micArmed && speech.listening
+                  ? "Escuchando…"
+                  : micArmed
+                    ? "Reanudando micrófono…"
+                    : "Micrófono"}
               </Button>
             ) : clientVoiceIsConvai ? (
               <span className="call-screen__note">Micrófono activo en la llamada</span>

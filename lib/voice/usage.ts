@@ -3,6 +3,7 @@ import {
   DAILY_BILLED_SESSIONS_PER_USER,
   GLOBAL_MAX_CONCURRENT_CONVAI,
   GLOBAL_MONTHLY_CONVAI_MAX_SECONDS,
+  MIN_CONVAI_SECONDS_TO_CONSUME_DAILY_SLOT,
   SESSION_CONVAI_MAX_SECONDS,
   SESSION_EXTRA_TTS_MAX_CHARS,
 } from "@/lib/voice/brakes";
@@ -60,19 +61,51 @@ export async function getOrCreateVerifiedUser(
   return inserted.rows[0].id;
 }
 
+function sessionConsumedDailySlotSql(): string {
+  return `(extra_tts_chars_used > 0 OR convai_seconds_used >= ${MIN_CONVAI_SECONDS_TO_CONSUME_DAILY_SLOT})`;
+}
+
+/** Sessions that actually used billed ElevenLabs audio today (not mere reserves). */
+export async function countConsumedBilledSessionsToday(
+  client: Client,
+  verifiedUserId: string,
+): Promise<number> {
+  const date = utcDateString();
+  const { rows } = await client.query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM voice_session_usage
+     WHERE verified_user_id = $1
+       AND created_at >= $2::date
+       AND created_at < ($2::date + interval '1 day')
+       AND ${sessionConsumedDailySlotSql()}`,
+    [verifiedUserId, date],
+  );
+  return parseInt(rows[0]?.count ?? "0", 10);
+}
+
+async function syncDailyBilledCounter(
+  client: Client,
+  verifiedUserId: string,
+): Promise<void> {
+  const date = utcDateString();
+  const consumed = await countConsumedBilledSessionsToday(client, verifiedUserId);
+  await client.query(
+    `INSERT INTO voice_daily_user_usage (verified_user_id, usage_date, billed_sessions_used)
+     VALUES ($1, $2::date, $3)
+     ON CONFLICT (verified_user_id, usage_date)
+     DO UPDATE SET
+       billed_sessions_used = $3,
+       updated_at = now()`,
+    [verifiedUserId, date, consumed],
+  );
+}
+
 /** Can this user start a new billed session today? */
 export async function checkDailyUserBudget(
   client: Client,
   verifiedUserId: string,
 ): Promise<BrakeCheckResult> {
-  const date = utcDateString();
-  const { rows } = await client.query<{ billed_sessions_used: number }>(
-    `SELECT billed_sessions_used FROM voice_daily_user_usage
-     WHERE verified_user_id = $1 AND usage_date = $2::date`,
-    [verifiedUserId, date],
-  );
-  const used = rows[0]?.billed_sessions_used ?? 0;
-  if (used >= DAILY_BILLED_SESSIONS_PER_USER) {
+  const consumed = await countConsumedBilledSessionsToday(client, verifiedUserId);
+  if (consumed >= DAILY_BILLED_SESSIONS_PER_USER) {
     return {
       allowed: false,
       reason: "daily_session_limit",
@@ -132,17 +165,6 @@ export async function reserveBilledSession(
 
   const monthly = await checkGlobalMonthlyBudget(client);
   if (!monthly.allowed) return monthly;
-
-  const date = utcDateString();
-  await client.query(
-    `INSERT INTO voice_daily_user_usage (verified_user_id, usage_date, billed_sessions_used)
-     VALUES ($1, $2::date, 1)
-     ON CONFLICT (verified_user_id, usage_date)
-     DO UPDATE SET
-       billed_sessions_used = voice_daily_user_usage.billed_sessions_used + 1,
-       updated_at = now()`,
-    [verifiedUserId, date],
-  );
 
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO voice_session_usage (verified_user_id, call_attempt_id)
@@ -243,12 +265,24 @@ export async function recordConvaiSeconds(
   sessionUsageId: string,
   seconds: number,
 ): Promise<void> {
-  await client.query(
+  const { rows } = await client.query<{
+    verified_user_id: string;
+    convai_seconds_used: number;
+  }>(
     `UPDATE voice_session_usage
      SET convai_seconds_used = convai_seconds_used + $2
-     WHERE id = $1`,
+     WHERE id = $1
+     RETURNING verified_user_id, convai_seconds_used`,
     [sessionUsageId, seconds],
   );
+  const row = rows[0];
+  if (
+    row &&
+    row.convai_seconds_used >= MIN_CONVAI_SECONDS_TO_CONSUME_DAILY_SLOT &&
+    row.convai_seconds_used - seconds < MIN_CONVAI_SECONDS_TO_CONSUME_DAILY_SLOT
+  ) {
+    await syncDailyBilledCounter(client, row.verified_user_id);
+  }
 
   const { year, month } = utcYearMonth();
   await client.query(
@@ -280,12 +314,20 @@ export async function recordExtraTtsChars(
   sessionUsageId: string,
   chars: number,
 ): Promise<void> {
-  await client.query(
+  const { rows } = await client.query<{
+    verified_user_id: string;
+    extra_tts_chars_used: number;
+  }>(
     `UPDATE voice_session_usage
      SET extra_tts_chars_used = extra_tts_chars_used + $2
-     WHERE id = $1`,
+     WHERE id = $1
+     RETURNING verified_user_id, extra_tts_chars_used`,
     [sessionUsageId, chars],
   );
+  const row = rows[0];
+  if (row && row.extra_tts_chars_used === chars) {
+    await syncDailyBilledCounter(client, row.verified_user_id);
+  }
 }
 
 export async function acquireConvaiSlot(

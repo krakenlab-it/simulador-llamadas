@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { isSpeechRecognitionSupported } from "@/lib/extension-points/session";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { getVoiceAuthHeaders } from "@/lib/auth/voice-session";
+import { openMicCaptureStream } from "@/lib/voice/call-devices";
 
 const SPEECH_LANG = "es-MX";
 const RESTART_DELAY_MS = 180;
@@ -17,6 +18,8 @@ export interface UseSpeechRecognitionOptions {
   keepAlive?: boolean;
   /** Pause while the client is talking so we do not transcribe TTS. */
   paused?: boolean;
+  /** Preferred mic device (getUserMedia); Web Speech may still use system default. */
+  micDeviceId?: string | null;
 }
 
 export interface UseSpeechRecognitionResult {
@@ -29,6 +32,7 @@ export interface UseSpeechRecognitionResult {
   stopListening: () => void;
   resetTranscript: () => void;
   appendToField: (current: string) => string;
+  ensureListening: () => void;
 }
 
 async function transcribeOnServer(
@@ -54,7 +58,7 @@ async function transcribeOnServer(
 export function useSpeechRecognition(
   options: UseSpeechRecognitionOptions = {},
 ): UseSpeechRecognitionResult {
-  const { sessionUsageId, keepAlive = false, paused = false } = options;
+  const { sessionUsageId, keepAlive = false, paused = false, micDeviceId } = options;
   const voiceConfig = useVoiceConfig();
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
@@ -66,11 +70,14 @@ export function useSpeechRecognition(
   const streamRef = useRef<MediaStream | null>(null);
   const keepAliveRef = useRef(keepAlive);
   const pausedRef = useRef(paused);
+  const micDeviceIdRef = useRef(micDeviceId);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUtteranceRestartRef = useRef(false);
   const startBrowserRecognitionRef = useRef<() => void>(() => undefined);
 
   keepAliveRef.current = keepAlive;
   pausedRef.current = paused;
+  micDeviceIdRef.current = micDeviceId;
 
   const useServerStt =
     voiceConfig.serverStt && voiceConfig.sttTier !== "elevenlabs-scribe"
@@ -120,6 +127,15 @@ export function useSpeechRecognition(
     }, RESTART_DELAY_MS);
   }, [clearRestartTimer]);
 
+  const primeMicCapture = useCallback(async () => {
+    if (streamRef.current) return;
+    try {
+      streamRef.current = await openMicCaptureStream(micDeviceIdRef.current);
+    } catch {
+      // Web Speech can still run on the default device.
+    }
+  }, []);
+
   const startBrowserRecognition = useCallback(() => {
     const recognition = getRecognition();
     if (!recognition) {
@@ -153,7 +169,10 @@ export function useSpeechRecognition(
       if (recognitionRef.current !== recognition) return;
       recognitionRef.current = null;
       setListening(false);
-      if (receivedResult) return;
+      if (receivedResult) {
+        pendingUtteranceRestartRef.current = true;
+        return;
+      }
       if (keepAliveRef.current && !pausedRef.current) {
         scheduleRestart();
       }
@@ -161,19 +180,22 @@ export function useSpeechRecognition(
 
     recognitionRef.current = recognition;
     setListening(true);
-    try {
-      recognition.start();
-    } catch {
-      setListening(false);
-      scheduleRestart();
-    }
-  }, [clearRestartTimer, getRecognition, scheduleRestart]);
+    void primeMicCapture().finally(() => {
+      if (recognitionRef.current !== recognition) return;
+      try {
+        recognition.start();
+      } catch {
+        setListening(false);
+        scheduleRestart();
+      }
+    });
+  }, [clearRestartTimer, getRecognition, primeMicCapture, scheduleRestart]);
 
   startBrowserRecognitionRef.current = startBrowserRecognition;
 
   const startServerRecording = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await openMicCaptureStream(micDeviceIdRef.current);
       streamRef.current = stream;
       chunksRef.current = [];
 
@@ -197,6 +219,7 @@ export function useSpeechRecognition(
           if (blob.size === 0) {
             setError("No se capturó audio.");
             setListening(false);
+            pendingUtteranceRestartRef.current = keepAliveRef.current;
             return;
           }
 
@@ -208,6 +231,7 @@ export function useSpeechRecognition(
             }
             setError("No se pudo transcribir el audio.");
             setListening(false);
+            pendingUtteranceRestartRef.current = keepAliveRef.current;
             return;
           }
 
@@ -215,6 +239,7 @@ export function useSpeechRecognition(
             prev ? `${prev} ${result.transcript}` : result.transcript,
           );
           setListening(false);
+          pendingUtteranceRestartRef.current = keepAliveRef.current;
         })();
       };
 
@@ -228,6 +253,7 @@ export function useSpeechRecognition(
       }
       setError("No se pudo acceder al micrófono.");
       setListening(false);
+      pendingUtteranceRestartRef.current = keepAliveRef.current;
     }
   }, [cleanupMedia, sessionUsageId, startBrowserRecognition]);
 
@@ -243,6 +269,7 @@ export function useSpeechRecognition(
 
   const stopListening = useCallback(() => {
     clearRestartTimer();
+    pendingUtteranceRestartRef.current = false;
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
       return;
@@ -250,6 +277,13 @@ export function useSpeechRecognition(
     recognitionRef.current?.stop();
     setListening(false);
   }, [clearRestartTimer]);
+
+  const ensureListening = useCallback(() => {
+    if (!keepAliveRef.current || pausedRef.current) return;
+    if (recognitionRef.current || mediaRecorderRef.current) return;
+    pendingUtteranceRestartRef.current = true;
+    scheduleRestart();
+  }, [scheduleRestart]);
 
   const resetTranscript = useCallback(() => {
     setTranscript("");
@@ -273,8 +307,12 @@ export function useSpeechRecognition(
       }
       return;
     }
-    if (!useServerStt && !recognitionRef.current) {
-      startBrowserRecognition();
+
+    if (!useServerStt) {
+      if (pendingUtteranceRestartRef.current || !recognitionRef.current) {
+        pendingUtteranceRestartRef.current = false;
+        startBrowserRecognition();
+      }
     }
   }, [
     paused,
@@ -302,5 +340,6 @@ export function useSpeechRecognition(
     stopListening,
     resetTranscript,
     appendToField,
+    ensureListening,
   };
 }
