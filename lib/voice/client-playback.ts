@@ -156,8 +156,32 @@ export async function playSharedAudio(url: string): Promise<void> {
   const playing = audio.play();
   if (playing && typeof playing.then === "function") {
     await playing;
-    return;
   }
+}
+
+/** Wait for playback to finish or time out so the mic can resume. */
+export function waitForSharedAudioEnd(timeoutMs: number): Promise<void> {
+  const audio = getSharedCallAudio();
+  if (!audio) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      audio.removeEventListener("ended", finish);
+      audio.removeEventListener("error", finish);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const timer = window.setTimeout(finish, timeoutMs);
+    if (audio.ended) {
+      finish();
+      return;
+    }
+    audio.addEventListener("ended", finish);
+    audio.addEventListener("error", finish);
+  });
 }
 
 /** Reset between tests. */

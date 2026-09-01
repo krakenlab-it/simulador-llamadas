@@ -31,3 +31,21 @@ export interface SttResult {
 export interface TtsRequest {
   text: string;
 }
+
+export interface TtsResult {
+  audio: Buffer;
+  mimeType: string;
+  tier: TtsTier;
+}
+
+export interface TtsAttemptFailure {
+  tier: TtsTier;
+  reason: string;
+  status?: number;
+  detail?: string;
+}
+
+export interface TtsSynthesisOutcome {
+  result: TtsResult | null;
+  failures: TtsAttemptFailure[];
+}

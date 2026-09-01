@@ -5,6 +5,7 @@ import { isSpeechRecognitionSupported } from "@/lib/extension-points/session";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { getVoiceAuthHeaders } from "@/lib/auth/voice-session";
 import { openMicCaptureStream } from "@/lib/voice/call-devices";
+import { STT_RESTART_TIMEOUT_MS } from "@/lib/voice/timeouts";
 
 const SPEECH_LANG = "es-MX";
 const RESTART_DELAY_MS = 180;
@@ -72,6 +73,7 @@ export function useSpeechRecognition(
   const pausedRef = useRef(paused);
   const micDeviceIdRef = useRef(micDeviceId);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listeningWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingUtteranceRestartRef = useRef(false);
   const startBrowserRecognitionRef = useRef<() => void>(() => undefined);
 
@@ -110,6 +112,24 @@ export function useSpeechRecognition(
     chunksRef.current = [];
   }, []);
 
+  const clearListeningWatchdog = useCallback(() => {
+    if (listeningWatchdogRef.current) {
+      clearTimeout(listeningWatchdogRef.current);
+      listeningWatchdogRef.current = null;
+    }
+  }, []);
+
+  const scheduleListeningWatchdog = useCallback(() => {
+    clearListeningWatchdog();
+    if (!keepAliveRef.current || pausedRef.current) return;
+    listeningWatchdogRef.current = setTimeout(() => {
+      listeningWatchdogRef.current = null;
+      if (!keepAliveRef.current || pausedRef.current) return;
+      if (recognitionRef.current || mediaRecorderRef.current) return;
+      startBrowserRecognitionRef.current();
+    }, STT_RESTART_TIMEOUT_MS);
+  }, [clearListeningWatchdog]);
+
   const clearRestartTimer = useCallback(() => {
     if (restartTimerRef.current) {
       clearTimeout(restartTimerRef.current);
@@ -144,6 +164,7 @@ export function useSpeechRecognition(
     }
 
     clearRestartTimer();
+    clearListeningWatchdog();
     recognitionRef.current?.abort();
     recognition.lang = SPEECH_LANG;
     recognition.interimResults = false;
@@ -189,7 +210,7 @@ export function useSpeechRecognition(
         scheduleRestart();
       }
     });
-  }, [clearRestartTimer, getRecognition, primeMicCapture, scheduleRestart]);
+  }, [clearListeningWatchdog, clearRestartTimer, getRecognition, primeMicCapture, scheduleRestart]);
 
   startBrowserRecognitionRef.current = startBrowserRecognition;
 
@@ -269,6 +290,7 @@ export function useSpeechRecognition(
 
   const stopListening = useCallback(() => {
     clearRestartTimer();
+    clearListeningWatchdog();
     pendingUtteranceRestartRef.current = false;
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
@@ -276,14 +298,15 @@ export function useSpeechRecognition(
     }
     recognitionRef.current?.stop();
     setListening(false);
-  }, [clearRestartTimer]);
+  }, [clearRestartTimer, clearListeningWatchdog]);
 
   const ensureListening = useCallback(() => {
     if (!keepAliveRef.current || pausedRef.current) return;
     if (recognitionRef.current || mediaRecorderRef.current) return;
     pendingUtteranceRestartRef.current = true;
     scheduleRestart();
-  }, [scheduleRestart]);
+    scheduleListeningWatchdog();
+  }, [scheduleListeningWatchdog, scheduleRestart]);
 
   const resetTranscript = useCallback(() => {
     setTranscript("");
@@ -301,6 +324,7 @@ export function useSpeechRecognition(
   useEffect(() => {
     if (!keepAlive || paused) {
       clearRestartTimer();
+      clearListeningWatchdog();
       if (paused || !keepAlive) {
         recognitionRef.current?.stop();
         if (paused) setListening(false);
@@ -319,16 +343,28 @@ export function useSpeechRecognition(
     keepAlive,
     useServerStt,
     startBrowserRecognition,
+    clearListeningWatchdog,
     clearRestartTimer,
   ]);
 
   useEffect(() => {
+    if (listening) {
+      clearListeningWatchdog();
+      return;
+    }
+    if (keepAlive && !paused) {
+      scheduleListeningWatchdog();
+    }
+  }, [clearListeningWatchdog, keepAlive, listening, paused, scheduleListeningWatchdog]);
+
+  useEffect(() => {
     return () => {
       clearRestartTimer();
+      clearListeningWatchdog();
       recognitionRef.current?.abort();
       cleanupMedia();
     };
-  }, [cleanupMedia, clearRestartTimer]);
+  }, [cleanupMedia, clearListeningWatchdog, clearRestartTimer]);
 
   return {
     supported,

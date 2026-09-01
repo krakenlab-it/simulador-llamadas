@@ -18,6 +18,7 @@ import { getClientLine, ROUNDS } from "@/lib/simulation/rounds";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
 import { unlockClientPlayback } from "@/lib/voice/client-playback";
+import { AUTOSUBMIT_SILENCE_MS } from "@/lib/voice/timeouts";
 
 interface DialogueEntry {
   role: "client" | "you";
@@ -90,6 +91,7 @@ export function LiveCallScreen({
   const clientTurnIdRef = useRef<string | null>(null);
   const lastSentRef = useRef<{ round: number; text: string } | null>(null);
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autosubmitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openingSpokenRef = useRef(false);
   const [micArmed, setMicArmed] = useState(false);
   const utteranceRef = useRef("");
@@ -198,8 +200,16 @@ export function LiveCallScreen({
     return () => {
       disconnectConvai();
       if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+      if (autosubmitTimerRef.current) clearTimeout(autosubmitTimerRef.current);
     };
   }, [disconnectConvai]);
+
+  const clearAutosubmitTimer = useCallback(() => {
+    if (autosubmitTimerRef.current) {
+      clearTimeout(autosubmitTimerRef.current);
+      autosubmitTimerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     const el = dialogueRef.current;
@@ -216,6 +226,7 @@ export function LiveCallScreen({
       return;
     unlockClientPlayback();
     if (micArmed) {
+      clearAutosubmitTimer();
       setMicArmed(false);
       speech.stopListening();
       return;
@@ -229,6 +240,8 @@ export function LiveCallScreen({
     async (overrideText?: string) => {
       const text = (overrideText ?? utteranceRef.current).trim();
       if (!text || submittingRef.current || hangingUp || ending) return;
+
+      clearAutosubmitTimer();
 
       const lastSent = lastSentRef.current;
       if (lastSent && lastSent.round === round && lastSent.text === text) return;
@@ -309,6 +322,7 @@ export function LiveCallScreen({
       round,
       showToast,
       totalRounds,
+      clearAutosubmitTimer,
     ],
   );
 
@@ -316,6 +330,14 @@ export function LiveCallScreen({
   resetTranscriptRef.current = speech.resetTranscript;
   const ensureListeningRef = useRef(speech.ensureListening);
   ensureListeningRef.current = speech.ensureListening;
+  const synthesisSpeakingRef = useRef(synthesis.speaking);
+  synthesisSpeakingRef.current = synthesis.speaking;
+  const endingRef = useRef(ending);
+  endingRef.current = ending;
+  const hangingUpRef = useRef(hangingUp);
+  hangingUpRef.current = hangingUp;
+  const handleSubmitTurnRef = useRef(handleSubmitTurn);
+  handleSubmitTurnRef.current = handleSubmitTurn;
 
   useEffect(() => {
     if (!speech.transcript || speech.listening) return;
@@ -325,11 +347,49 @@ export function LiveCallScreen({
     const next = utteranceRef.current
       ? `${utteranceRef.current} ${piece}`
       : piece;
+    utteranceRef.current = next;
     setUtterance(next);
-    if (micArmed && mode === "voz") {
-      void handleSubmitTurn(next);
+  }, [speech.listening, speech.transcript]);
+
+  useEffect(() => {
+    if (!micArmed || mode !== "voz" || busy || synthesis.speaking || speech.listening) {
+      return;
     }
-  }, [handleSubmitTurn, micArmed, mode, speech.listening, speech.transcript]);
+    const pending = utterance.trim();
+    if (!pending) return;
+
+    clearAutosubmitTimer();
+    autosubmitTimerRef.current = setTimeout(() => {
+      autosubmitTimerRef.current = null;
+      const text = utteranceRef.current.trim();
+      if (
+        !text ||
+        submittingRef.current ||
+        hangingUpRef.current ||
+        endingRef.current ||
+        synthesisSpeakingRef.current
+      ) {
+        return;
+      }
+      void handleSubmitTurnRef.current(text);
+    }, AUTOSUBMIT_SILENCE_MS);
+
+    return () => {
+      clearAutosubmitTimer();
+    };
+  }, [
+    busy,
+    clearAutosubmitTimer,
+    micArmed,
+    mode,
+    speech.listening,
+    synthesis.speaking,
+    utterance,
+  ]);
+
+  useEffect(() => {
+    if (holdMic) clearAutosubmitTimer();
+  }, [clearAutosubmitTimer, holdMic]);
 
   useEffect(() => {
     if (!micArmed || mode !== "voz" || holdMic) return;

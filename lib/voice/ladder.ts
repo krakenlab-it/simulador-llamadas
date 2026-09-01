@@ -48,18 +48,12 @@ export function resolveSttTier(): SttTier {
 }
 
 /**
- * Resolve TTS tier — first match wins.
- * Missing ELEVENLABS_VOICE_ID degrades to the next tier when the key is set.
+ * Resolve TTS tier — ElevenLabs when key + voice id are set, otherwise browser.
+ * No Google Chirp/Gemini TTS; billed failure → 502 → client speechSynthesis.
  */
 export function resolveTtsTier(): TtsTier {
   if (hasElevenLabsKey() && hasElevenLabsVoice()) {
     return "elevenlabs";
-  }
-  if (hasGoogleApplicationCredentials()) {
-    return "google-chirp3";
-  }
-  if (hasGoogleApiKey()) {
-    return "google-gemini-flash";
   }
   return "browser";
 }
@@ -73,8 +67,7 @@ export function resolveVoiceLadder(): VoiceLadderConfig {
     sttTier,
     ttsTier,
     convaiEnabled: isConvaiOptedIn() && hasElevenLabsKey() && hasElevenLabsVoice(),
-    pronunciationDictionary:
-      ttsTier === "elevenlabs" || ttsTier === "google-chirp3",
+    pronunciationDictionary: ttsTier === "elevenlabs",
     elevenlabsBilledAvailable: hasElevenLabsKey(),
   };
 }

@@ -1,12 +1,19 @@
 import { applyPronunciationHints } from "@/lib/voice/pronunciation";
 import { isElevenLabsEnabled } from "@/lib/voice/brakes";
+import {
+  providerSkipped,
+  readResponseDetail,
+  type ProviderOutcome,
+} from "@/lib/voice/provider-result";
 import { withPgClient } from "@/lib/session";
 import type { SttResult } from "@/lib/voice/types";
 
-const TTS_MODEL = "eleven_multilingual_v2";
+const TTS_MODEL = "eleven_flash_v2_5";
 const CONVAI_TTS_MODEL = "eleven_flash_v2_5";
 const SCRIBE_MODEL = "scribe_v2";
-const LANGUAGE = "es-MX";
+/** ISO 639-1; required for Flash v2.5 Spanish enforcement. */
+const TTS_LANGUAGE = "es";
+const STT_LANGUAGE = "es-MX";
 export const CONVAI_AGENT_KEY = "simulador-patient";
 
 export const CONVAI_CLIENT_EVENTS = [
@@ -39,10 +46,18 @@ export type ConvaiSignedUrlResult =
 
 export async function synthesizeWithElevenLabs(
   text: string,
-): Promise<Buffer | null> {
+): Promise<ProviderOutcome<Buffer>> {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
   const voiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
-  if (!isElevenLabsEnabled() || !apiKey || !voiceId) return null;
+  if (!isElevenLabsEnabled()) {
+    return providerSkipped("elevenlabs_disabled");
+  }
+  if (!apiKey) {
+    return providerSkipped("missing_ELEVENLABS_API_KEY");
+  }
+  if (!voiceId) {
+    return providerSkipped("missing_ELEVENLABS_VOICE_ID");
+  }
 
   const normalized = applyPronunciationHints(text);
 
@@ -59,16 +74,30 @@ export async function synthesizeWithElevenLabs(
         body: JSON.stringify({
           text: normalized,
           model_id: TTS_MODEL,
-          language_code: LANGUAGE,
+          language_code: TTS_LANGUAGE,
         }),
       },
     );
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      return {
+        ok: false,
+        reason: "elevenlabs_http_error",
+        status: response.status,
+        detail: await readResponseDetail(response),
+      };
+    }
     const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-  } catch {
-    return null;
+    if (arrayBuffer.byteLength === 0) {
+      return { ok: false, reason: "elevenlabs_empty_audio" };
+    }
+    return { ok: true, value: Buffer.from(arrayBuffer) };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "elevenlabs_exception",
+      detail: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
@@ -119,7 +148,7 @@ export async function transcribeWithElevenLabsScribe(
     });
     form.append("file", blob, "audio.webm");
     form.append("model_id", SCRIBE_MODEL);
-    form.append("language_code", LANGUAGE);
+    form.append("language_code", STT_LANGUAGE);
     form.append("tag_audio_events", "false");
     form.append("diarize", "false");
 

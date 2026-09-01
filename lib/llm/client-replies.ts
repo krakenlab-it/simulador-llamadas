@@ -2,6 +2,9 @@ import type { ClientReaction } from "@/lib/scoring/rondas";
 import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { templateClientReply } from "@/lib/feedback/evaluation";
 
+/** Max wait for Groq preset client replies before scripted fallback. */
+export const GROQ_CLIENT_REPLY_TIMEOUT_MS = 8_000;
+
 export interface GenerateReplyInput {
   config: ScenarioConfig;
   round: ScenarioRoundDef;
@@ -17,7 +20,10 @@ function getLlmProvider(): "groq" | "gemini" | null {
   return null;
 }
 
-async function callGroq(prompt: string): Promise<string | null> {
+async function callGroq(
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
 
@@ -28,6 +34,7 @@ async function callGroq(prompt: string): Promise<string | null> {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
+      signal,
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
         messages: [{ role: "user", content: prompt }],
@@ -91,15 +98,49 @@ Responde en 1-2 oraciones cortas, en el mismo idioma que el vendedor, tono ${moo
 Solo la réplica del cliente, sin comillas ni explicación.`;
 }
 
+export function isGroqAvailable(): boolean {
+  return Boolean(process.env.GROQ_API_KEY?.trim());
+}
+
+/** Preset clinic replies: Groq only, with timeout → scripted fallback. */
+export async function generateGroqClientReply(
+  input: GenerateReplyInput,
+  fallbackText: string,
+): Promise<string> {
+  if (!isGroqAvailable()) return fallbackText;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    GROQ_CLIENT_REPLY_TIMEOUT_MS,
+  );
+
+  try {
+    const prompt = buildPrompt(input);
+    const llmReply = await callGroq(prompt, controller.signal);
+    if (!llmReply || llmReply.length < 8 || llmReply.length > 400) {
+      return fallbackText;
+    }
+    return llmReply;
+  } catch {
+    return fallbackText;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function generateClientReply(
   input: GenerateReplyInput,
+  fallbackText?: string,
 ): Promise<string> {
-  const fallback = templateClientReply(
-    input.config,
-    input.round,
-    input.reaction,
-    input.clientName,
-  );
+  const fallback =
+    fallbackText ??
+    templateClientReply(
+      input.config,
+      input.round,
+      input.reaction,
+      input.clientName,
+    );
 
   const provider = getLlmProvider();
   if (!provider) return fallback;
