@@ -4,10 +4,26 @@ import {
   resetClientPlaybackForTests,
   unlockClientPlayback,
 } from "@/lib/voice/client-playback";
-import { TTS_FETCH_TIMEOUT_MS } from "@/lib/voice/timeouts";
+import {
+  BROWSER_SPEAK_START_TIMEOUT_MS,
+  SPEAKING_WATCHDOG_MS,
+  TTS_FETCH_TIMEOUT_MS,
+} from "@/lib/voice/timeouts";
+
+/** Long enough for the settle delay client-playback leaves after cancel(). */
+const SETTLE_MS = 100;
+
+const SPANISH_LINE = "¿Ustedes miden gente real o solo leads?";
+
+interface FakeUtterance {
+  text: string;
+  onstart: (() => void) | null;
+  onend: (() => void) | null;
+  onerror: (() => void) | null;
+}
 
 const play = vi.fn().mockResolvedValue(undefined);
-const speak = vi.fn();
+const speak = vi.fn<(utterance: FakeUtterance) => void>();
 const cancelSynth = vi.fn();
 const resumeSynth = vi.fn();
 const getVoices = vi.fn(() => [{ lang: "es-MX", name: "Paulina" }]);
@@ -29,6 +45,25 @@ vi.mock("@/lib/hooks/useVoiceConfig", () => ({
 }));
 
 import { useSpeechSynthesis } from "@/lib/hooks/useSpeechSynthesis";
+
+function spokenTexts(): string[] {
+  return speak.mock.calls.map(([utterance]) => utterance.text);
+}
+
+function lastUtterance(): FakeUtterance {
+  const utterance = speak.mock.calls.at(-1)?.[0];
+  if (!utterance) throw new Error("browser synthesis never spoke");
+  return utterance;
+}
+
+function jsonResponse(status: number): Response {
+  return {
+    ok: false,
+    status,
+    headers: { get: () => "application/json" },
+    blob: async () => new Blob(),
+  } as unknown as Response;
+}
 
 describe("billed TTS playback", () => {
   beforeEach(() => {
@@ -67,12 +102,13 @@ describe("billed TTS playback", () => {
     });
     vi.stubGlobal(
       "SpeechSynthesisUtterance",
-      class FakeUtterance {
+      class FakeSpeechSynthesisUtterance {
         lang = "";
         volume = 1;
         rate = 1;
         pitch = 1;
         voice: unknown = null;
+        onstart: (() => void) | null = null;
         onend: (() => void) | null = null;
         onerror: (() => void) | null = null;
         constructor(public text: string) {}
@@ -91,33 +127,13 @@ describe("billed TTS playback", () => {
   });
 
   afterEach(() => {
+    // Drop timers before restoring the real clock so a failed assertion cannot
+    // leak a pending utterance into the next test.
+    vi.clearAllTimers();
+    vi.useRealTimers();
     resetClientPlaybackForTests();
     vi.unstubAllGlobals();
     vi.clearAllMocks();
-  });
-
-  it("clears a stuck speaking flag via watchdog so STT can resume", async () => {
-    vi.useFakeTimers();
-    unlockClientPlayback();
-    play.mockImplementation(() => new Promise(() => undefined));
-    const { result } = renderHook(() =>
-      useSpeechSynthesis({ sessionUsageId: "usage-1" }),
-    );
-
-    await act(async () => {
-      result.current.speak("¿Ustedes miden gente real o solo leads?");
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(result.current.speaking).toBe(true);
-
-    await act(async () => {
-      vi.advanceTimersByTime(46_000);
-    });
-
-    expect(result.current.speaking).toBe(false);
-    vi.useRealTimers();
   });
 
   it("plays the billed audio on the shared element after unlock", async () => {
@@ -127,7 +143,7 @@ describe("billed TTS playback", () => {
     );
 
     await act(async () => {
-      result.current.speak("¿Ustedes miden gente real o solo leads?");
+      result.current.speak(SPANISH_LINE);
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -135,48 +151,75 @@ describe("billed TTS playback", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith(
       "/api/voice/tts",
-      expect.objectContaining({
-        method: "POST",
-      }),
+      expect.objectContaining({ method: "POST" }),
     );
     expect(play).toHaveBeenCalled();
   });
 
-  it("falls back to browser speechSynthesis on a 502 without retrying", async () => {
+  it.each([429, 502, 503])(
+    "speaks the same Spanish line in the browser on a %i",
+    async (status) => {
+      vi.useFakeTimers();
+      unlockClientPlayback();
+      play.mockClear();
+      speak.mockClear();
+      vi.mocked(fetch).mockResolvedValue(jsonResponse(status));
+
+      const { result } = renderHook(() =>
+        useSpeechSynthesis({ sessionUsageId: "usage-1" }),
+      );
+
+      await act(async () => {
+        result.current.speak(SPANISH_LINE);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(SETTLE_MS);
+      });
+
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(play).not.toHaveBeenCalled();
+      expect(spokenTexts()).toEqual([SPANISH_LINE]);
+      expect(result.current.speaking).toBe(true);
+
+      await act(async () => {
+        const utterance = lastUtterance();
+        utterance.onstart?.();
+        utterance.onend?.();
+      });
+
+      expect(result.current.speaking).toBe(false);
+      vi.useRealTimers();
+    },
+  );
+
+  it("releases the mic when the browser engine stays mute on a 502", async () => {
     vi.useFakeTimers();
     unlockClientPlayback();
-    play.mockClear();
     speak.mockClear();
-    vi.mocked(fetch).mockResolvedValue({
-      ok: false,
-      status: 502,
-      headers: { get: () => "application/json" },
-      blob: async () => new Blob(),
-    } as unknown as Response);
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(502));
 
     const { result } = renderHook(() =>
       useSpeechSynthesis({ sessionUsageId: "usage-1" }),
     );
 
     await act(async () => {
-      result.current.speak("Eso no mueve venta por m².");
+      result.current.speak(SPANISH_LINE);
       await Promise.resolve();
       await Promise.resolve();
     });
-
     await act(async () => {
-      vi.advanceTimersByTime(120);
+      vi.advanceTimersByTime(SETTLE_MS);
     });
 
-    expect(fetch).toHaveBeenCalledTimes(1);
-    expect(speak).toHaveBeenCalled();
-    expect(play).not.toHaveBeenCalled();
-
+    // Engine never fires onstart: one retry, then hand the mic back well
+    // before the 45s watchdog.
     await act(async () => {
-      const utterance = speak.mock.calls.at(-1)?.[0] as SpeechSynthesisUtterance;
-      utterance.onend?.({} as SpeechSynthesisEvent);
+      vi.advanceTimersByTime((BROWSER_SPEAK_START_TIMEOUT_MS + 10) * 2);
     });
 
+    expect(speak).toHaveBeenCalledTimes(2);
     expect(result.current.speaking).toBe(false);
     vi.useRealTimers();
   });
@@ -184,6 +227,7 @@ describe("billed TTS playback", () => {
   it("falls back when the billed TTS fetch times out", async () => {
     vi.useFakeTimers();
     unlockClientPlayback();
+    speak.mockClear();
     vi.mocked(fetch).mockImplementation(
       (_input, init) =>
         new Promise((_resolve, reject) => {
@@ -202,13 +246,124 @@ describe("billed TTS playback", () => {
       await Promise.resolve();
     });
 
+    // The abort rejection settles on the microtask queue, so the fetch budget
+    // and the settle delay have to be advanced in separate flushes.
     await act(async () => {
-      vi.advanceTimersByTime(TTS_FETCH_TIMEOUT_MS + 200);
-      vi.advanceTimersByTime(120);
+      await vi.advanceTimersByTimeAsync(TTS_FETCH_TIMEOUT_MS + 200);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SETTLE_MS);
     });
 
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(speak).toHaveBeenCalled();
+    expect(spokenTexts()).toEqual(["Hola Rodrigo."]);
+    vi.useRealTimers();
+  });
+
+  it("speaks the line when billed audio arrives but will not play", async () => {
+    vi.useFakeTimers();
+    unlockClientPlayback();
+    speak.mockClear();
+    play.mockRejectedValue(new Error("NotAllowedError"));
+
+    const { result } = renderHook(() =>
+      useSpeechSynthesis({ sessionUsageId: "usage-1" }),
+    );
+
+    await act(async () => {
+      result.current.speak(SPANISH_LINE);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SETTLE_MS);
+    });
+
+    expect(play).toHaveBeenCalled();
+    expect(spokenTexts()).toEqual([SPANISH_LINE]);
+    vi.useRealTimers();
+  });
+
+  it("keeps the mic held until the browser fallback finishes", async () => {
+    vi.useFakeTimers();
+    unlockClientPlayback();
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(502));
+
+    const { result } = renderHook(() =>
+      useSpeechSynthesis({ sessionUsageId: "usage-1" }),
+    );
+
+    await act(async () => {
+      result.current.speak(SPANISH_LINE);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(SETTLE_MS);
+    });
+    await act(async () => {
+      lastUtterance().onstart?.();
+    });
+
+    expect(result.current.speaking).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("stops the browser fallback and frees the mic on cancel", async () => {
+    vi.useFakeTimers();
+    unlockClientPlayback();
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(502));
+
+    const { result } = renderHook(() =>
+      useSpeechSynthesis({ sessionUsageId: "usage-1" }),
+    );
+
+    await act(async () => {
+      result.current.speak(SPANISH_LINE);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(SETTLE_MS);
+    });
+
+    const stale = lastUtterance();
+    await act(async () => {
+      result.current.cancel();
+    });
+
+    expect(cancelSynth).toHaveBeenCalled();
+    expect(result.current.speaking).toBe(false);
+
+    // A late event from the cancelled utterance must not disturb the flag.
+    await act(async () => {
+      stale.onend?.();
+    });
+    expect(result.current.speaking).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it("clears a stuck speaking flag via watchdog so STT can resume", async () => {
+    vi.useFakeTimers();
+    unlockClientPlayback();
+    play.mockImplementation(() => new Promise(() => undefined));
+    const { result } = renderHook(() =>
+      useSpeechSynthesis({ sessionUsageId: "usage-1" }),
+    );
+
+    await act(async () => {
+      result.current.speak(SPANISH_LINE);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(result.current.speaking).toBe(true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(SPEAKING_WATCHDOG_MS + 1_000);
+    });
+
+    expect(result.current.speaking).toBe(false);
     vi.useRealTimers();
   });
 });

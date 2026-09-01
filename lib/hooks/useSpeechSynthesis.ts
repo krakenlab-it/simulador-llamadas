@@ -5,11 +5,12 @@ import { isSpeechSynthesisSupported } from "@/lib/extension-points/session";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { getVoiceAuthHeaders } from "@/lib/auth/voice-session";
 import {
-  applySpanishVoice,
+  cancelBrowserSpeech,
   getSharedCallAudio,
   isClientPlaybackUnlocked,
   onClientPlaybackUnlocked,
   playSharedAudio,
+  speakSpanishText,
   waitForSharedAudioEnd,
 } from "@/lib/voice/client-playback";
 import {
@@ -29,9 +30,6 @@ export interface UseSpeechSynthesisResult {
   speak: (text: string) => void;
   cancel: () => void;
 }
-
-const BROWSER_SPEAK_DELAY_MS = 60;
-const BROWSER_SPEAK_TIMEOUT_MS = 30_000;
 
 const FALLBACK_HTTP_STATUSES = new Set([429, 502, 503]);
 
@@ -73,49 +71,6 @@ async function fetchServerAudio(
   return { blob: await response.blob(), fallback: false, status: response.status };
 }
 
-function speakWithBrowserSynthesis(
-  text: string,
-  onEnd: () => void,
-  timeoutMs = BROWSER_SPEAK_TIMEOUT_MS,
-): void {
-  if (!isSpeechSynthesisSupported()) {
-    onEnd();
-    return;
-  }
-
-  const synth = window.speechSynthesis;
-  synth.cancel();
-  synth.resume();
-
-  let finished = false;
-  const finish = () => {
-    if (finished) return;
-    finished = true;
-    window.clearTimeout(timeout);
-    onEnd();
-  };
-
-  const timeout = window.setTimeout(finish, timeoutMs);
-
-  let started = false;
-  const start = () => {
-    if (started || finished) return;
-    started = true;
-    const utterance = new SpeechSynthesisUtterance(text);
-    applySpanishVoice(utterance);
-    utterance.onend = finish;
-    utterance.onerror = finish;
-    synth.resume();
-    synth.speak(utterance);
-  };
-
-  const voicesReady = synth.getVoices().length > 0;
-  window.setTimeout(start, voicesReady ? BROWSER_SPEAK_DELAY_MS : 120);
-  if (!voicesReady) {
-    synth.addEventListener("voiceschanged", start, { once: true });
-  }
-}
-
 export function useSpeechSynthesis(
   options: UseSpeechSynthesisOptions = {},
 ): UseSpeechSynthesisResult {
@@ -126,8 +81,8 @@ export function useSpeechSynthesis(
   const objectUrlRef = useRef<string | null>(null);
   const generationRef = useRef(0);
   const pendingTextRef = useRef<string | null>(null);
-  const cancelledRef = useRef(false);
   const fetchAbortRef = useRef<AbortController | null>(null);
+  const stopBrowserSpeechRef = useRef<(() => void) | null>(null);
 
   const useServerTts =
     voiceConfig.serverTts &&
@@ -156,22 +111,39 @@ export function useSpeechSynthesis(
     setSpeaking(false);
   }, []);
 
+  /**
+   * Every utterance gets its own id. Only the newest one may clear `speaking`,
+   * so a superseded turn can never release the mic out from under the live one.
+   */
+  const nextGeneration = useCallback(() => {
+    generationRef.current += 1;
+    return generationRef.current;
+  }, []);
+
+  const stopBrowserSpeech = useCallback(() => {
+    stopBrowserSpeechRef.current?.();
+    stopBrowserSpeechRef.current = null;
+    cancelBrowserSpeech();
+  }, []);
+
   const cancel = useCallback(() => {
-    cancelledRef.current = true;
     generationRef.current += 1;
     pendingTextRef.current = null;
     fetchAbortRef.current?.abort();
     fetchAbortRef.current = null;
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
+    stopBrowserSpeech();
     const audio = getSharedCallAudio();
     audio?.pause();
     if (audio) audio.currentTime = 0;
     revokeObjectUrl();
     setSpeaking(false);
-  }, [revokeObjectUrl]);
+  }, [revokeObjectUrl, stopBrowserSpeech]);
 
+  /**
+   * Audible fallback for every billed failure. It must always end by clearing
+   * `speaking`, even when the browser engine is missing or mute, or the call
+   * would sit on "Reanudando micrófono…" until the watchdog fires.
+   */
   const speakBrowser = useCallback(
     (text: string, generation: number) => {
       if (!isSpeechSynthesisSupported()) {
@@ -179,8 +151,10 @@ export function useSpeechSynthesis(
         return;
       }
       setSpeaking(true);
-      speakWithBrowserSynthesis(text, () => {
-        if (generation !== generationRef.current || cancelledRef.current) return;
+      stopBrowserSpeechRef.current?.();
+      stopBrowserSpeechRef.current = speakSpanishText(text, () => {
+        stopBrowserSpeechRef.current = null;
+        if (generation !== generationRef.current) return;
         clearSpeaking();
       });
     },
@@ -188,9 +162,7 @@ export function useSpeechSynthesis(
   );
 
   const speakServer = useCallback(
-    async (text: string) => {
-      cancelledRef.current = false;
-      const generation = generationRef.current;
+    async (text: string, generation: number) => {
       setSpeaking(true);
 
       fetchAbortRef.current?.abort();
@@ -221,11 +193,12 @@ export function useSpeechSynthesis(
         }
       }
 
-      if (generation !== generationRef.current || cancelledRef.current) {
-        clearSpeaking();
-        return;
-      }
+      const superseded = () => generation !== generationRef.current;
 
+      if (superseded()) return;
+
+      // 502/503/429, a non-audio body, a timeout or a network error all land
+      // here: say the same Spanish line with the browser engine.
       if (!blob || fallback) {
         speakBrowser(text, generation);
         return;
@@ -237,25 +210,24 @@ export function useSpeechSynthesis(
           : "blob:tts";
       objectUrlRef.current = url;
 
+      let playbackFailed = false;
       try {
         await playSharedAudio(url);
-        if (generation !== generationRef.current || cancelledRef.current) return;
-        await waitForSharedAudioEnd(TTS_PLAY_TIMEOUT_MS);
-      } catch {
-        if (generation !== generationRef.current || cancelledRef.current) return;
-        if (!isClientPlaybackUnlocked()) {
-          pendingTextRef.current = text;
-          return;
+        if (!superseded()) {
+          await waitForSharedAudioEnd(TTS_PLAY_TIMEOUT_MS);
         }
+      } catch {
+        playbackFailed = true;
+      }
+      revokeObjectUrl();
+
+      if (superseded()) return;
+      // Billed bytes arrived but the element refused them: speak, do not go mute.
+      if (playbackFailed) {
         speakBrowser(text, generation);
         return;
-      } finally {
-        revokeObjectUrl();
       }
-
-      if (generation === generationRef.current && !cancelledRef.current) {
-        clearSpeaking();
-      }
+      clearSpeaking();
     },
     [clearSpeaking, revokeObjectUrl, sessionUsageId, speakBrowser],
   );
@@ -263,7 +235,6 @@ export function useSpeechSynthesis(
   const speak = useCallback(
     (text: string) => {
       if (!text.trim()) return;
-      cancelledRef.current = false;
 
       if (!isClientPlaybackUnlocked()) {
         pendingTextRef.current = text;
@@ -271,14 +242,14 @@ export function useSpeechSynthesis(
         return;
       }
 
+      const generation = nextGeneration();
       if (useServerTts) {
-        void speakServer(text);
+        void speakServer(text, generation);
         return;
       }
-      const generation = generationRef.current;
       speakBrowser(text, generation);
     },
-    [useServerTts, speakServer, speakBrowser],
+    [nextGeneration, useServerTts, speakServer, speakBrowser],
   );
 
   useEffect(() => {
@@ -286,29 +257,28 @@ export function useSpeechSynthesis(
       const pending = pendingTextRef.current;
       if (!pending) return;
       pendingTextRef.current = null;
+      const generation = nextGeneration();
       if (useServerTts) {
-        void speakServer(pending);
+        void speakServer(pending, generation);
         return;
       }
-      speakBrowser(pending, generationRef.current);
+      speakBrowser(pending, generation);
     });
-  }, [useServerTts, speakServer, speakBrowser]);
+  }, [nextGeneration, useServerTts, speakServer, speakBrowser]);
 
   useEffect(() => cancel, [cancel]);
 
   useEffect(() => {
     if (!speaking) return;
     const timer = window.setTimeout(() => {
-      if (typeof window !== "undefined" && window.speechSynthesis) {
-        window.speechSynthesis.cancel();
-      }
+      stopBrowserSpeech();
       const audio = getSharedCallAudio();
       audio?.pause();
       if (audio) audio.currentTime = 0;
       clearSpeaking();
     }, SPEAKING_WATCHDOG_MS);
     return () => window.clearTimeout(timer);
-  }, [speaking, clearSpeaking]);
+  }, [speaking, clearSpeaking, stopBrowserSpeech]);
 
   return {
     supported,
