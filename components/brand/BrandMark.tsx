@@ -1,19 +1,17 @@
 import Image from "next/image";
 
 /**
- * CDC brand mark (light variant on paper background).
- * Dark variant: `public/brand/cdc-mark-dark.jpg` for future dark surfaces.
- *
- * TODO: add wordmarks and avatars to `public/brand/` when uploaded to Drive.
+ * CDC wordmark (light variant on paper background).
+ * Dark variant: `public/brand/cdc-wordmark-dark-hi.jpg` for future dark surfaces.
  */
 export function BrandMark() {
   return (
     <div className="brand-mark" aria-hidden="true">
       <Image
-        src="/brand/cdc-mark-light.jpg"
+        src="/brand/cdc-wordmark-light-hi.jpg"
         alt=""
-        width={54}
-        height={36}
+        width={900}
+        height={600}
         className="brand-mark-image"
         priority
       />
