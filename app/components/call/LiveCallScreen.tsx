@@ -144,10 +144,13 @@ export function LiveCallScreen({
   ]);
 
   useEffect(() => {
-    dialogueRef.current?.scrollTo({
-      top: dialogueRef.current.scrollHeight,
-      behavior: "smooth",
-    });
+    const el = dialogueRef.current;
+    if (!el) return;
+    if (typeof el.scrollTo === "function") {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [dialogue, turnEval]);
 
   const handleMic = () => {

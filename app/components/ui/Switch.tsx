@@ -29,7 +29,7 @@ export function Switch({
           <span className="switch__desc">{description}</span>
         ) : null}
       </span>
-      <span className="switch__track" aria-hidden="true">
+      <span className="switch__track">
         <input
           type="checkbox"
           role="switch"
@@ -37,6 +37,7 @@ export function Switch({
           className="switch__input"
           checked={checked}
           disabled={disabled}
+          aria-label={label}
           onChange={(e) => onCheckedChange(e.target.checked)}
           {...props}
         />

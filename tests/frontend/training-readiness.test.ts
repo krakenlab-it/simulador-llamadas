@@ -37,6 +37,29 @@ describe("training readiness", () => {
     expect(canStartTraining(input)).toBe(true);
   });
 
+  it("requires voice auth when configured in voice mode", () => {
+    const input = {
+      ...base,
+      mode: "voz" as const,
+      micVerified: true,
+      needsVoiceAuth: true,
+      voiceAuthVerified: false,
+    };
+    expect(canStartTraining(input)).toBe(false);
+    expect(startBlockedReason(input)).toContain("correo");
+  });
+
+  it("allows voice mode when voice auth is satisfied", () => {
+    const input = {
+      ...base,
+      mode: "voz" as const,
+      micVerified: true,
+      needsVoiceAuth: true,
+      voiceAuthVerified: true,
+    };
+    expect(canStartTraining(input)).toBe(true);
+  });
+
   it("blocks when speech is unsupported in voice mode", () => {
     const input = {
       ...base,

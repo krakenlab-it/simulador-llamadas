@@ -54,6 +54,13 @@ vi.mock("@/lib/hooks/useSpeechRecognition", () => ({
   }),
 }));
 
+vi.mock("@/lib/hooks/useVoiceConfig", () => ({
+  useVoiceConfig: () => ({
+    requiresVoiceAuth: false,
+    convaiEnabled: false,
+  }),
+}));
+
 import { createSession, listScenarios } from "@/lib/api/client";
 
 describe("session start failure", () => {
@@ -80,18 +87,20 @@ describe("session start failure", () => {
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
     await user.click(screen.getByRole("switch", { name: "Modo voz" }));
-    await user.click(screen.getByRole("button", { name: "Marcar" }));
+    await user.click(screen.getByRole("button", { name: "Iniciar llamada" }));
 
     await waitFor(() => {
       expect(screen.getByText("Servicio no disponible")).toBeInTheDocument();
     });
 
-    expect(screen.getByRole("heading", { name: "Configura la práctica" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Elige un escenario y empieza" }),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Llamada en vivo")).not.toBeInTheDocument();
     expect(createSession).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a dialing overlay while the session is starting", async () => {
+  it("shows a loading state on start while the session is starting", async () => {
     let resolveSession: (value: SessionResponse) => void = () => undefined;
     vi.mocked(createSession).mockImplementation(
       () =>
@@ -109,9 +118,11 @@ describe("session start failure", () => {
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
     await user.click(screen.getByRole("switch", { name: "Modo voz" }));
-    await user.click(screen.getByRole("button", { name: "Marcar" }));
+    await user.click(screen.getByRole("button", { name: "Iniciar llamada" }));
 
-    expect(screen.getByText("Marcando…")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Iniciar llamada" })).toBeDisabled();
+    });
 
     resolveSession({
       callAttemptId: "stub-1",
