@@ -33,12 +33,18 @@
   --radius-sm: 14px;
   --radius: 22px;
   --radius-full: 999px;
+  /* Landing + UI aliases */
+  --radius-control: var(--radius-sm);
+  --radius-card: var(--radius);
+  --radius-pill: var(--radius-full);
 
   /* Motion */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: var(--ease);
   --duration-fast: 180ms;
   --duration: 220ms;
   --duration-slow: 280ms;
+  --transition: var(--duration) var(--ease-out);
 
   /* Typography (font variables set in layout.tsx) */
   --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
@@ -47,6 +53,7 @@
 
   /* Elevation */
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.24);
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.22);
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.32);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
