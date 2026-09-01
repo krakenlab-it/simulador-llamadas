@@ -575,3 +575,222 @@ textarea {
 .history-item.rich {
   padding: 0.85rem 0;
 }
+
+/* Production polish — loading, transitions, toasts (no token restyle) */
+.screen-transition {
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+
+.screen-transition-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.screen-content {
+  min-height: 320px;
+}
+
+.loading-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
+  margin: 1rem 0;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ink) 4%, var(--paper));
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.loading-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.spinner {
+  display: inline-block;
+  border: 2px solid color-mix(in srgb, var(--ink) 12%, transparent);
+  border-top-color: var(--orange);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.spinner-sm {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.spinner-md {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ink) 6%, var(--paper)) 25%,
+    color-mix(in srgb, var(--ink) 10%, var(--paper)) 50%,
+    color-mix(in srgb, var(--ink) 6%, var(--paper)) 75%
+  );
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-card {
+  pointer-events: none;
+  min-height: 180px;
+}
+
+.skeleton-title {
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-line {
+  margin-bottom: 0.45rem;
+}
+
+.skeleton-badge {
+  margin-bottom: 0.6rem;
+  border-radius: 999px;
+}
+
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+button.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+button .btn-label-pending {
+  margin-left: 0.35rem;
+}
+
+.history-panel-loading,
+.history-panel-error,
+.history-panel-empty {
+  padding: 0.75rem 0;
+  min-height: 3rem;
+}
+
+.history-panel-error {
+  color: var(--danger);
+  font-size: 0.88rem;
+}
+
+.toast-region {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: min(360px, calc(100vw - 2rem));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  animation: toast-in 0.2s ease;
+}
+
+.toast-error {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+
+.toast-success {
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+  background: color-mix(in srgb, var(--success) 8%, var(--surface));
+}
+
+.toast-info {
+  border-color: color-mix(in srgb, var(--teal) 35%, var(--border));
+}
+
+.toast-dismiss {
+  flex-shrink: 0;
+  padding: 0 0.25rem;
+  border: none;
+  background: transparent;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.toast-dismiss:hover {
+  color: var(--ink);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.call-panel.submitting textarea,
+.call-panel.submitting .dialogue {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.eval-enter {
+  animation: eval-in 0.25s ease;
+}
+
+@keyframes eval-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

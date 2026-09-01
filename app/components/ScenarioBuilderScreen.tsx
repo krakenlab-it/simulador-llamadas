@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { createScenario } from "@/lib/api/client";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
+import { PendingButton } from "@/components/ui/PendingButton";
+import { useToast } from "@/components/ui/Toast";
 
 export interface ScenarioBuilderResult {
   scenario: ScenarioRecord;
@@ -16,6 +18,7 @@ interface ScenarioBuilderScreenProps {
 const DEFAULT_OBJECTIONS = ["", ""];
 
 export function ScenarioBuilderScreen({ onSave, onCancel }: ScenarioBuilderScreenProps) {
+  const { showToast } = useToast();
   const [industry, setIndustry] = useState("");
   const [productSold, setProductSold] = useState("");
   const [clientName, setClientName] = useState("");
@@ -59,7 +62,9 @@ export function ScenarioBuilderScreen({ onSave, onCancel }: ScenarioBuilderScree
       });
       onSave({ scenario });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al guardar");
+      const message = err instanceof Error ? err.message : "Error al guardar";
+      setError(message);
+      showToast(message, "error");
     } finally {
       setSaving(false);
     }
@@ -181,10 +186,16 @@ export function ScenarioBuilderScreen({ onSave, onCancel }: ScenarioBuilderScree
       {error && <p className="note warn">{error}</p>}
 
       <div className="controls">
-        <button type="button" className="primary" disabled={!canSave || saving} onClick={() => void handleSave()}>
-          {saving ? "Guardando…" : "Guardar escenario"}
-        </button>
-        <button type="button" onClick={onCancel}>
+        <PendingButton
+          variant="primary"
+          disabled={!canSave}
+          pending={saving}
+          pendingLabel="Guardando…"
+          onClick={() => void handleSave()}
+        >
+          Guardar escenario
+        </PendingButton>
+        <button type="button" onClick={onCancel} disabled={saving}>
           Cancelar
         </button>
       </div>

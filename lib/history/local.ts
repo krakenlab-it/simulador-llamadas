@@ -29,15 +29,38 @@ function canUseLocalStorage(): boolean {
   return typeof localStorage !== "undefined";
 }
 
+export interface LocalHistoryLoadResult {
+  entries: LocalHistoryEntry[];
+  error: string | null;
+}
+
 export function loadLocalHistory(): LocalHistoryEntry[] {
-  if (!canUseLocalStorage()) return [];
+  return loadLocalHistorySafe().entries;
+}
+
+export function loadLocalHistorySafe(): LocalHistoryLoadResult {
+  if (!canUseLocalStorage()) {
+    return {
+      entries: [],
+      error: "El historial no está disponible en este entorno.",
+    };
+  }
   try {
     const raw = localStorage.getItem(LOCAL_HISTORY_KEY);
-    if (!raw) return [];
+    if (!raw) return { entries: [], error: null };
     const parsed = JSON.parse(raw) as LocalHistoryEntry[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) {
+      return {
+        entries: [],
+        error: "El historial guardado está dañado.",
+      };
+    }
+    return { entries: parsed, error: null };
   } catch {
-    return [];
+    return {
+      entries: [],
+      error: "No se pudo leer el historial guardado.",
+    };
   }
 }
 

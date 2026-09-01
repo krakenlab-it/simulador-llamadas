@@ -3,12 +3,15 @@
 import type { EndSessionResponse, TurnSummary } from "@/lib/api/client";
 import { computeLocalTrend } from "@/lib/history/local";
 
+import { PendingButton } from "@/components/ui/PendingButton";
+
 interface EvaluationScreenProps {
   result: EndSessionResponse;
   turns: TurnSummary[];
   clientName: string;
   scenarioSlug: string;
   totalRounds: number;
+  repeating?: boolean;
   onRepeat: () => void;
   onOtherClient: () => void;
 }
@@ -19,6 +22,7 @@ export function EvaluationScreen({
   clientName,
   scenarioSlug,
   totalRounds,
+  repeating = false,
   onRepeat,
   onOtherClient,
 }: EvaluationScreenProps) {
@@ -102,10 +106,16 @@ export function EvaluationScreen({
       )}
 
       <div className="controls">
-        <button type="button" className="primary" onClick={onRepeat}>
+        <PendingButton
+          variant="primary"
+          pending={repeating}
+          pendingLabel="Marcando…"
+          onClick={onRepeat}
+          disabled={repeating}
+        >
           Repetir con {clientName}
-        </button>
-        <button type="button" onClick={onOtherClient}>
+        </PendingButton>
+        <button type="button" onClick={onOtherClient} disabled={repeating}>
           Otro escenario
         </button>
       </div>

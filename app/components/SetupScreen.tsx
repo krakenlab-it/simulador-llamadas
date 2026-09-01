@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import type { ClientPersona } from "@/lib/clients";
 import { CLIENTS } from "@/lib/clients";
 import { listScenarios } from "@/lib/api/client";
-import { loadLocalHistory, type LocalHistoryEntry } from "@/lib/history/local";
+import {
+  loadLocalHistorySafe,
+  type LocalHistoryEntry,
+} from "@/lib/history/local";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
@@ -12,6 +15,10 @@ import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { VoiceAuthGate } from "@/app/components/VoiceAuthGate";
 import { registerVerifiedVoiceUser } from "@/lib/auth/voice-session";
 import { useAuth } from "@/lib/auth/context";
+import { PendingButton } from "@/components/ui/PendingButton";
+import { ScenarioCardSkeleton } from "@/components/ui/Skeleton";
+import { Spinner } from "@/components/ui/Spinner";
+import { useToast } from "@/components/ui/Toast";
 
 export interface SetupConfig {
   scenarioSlug: string;
@@ -40,13 +47,18 @@ export function SetupScreen({
   refreshKey = 0,
   selectedSlugOnLoad = null,
 }: SetupScreenProps) {
+  const { showToast } = useToast();
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
+  const [scenariosLoading, setScenariosLoading] = useState(true);
+  const [scenariosError, setScenariosError] = useState<string | null>(null);
   const [mode, setMode] = useState<PracticeMode>("voz");
   const [level, setLevel] = useState<DifficultyLevel>(1);
   const [micTested, setMicTested] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<LocalHistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   const [voiceAuthSkipped, setVoiceAuthSkipped] = useState(false);
@@ -70,8 +82,28 @@ export function SetupScreen({
   }, [session, verifiedUserId]);
 
   useEffect(() => {
-    void listScenarios().then(setScenarios);
-  }, [refreshKey]);
+    let cancelled = false;
+    setScenariosLoading(true);
+    setScenariosError(null);
+
+    void listScenarios()
+      .then((data) => {
+        if (!cancelled) setScenarios(data);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setScenariosError("No se pudieron cargar los escenarios.");
+          showToast("No se pudieron cargar los escenarios.", "error");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setScenariosLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey, showToast]);
 
   useEffect(() => {
     if (selectedSlugOnLoad) {
@@ -124,6 +156,7 @@ export function SetupScreen({
 
   const canCall =
     selected !== null &&
+    !scenariosLoading &&
     (mode === "texto" ||
       (speech.supported && micTested && (!needsVoiceAuth || verifiedUserId)));
 
@@ -147,8 +180,17 @@ export function SetupScreen({
       setShowHistory(false);
       return;
     }
-    setHistory(loadLocalHistory());
-    setShowHistory(true);
+
+    setHistoryLoading(true);
+    setHistoryError(null);
+
+    window.setTimeout(() => {
+      const result = loadLocalHistorySafe();
+      setHistory(result.entries);
+      setHistoryError(result.error);
+      setHistoryLoading(false);
+      setShowHistory(true);
+    }, 120);
   };
 
   const renderCard = (scenario: ScenarioRecord, isClinic: boolean) => (
@@ -198,11 +240,20 @@ export function SetupScreen({
       </p>
 
       <h3 className="section-label">Clínica de Citas (preset)</h3>
-      <div className="grid cols-3">
-        {displayPresets.map((s) => renderCard(s, true))}
+      {scenariosError && (
+        <p className="note warn" role="alert">
+          {scenariosError}
+        </p>
+      )}
+      <div className="grid cols-3" aria-busy={scenariosLoading || undefined}>
+        {scenariosLoading
+          ? Array.from({ length: 3 }, (_, i) => (
+              <ScenarioCardSkeleton key={`skeleton-${i}`} />
+            ))
+          : displayPresets.map((s) => renderCard(s, true))}
       </div>
 
-      {custom.length > 0 && (
+      {!scenariosLoading && custom.length > 0 && (
         <>
           <h3 className="section-label">Mis escenarios</h3>
           <div className="grid cols-3">
@@ -212,7 +263,11 @@ export function SetupScreen({
       )}
 
       <div className="controls builder-cta">
-        <button type="button" onClick={onCreateScenario}>
+        <button
+          type="button"
+          onClick={onCreateScenario}
+          disabled={scenariosLoading}
+        >
           + Crear escenario personalizado
         </button>
       </div>
@@ -228,6 +283,7 @@ export function SetupScreen({
             setMode("voz");
             setMicTested(false);
           }}
+          disabled={scenariosLoading}
         >
           Voz
         </button>
@@ -235,6 +291,7 @@ export function SetupScreen({
           type="button"
           className={mode === "texto" ? "active" : ""}
           onClick={() => setMode("texto")}
+          disabled={scenariosLoading}
         >
           Texto
         </button>
@@ -250,6 +307,7 @@ export function SetupScreen({
             type="button"
             className={level === n ? "active" : ""}
             onClick={() => setLevel(n)}
+            disabled={scenariosLoading}
           >
             {n}
           </button>
@@ -277,13 +335,14 @@ export function SetupScreen({
             </p>
           ) : (
             <>
-              <button
-                type="button"
+              <PendingButton
+                pending={speech.listening}
+                pendingLabel="🎤 Escuchando…"
                 onClick={handleMicTest}
-                disabled={speech.listening}
+                disabled={scenariosLoading}
               >
                 {speech.listening ? "🎤 Detener" : "🎤 Probar micrófono"}
-              </button>
+              </PendingButton>
               {speech.transcript && (
                 <p className="mic-result">
                   Escuché: &ldquo;{speech.transcript}&rdquo;
@@ -299,24 +358,39 @@ export function SetupScreen({
       )}
 
       <div className="controls">
-        <button
-          type="button"
-          className="primary"
+        <PendingButton
+          variant="primary"
           disabled={!canCall}
           onClick={handleMarcar}
         >
           Marcar
-        </button>
-        <button type="button" onClick={handleToggleHistory}>
+        </PendingButton>
+        <PendingButton
+          pending={historyLoading}
+          pendingLabel="Cargando historial…"
+          onClick={handleToggleHistory}
+          disabled={scenariosLoading}
+        >
           {showHistory ? "Ocultar historial" : "Ver historial"}
-        </button>
+        </PendingButton>
       </div>
 
       {showHistory && (
-        <div className="history-panel">
+        <div className="history-panel" aria-live="polite">
           <h3 className="section-label">Historial</h3>
-          {history.length === 0 ? (
-            <p className="subtitle">Sin llamadas guardadas.</p>
+          {historyLoading ? (
+            <div className="history-panel-loading loading-inline" role="status">
+              <Spinner size="sm" label="Cargando historial" />
+              <span>Cargando historial…</span>
+            </div>
+          ) : historyError ? (
+            <p className="history-panel-error" role="alert">
+              {historyError}
+            </p>
+          ) : history.length === 0 ? (
+            <p className="history-panel-empty subtitle">
+              Sin llamadas guardadas en este dispositivo.
+            </p>
           ) : (
             history.map((entry) => (
               <div key={entry.callAttemptId} className="history-item">
