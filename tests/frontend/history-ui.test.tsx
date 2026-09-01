@@ -1,120 +1,45 @@
-import "@/tests/frontend/vitest-auth-mocks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { SetupScreen } from "@/app/components/SetupScreen";
-import { ToastProvider } from "@/components/ui/Toast";
-import { marianaScenarioFixture } from "@/tests/frontend/fixtures";
+import { cleanup, render, screen } from "@testing-library/react";
+import { HistoryView } from "@/app/components/history/HistoryView";
 import * as localHistory from "@/lib/history/local";
 
-vi.mock("@/lib/api/client", () => ({
-  listScenarios: vi.fn(),
-}));
-
-vi.mock("@/lib/hooks/useSpeechRecognition", () => ({
-  useSpeechRecognition: () => ({
-    supported: true,
-    listening: false,
-    transcript: "",
-    error: null,
-    startListening: vi.fn(),
-    stopListening: vi.fn(),
-    resetTranscript: vi.fn(),
-    appendToField: (current: string) => current,
-  }),
-}));
-
-import { listScenarios } from "@/lib/api/client";
-
-function renderSetup() {
-  render(
-    <ToastProvider>
-      <SetupScreen onStart={vi.fn()} onCreateScenario={vi.fn()} />
-    </ToastProvider>,
-  );
-}
-
-describe("history panel", () => {
-  beforeEach(() => {
-    vi.mocked(listScenarios).mockResolvedValue([marianaScenarioFixture]);
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-  });
-
+describe("HistoryView", () => {
   afterEach(() => {
     cleanup();
-    vi.useRealTimers();
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
-  it("shows empty state when there is no local history", async () => {
-    vi.spyOn(localHistory, "loadLocalHistorySafe").mockReturnValue({
-      entries: [],
-      error: null,
-    });
-
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    renderSetup();
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Ver historial" })).toBeEnabled();
-    });
-
-    await user.click(screen.getByRole("button", { name: "Ver historial" }));
-    await vi.advanceTimersByTimeAsync(150);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Sin llamadas guardadas en este dispositivo."),
-      ).toBeInTheDocument();
-    });
+  beforeEach(() => {
+    vi.spyOn(localHistory, "loadLocalHistory").mockReturnValue([]);
   });
 
-  it("shows an error message when history cannot be read", async () => {
-    vi.spyOn(localHistory, "loadLocalHistorySafe").mockReturnValue({
-      entries: [],
-      error: "El historial guardado está dañado.",
-    });
+  it("shows empty state when there is no local history", () => {
+    render(<HistoryView />);
 
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    renderSetup();
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Ver historial" })).toBeEnabled();
-    });
-
-    await user.click(screen.getByRole("button", { name: "Ver historial" }));
-    await vi.advanceTimersByTimeAsync(150);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("El historial guardado está dañado."),
-      ).toBeInTheDocument();
-    });
+    expect(screen.getByText("Sin llamadas todavía")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Completa tu primera simulación/i),
+    ).toBeInTheDocument();
   });
 
-  it("shows a loading state while history is being read", async () => {
-    vi.spyOn(localHistory, "loadLocalHistorySafe").mockReturnValue({
-      entries: [],
-      error: null,
-    });
+  it("shows formatted rows when history exists", () => {
+    vi.spyOn(localHistory, "loadLocalHistory").mockReturnValue([
+      {
+        callAttemptId: "ca-1",
+        scenarioSlug: "mariana",
+        clientName: "Mariana Escobedo",
+        difficultyLevel: 1,
+        mode: "texto",
+        won: true,
+        totalScore: 82,
+        turnsCompleted: 5,
+        startedAt: "2026-09-01T10:00:00.000Z",
+      },
+    ]);
 
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    renderSetup();
+    render(<HistoryView />);
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Ver historial" })).toBeEnabled();
-    });
-
-    await user.click(screen.getByRole("button", { name: "Ver historial" }));
-
-    expect(screen.getByText("Cargando historial…")).toBeInTheDocument();
-
-    await vi.advanceTimersByTimeAsync(150);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Sin llamadas guardadas en este dispositivo."),
-      ).toBeInTheDocument();
-    });
+    expect(screen.getByText("Mariana Escobedo")).toBeInTheDocument();
+    expect(screen.getByText(/1 llamada registrada/i)).toBeInTheDocument();
   });
 });

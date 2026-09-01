@@ -1,0 +1,52 @@
+/**
+ * Locked design tokens — shared by app + landing.
+ * Do not duplicate these values elsewhere.
+ */
+:root {
+  /* Core palette */
+  --bg: #0b0f14;
+  --surface: #141a22;
+  --paper: #f4efe6;
+  --ink: #0b0f14;
+  --accent: #e8f07a;
+  --accent-2: #c45c26;
+  --muted: #8b93a1;
+  --line: rgba(244, 239, 230, 0.12);
+
+  /* Semantic */
+  --text: var(--paper);
+  --text-muted: var(--muted);
+  --text-on-accent: var(--ink);
+  --border: var(--line);
+  --focus-ring: var(--accent-2);
+  --success: #6ee7a8;
+  --warn: #f5c26b;
+  --danger: #f07167;
+
+  /* Surfaces */
+  --surface-raised: #1a222c;
+  --surface-sunken: #0e1319;
+  --accent-soft: rgba(232, 240, 122, 0.1);
+  --accent-2-soft: rgba(196, 92, 38, 0.14);
+
+  /* Radius */
+  --radius-sm: 14px;
+  --radius: 22px;
+  --radius-full: 999px;
+
+  /* Motion */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 180ms;
+  --duration: 220ms;
+  --duration-slow: 280ms;
+
+  /* Typography (font variables set in layout.tsx) */
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-body: var(--font-ibm-plex-sans), system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
+
+  /* Elevation */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.24);
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
