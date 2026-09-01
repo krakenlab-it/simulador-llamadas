@@ -13,6 +13,8 @@ import { useVoiceSession } from "@/lib/hooks/useVoiceSession";
 import { useConvaiConnection } from "@/lib/hooks/useConvaiConnection";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { getClientLine, ROUNDS } from "@/lib/simulation/rounds";
+import { PendingButton } from "@/components/ui/PendingButton";
+import { useToast } from "@/components/ui/Toast";
 
 interface DialogueEntry {
   role: "client" | "you";
@@ -29,6 +31,7 @@ interface LiveCallScreenProps {
   level: number;
   totalRounds: number;
   verifiedUserId?: string;
+  ending?: boolean;
   onHangUp: (turns: TurnSummary[]) => void;
 }
 
@@ -42,8 +45,10 @@ export function LiveCallScreen({
   level,
   totalRounds,
   verifiedUserId,
+  ending = false,
   onHangUp,
 }: LiveCallScreenProps) {
+  const { showToast } = useToast();
   const voiceConfig = useVoiceConfig();
   const voiceSession = useVoiceSession(
     verifiedUserId ?? null,
@@ -87,12 +92,18 @@ export function LiveCallScreen({
     },
   });
 
-  const { connect: connectConvai, disconnect: disconnectConvai, interrupt: interruptConvai, connected: convaiConnected } = convai;
+  const {
+    connect: connectConvai,
+    disconnect: disconnectConvai,
+    interrupt: interruptConvai,
+    connected: convaiConnected,
+  } = convai;
 
   const speech = useSpeechRecognition({ sessionUsageId });
   const synthesis = useSpeechSynthesis({ sessionUsageId });
 
   const roundMeta = isPreset ? ROUNDS[round - 1] : null;
+  const busy = submitting || ending;
 
   useEffect(() => {
     const opening =
@@ -128,14 +139,17 @@ export function LiveCallScreen({
   ]);
 
   useEffect(() => {
-    dialogueRef.current?.scrollTo({
-      top: dialogueRef.current.scrollHeight,
-      behavior: "smooth",
-    });
+    const el = dialogueRef.current;
+    if (!el) return;
+    if (typeof el.scrollTo === "function") {
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
   }, [dialogue, turnEval]);
 
   const handleMic = () => {
-    if (mode !== "voz" || !speech.supported) return;
+    if (mode !== "voz" || !speech.supported || busy) return;
     if (speech.listening) {
       speech.stopListening();
       return;
@@ -201,6 +215,12 @@ export function LiveCallScreen({
           }
         }, 1800);
       }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo enviar el turno.";
+      showToast(message, "error");
     } finally {
       setSubmitting(false);
     }
@@ -211,7 +231,7 @@ export function LiveCallScreen({
 
   return (
     <section className="screen active" aria-label="Llamada en vivo">
-      <div className="call-panel">
+      <div className={`call-panel ${submitting ? "submitting" : ""}`}>
         <div className="round-label">
           Ronda {round}/{totalRounds} · {displayRoundLabel}
         </div>
@@ -237,32 +257,37 @@ export function LiveCallScreen({
               : "Escribe tu respuesta…"
           }
           aria-label="Tu respuesta"
+          disabled={busy}
         />
 
         <div className="controls">
           {mode === "voz" && (
-            <button
-              type="button"
+            <PendingButton
+              pending={speech.listening}
+              pendingLabel="🎤 Escuchando…"
               onClick={handleMic}
-              disabled={speech.listening || !speech.supported}
+              disabled={!speech.supported || busy}
             >
               {speech.listening ? "🎤 Detener" : "🎤 Escuchar"}
-            </button>
+            </PendingButton>
           )}
-          <button
-            type="button"
-            className="primary"
+          <PendingButton
+            variant="primary"
+            pending={submitting}
+            pendingLabel="Enviando turno…"
             onClick={() => void handleSubmitTurn()}
-            disabled={!utterance.trim() || submitting}
+            disabled={!utterance.trim() || busy}
           >
             Enviar turno
-          </button>
-          <button
-            type="button"
+          </PendingButton>
+          <PendingButton
+            pending={ending}
+            pendingLabel="Evaluando…"
             onClick={() => onHangUp([...turnHistory.current])}
+            disabled={busy}
           >
             Colgar y evaluar
-          </button>
+          </PendingButton>
         </div>
 
         {speech.error && <p className="note warn">{speech.error}</p>}
@@ -281,12 +306,14 @@ export function LiveCallScreen({
         )}
 
         {convaiConnected && mode === "voz" && (
-          <p className="note">ConvAI conectado · barge-in activo al usar el micrófono.</p>
+          <p className="note">
+            ConvAI conectado · barge-in activo al usar el micrófono.
+          </p>
         )}
 
         {turnEval && (
           <div
-            className={`eval rich ${turnEval.roundScore >= 50 ? "good" : "bad"}`}
+            className={`eval rich eval-enter ${turnEval.roundScore >= 50 ? "good" : "bad"}`}
           >
             <strong>
               {turnEval.richFeedback.roundLabel}: {turnEval.roundScore}/100

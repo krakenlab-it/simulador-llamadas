@@ -4,6 +4,7 @@ import {
   clearLocalHistory,
   computeLocalTrend,
   loadLocalHistory,
+  loadLocalHistorySafe,
   type LocalHistoryEntry,
 } from "@/lib/history/local";
 
@@ -45,6 +46,15 @@ describe("local history (no-auth demo)", () => {
 
   it("starts empty", () => {
     expect(loadLocalHistory()).toEqual([]);
+    expect(loadLocalHistorySafe()).toEqual({ entries: [], error: null });
+  });
+
+  it("reports corrupted history payloads", () => {
+    localStorage.setItem("simulador:localHistory", '{"not":"an array"}');
+    expect(loadLocalHistorySafe()).toEqual({
+      entries: [],
+      error: "El historial guardado está dañado.",
+    });
   });
 
   it("appends and dedupes by callAttemptId", () => {
