@@ -22,6 +22,17 @@ const STT_LANGUAGE = "es-MX";
 const TTS_OUTPUT_FORMAT = "mp3_44100_128";
 export const CONVAI_AGENT_KEY = "simulador-patient";
 
+/**
+ * Premade voice for free-plan TTS when ELEVENLABS_VOICE_ID points at a Voice
+ * Library id. Documented in ElevenLabs text-to-speech skill and API reference
+ * (category premade, free_users_allowed). Default voices expire 2026-12-31.
+ * @see https://elevenlabs.io/docs/overview/capabilities/voices
+ */
+export const ELEVENLABS_DEFAULT_PREMADE_VOICE = {
+  id: "EXAVITQu4vr4xnSDxMaL",
+  name: "Sarah",
+} as const;
+
 export const CONVAI_CLIENT_EVENTS = [
   "user_transcript",
   "tentative_user_transcript",
@@ -67,7 +78,10 @@ export type ElevenLabsTtsOutcome =
  * exhausted credit balance or a voice that does not exist, so stop and let the
  * reason reach the logs instead of doubling the latency of a doomed turn.
  */
-const TERMINAL_HTTP_STATUSES = new Set([401, 402, 403, 404, 429]);
+const TERMINAL_HTTP_STATUSES = new Set([401, 403, 404, 429]);
+
+/** HTTP 402 is retried on a documented premade voice before giving up. */
+const PREMADE_FALLBACK_HTTP_STATUS = 402;
 
 /** MP3 payloads open with an ID3 tag or an MPEG frame sync (11 set bits). */
 function looksLikeMpeg(bytes: Uint8Array): boolean {
@@ -181,10 +195,45 @@ async function requestElevenLabsSpeech(
 
 function shouldRetryOtherEndpoint(failure: ProviderFailure): boolean {
   if (failure.reason === "elevenlabs_timeout") return false;
+  if (failure.status === PREMADE_FALLBACK_HTTP_STATUS) return false;
   if (failure.status !== undefined) {
     return !TERMINAL_HTTP_STATUSES.has(failure.status);
   }
   return true;
+}
+
+function resolvePremadeVoice(): { id: string; name: string } {
+  const override = process.env.ELEVENLABS_PREMADE_VOICE_ID?.trim();
+  if (override) {
+    return { id: override, name: "ELEVENLABS_PREMADE_VOICE_ID" };
+  }
+  return ELEVENLABS_DEFAULT_PREMADE_VOICE;
+}
+
+/** Free-plan library-voice rejection (prod: paid_plan_required on Voice Library ids). */
+export function isLibraryVoicePlanBlock(failure: ProviderFailure): boolean {
+  if (
+    failure.reason !== "elevenlabs_http_error" ||
+    failure.status !== PREMADE_FALLBACK_HTTP_STATUS
+  ) {
+    return false;
+  }
+  const detail = (failure.detail ?? "").toLowerCase();
+  if (!detail) return true;
+  return (
+    detail.includes("paid_plan_required") ||
+    detail.includes("library") ||
+    detail.includes("free users cannot")
+  );
+}
+
+function shouldRetryWithPremadeVoice(
+  failure: ProviderFailure,
+  configuredVoiceId: string,
+  premadeVoiceId: string,
+): boolean {
+  if (configuredVoiceId === premadeVoiceId) return false;
+  return isLibraryVoicePlanBlock(failure);
 }
 
 export async function synthesizeWithElevenLabs(
@@ -205,6 +254,7 @@ export async function synthesizeWithElevenLabs(
   const normalized = applyPronunciationHints(text);
   const deadline = Date.now() + TTS_PROVIDER_TIMEOUT_MS;
   const failures: ProviderFailure[] = [];
+  const premadeVoice = resolvePremadeVoice();
 
   // The route buffers the whole file before responding, so the streaming
   // endpoint buys nothing here; the canonical convert endpoint returns a
@@ -223,6 +273,34 @@ export async function synthesizeWithElevenLabs(
   failures.push(first.failure);
 
   const remaining = deadline - Date.now();
+
+  if (
+    shouldRetryWithPremadeVoice(first.failure, voiceId, premadeVoice.id) &&
+    remaining >= TTS_PROVIDER_RETRY_FLOOR_MS
+  ) {
+    console.warn("voice.tts.elevenlabs_premade_fallback", {
+      status: PREMADE_FALLBACK_HTTP_STATUS,
+      configuredVoiceId: voiceId,
+      premadeVoiceId: premadeVoice.id,
+      premadeVoiceName: premadeVoice.name,
+      detail: redactSecrets(first.failure.detail ?? ""),
+    });
+
+    const premade = await requestElevenLabsSpeech(
+      "convert",
+      apiKey,
+      premadeVoice.id,
+      normalized,
+      true,
+      remaining,
+    );
+    if (premade.ok) {
+      return { ok: true, value: premade.value, endpoint: "convert", failures };
+    }
+    failures.push(premade.failure);
+    return { ok: false, failures };
+  }
+
   if (
     !shouldRetryOtherEndpoint(first.failure) ||
     remaining < TTS_PROVIDER_RETRY_FLOOR_MS

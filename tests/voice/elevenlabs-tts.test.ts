@@ -93,7 +93,6 @@ describe("synthesizeWithElevenLabs", () => {
 
   it.each([
     [401, "authentication_error"],
-    [402, "payment_required"],
     [403, "authorization_error"],
     [404, "voice_not_found"],
     [429, "rate_limit_error"],
@@ -119,6 +118,88 @@ describe("synthesizeWithElevenLabs", () => {
       ]);
     },
   );
+
+  it("retries on a documented premade voice after a library-voice 402", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const library402 =
+      '{"detail":{"status":"paid_plan_required","message":"Free users cannot use library voices via the API."}}';
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(errorResponse(402, library402))
+      .mockResolvedValueOnce(audioResponse());
+
+    const { synthesizeWithElevenLabs, ELEVENLABS_DEFAULT_PREMADE_VOICE } =
+      await loadProvider();
+    const result = await synthesizeWithElevenLabs("Hola, soy Mariana.");
+
+    expect(result.ok).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(calledUrls()[1]).toContain(ELEVENLABS_DEFAULT_PREMADE_VOICE.id);
+    expect(calledBody(1)).toEqual({
+      text: "Hola, soy Mariana.",
+      model_id: "eleven_flash_v2_5",
+      language_code: "es",
+    });
+    expect(warnSpy).toHaveBeenCalledWith(
+      "voice.tts.elevenlabs_premade_fallback",
+      expect.objectContaining({
+        status: 402,
+        configuredVoiceId: "voice-123",
+        premadeVoiceId: ELEVENLABS_DEFAULT_PREMADE_VOICE.id,
+        premadeVoiceName: ELEVENLABS_DEFAULT_PREMADE_VOICE.name,
+      }),
+    );
+    if (result.ok) {
+      expect(result.failures).toHaveLength(1);
+      expect(result.failures[0].status).toBe(402);
+    }
+    warnSpy.mockRestore();
+  });
+
+  it("uses ELEVENLABS_PREMADE_VOICE_ID when the library voice is blocked", async () => {
+    vi.stubEnv("ELEVENLABS_PREMADE_VOICE_ID", "premade-override");
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        errorResponse(
+          402,
+          '{"detail":{"status":"paid_plan_required","message":"library voice"}}',
+        ),
+      )
+      .mockResolvedValueOnce(audioResponse());
+
+    const { synthesizeWithElevenLabs } = await loadProvider();
+    const result = await synthesizeWithElevenLabs("Hola");
+
+    expect(result.ok).toBe(true);
+    expect(calledUrls()[1]).toContain("premade-override");
+  });
+
+  it("does not retry a different voice after a non-library 402", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      errorResponse(402, '{"detail":{"status":"quota_exceeded"}}'),
+    );
+    const { synthesizeWithElevenLabs } = await loadProvider();
+
+    const result = await synthesizeWithElevenLabs("Hola");
+
+    expect(result.ok).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry premade when the configured voice is already premade", async () => {
+    vi.stubEnv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL");
+    vi.mocked(fetch).mockResolvedValue(
+      errorResponse(
+        402,
+        '{"detail":{"status":"paid_plan_required","message":"library voice"}}',
+      ),
+    );
+    const { synthesizeWithElevenLabs } = await loadProvider();
+
+    const result = await synthesizeWithElevenLabs("Hola");
+
+    expect(result.ok).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
 
   it("retries on the stream endpoint without language_code after a 422", async () => {
     vi.mocked(fetch)

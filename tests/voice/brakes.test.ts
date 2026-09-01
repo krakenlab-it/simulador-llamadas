@@ -25,7 +25,7 @@ describe("KLM-45 spend brakes — locked constants", () => {
     expect(SESSION_CONVAI_WARN_REMAINING_SECONDS).toBe(30);
     expect(SESSION_MAX_ROUNDS).toBe(5);
     expect(SESSION_MAX_TURN_ALLOCATIONS).toBeGreaterThan(SESSION_MAX_ROUNDS);
-    expect(SESSION_EXTRA_TTS_MAX_CHARS).toBe(2500);
+    expect(SESSION_EXTRA_TTS_MAX_CHARS).toBe(800);
     expect(DAILY_BILLED_SESSIONS_PER_USER).toBe(1);
     expect(GLOBAL_MAX_CONCURRENT_CONVAI).toBe(2);
     expect(GLOBAL_MONTHLY_CONVAI_MINUTES).toBe(300);

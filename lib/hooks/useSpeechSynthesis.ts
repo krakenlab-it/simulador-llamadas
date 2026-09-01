@@ -18,6 +18,7 @@ import {
   TTS_FETCH_TIMEOUT_MS,
   TTS_PLAY_TIMEOUT_MS,
 } from "@/lib/voice/timeouts";
+import { isSpeakableTtsText } from "@/lib/voice/tts-budget";
 
 export interface UseSpeechSynthesisOptions {
   sessionUsageId?: string | null;
@@ -83,6 +84,13 @@ export function useSpeechSynthesis(
   const pendingTextRef = useRef<string | null>(null);
   const fetchAbortRef = useRef<AbortController | null>(null);
   const stopBrowserSpeechRef = useRef<(() => void) | null>(null);
+  /** Reuse the last billed blob so a replay does not spend quota twice. */
+  const billedAudioCacheRef = useRef<Map<string, Blob>>(new Map());
+
+  const billedTtsCacheKey = useCallback(
+    (line: string) => `${sessionUsageId ?? ""}::${line}`,
+    [sessionUsageId],
+  );
 
   const useServerTts =
     voiceConfig.serverTts &&
@@ -165,6 +173,28 @@ export function useSpeechSynthesis(
     async (text: string, generation: number) => {
       setSpeaking(true);
 
+      const cacheKey = billedTtsCacheKey(text);
+      const cached = billedAudioCacheRef.current.get(cacheKey);
+      if (cached) {
+        const supersededEarly = () => generation !== generationRef.current;
+        const url =
+          typeof URL.createObjectURL === "function"
+            ? URL.createObjectURL(cached)
+            : "blob:tts";
+        objectUrlRef.current = url;
+        try {
+          await playSharedAudio(url);
+          if (!supersededEarly()) {
+            await waitForSharedAudioEnd(TTS_PLAY_TIMEOUT_MS);
+          }
+        } catch {
+          if (!supersededEarly()) speakBrowser(text, generation);
+        }
+        revokeObjectUrl();
+        if (!supersededEarly()) clearSpeaking();
+        return;
+      }
+
       fetchAbortRef.current?.abort();
       const controller = new AbortController();
       fetchAbortRef.current = controller;
@@ -204,6 +234,12 @@ export function useSpeechSynthesis(
         return;
       }
 
+      billedAudioCacheRef.current.set(cacheKey, blob);
+      if (billedAudioCacheRef.current.size > 4) {
+        const oldest = billedAudioCacheRef.current.keys().next().value;
+        if (oldest) billedAudioCacheRef.current.delete(oldest);
+      }
+
       const url =
         typeof URL.createObjectURL === "function"
           ? URL.createObjectURL(blob)
@@ -229,12 +265,12 @@ export function useSpeechSynthesis(
       }
       clearSpeaking();
     },
-    [clearSpeaking, revokeObjectUrl, sessionUsageId, speakBrowser],
+    [billedTtsCacheKey, clearSpeaking, revokeObjectUrl, sessionUsageId, speakBrowser],
   );
 
   const speak = useCallback(
     (text: string) => {
-      if (!text.trim()) return;
+      if (!isSpeakableTtsText(text)) return;
 
       if (!isClientPlaybackUnlocked()) {
         pendingTextRef.current = text;
