@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LiveCallScreen } from "@/app/components/call/LiveCallScreen";
 import { ToastProvider } from "@/components/ui/Toast";
 import type { TurnResponse } from "@/lib/api/stubs";
+import { AUTOSUBMIT_SILENCE_MS } from "@/lib/voice/timeouts";
 
 const speak = vi.fn();
 const cancel = vi.fn();
@@ -157,6 +158,7 @@ describe("live call voice path without ConvAI", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
     vi.clearAllMocks();
   });
@@ -244,22 +246,31 @@ describe("live call voice path without ConvAI", () => {
     expect(retryCall[1].clientTurnId).toBe(firstCall[1].clientTurnId);
   });
 
-  it("autosubmits when recognition ends with a transcript and does not double-post", async () => {
-    const user = userEvent.setup();
+  it("autosubmits after end-of-speech silence and does not double-post", async () => {
+    vi.useFakeTimers();
     const view = renderCall();
 
-    await user.click(screen.getByRole("button", { name: "Micrófono" }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Micrófono" }));
+    });
     speechState.listening = true;
-    view.rerender(callScreen());
-    expect(screen.getByRole("button", { name: "Escuchando…" })).toBeInTheDocument();
+    await act(async () => {
+      view.rerender(callScreen());
+    });
 
     speechState.transcript = "Hola Mariana, hablo de KrakenLab.";
     speechState.listening = false;
-    view.rerender(callScreen());
-
-    await waitFor(() => {
-      expect(submitTurn).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      view.rerender(callScreen());
     });
+
+    expect(submitTurn).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(AUTOSUBMIT_SILENCE_MS);
+    });
+
+    expect(submitTurn).toHaveBeenCalledTimes(1);
     expect(vi.mocked(submitTurn).mock.calls[0][1]).toEqual(
       expect.objectContaining({
         utterance: "Hola Mariana, hablo de KrakenLab.",
@@ -267,8 +278,11 @@ describe("live call voice path without ConvAI", () => {
       }),
     );
 
-    view.rerender(callScreen());
+    await act(async () => {
+      view.rerender(callScreen());
+    });
     expect(submitTurn).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 
   it("does not show Escuchando when recognition is not listening", async () => {

@@ -1,4 +1,9 @@
 import { applyPronunciationHints } from "@/lib/voice/pronunciation";
+import {
+  providerSkipped,
+  readResponseDetail,
+  type ProviderOutcome,
+} from "@/lib/voice/provider-result";
 
 const MODEL = "gemini-2.5-flash-preview-tts";
 const VOICE = "Kore";
@@ -7,9 +12,11 @@ const LANGUAGE = "es-US";
 /** Gemini API-key TTS (Kore voice, es-US). */
 export async function synthesizeWithGeminiFlash(
   text: string,
-): Promise<Buffer | null> {
+): Promise<ProviderOutcome<Buffer>> {
   const apiKey = process.env.GOOGLE_API_KEY?.trim();
-  if (!apiKey) return null;
+  if (!apiKey) {
+    return providerSkipped("missing_GOOGLE_API_KEY");
+  }
 
   const normalized = applyPronunciationHints(text);
 
@@ -41,7 +48,14 @@ export async function synthesizeWithGeminiFlash(
       },
     );
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      return {
+        ok: false,
+        reason: "google_gemini_http_error",
+        status: response.status,
+        detail: await readResponseDetail(response),
+      };
+    }
 
     const data = (await response.json()) as {
       candidates?: {
@@ -54,11 +68,17 @@ export async function synthesizeWithGeminiFlash(
     const inline =
       data.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data)
         ?.inlineData;
-    if (!inline?.data) return null;
+    if (!inline?.data) {
+      return { ok: false, reason: "google_gemini_empty_audio" };
+    }
 
-    return Buffer.from(inline.data, "base64");
-  } catch {
-    return null;
+    return { ok: true, value: Buffer.from(inline.data, "base64") };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "google_gemini_exception",
+      detail: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 

@@ -10,7 +10,13 @@ import {
   isClientPlaybackUnlocked,
   onClientPlaybackUnlocked,
   playSharedAudio,
+  waitForSharedAudioEnd,
 } from "@/lib/voice/client-playback";
+import {
+  SPEAKING_WATCHDOG_MS,
+  TTS_FETCH_TIMEOUT_MS,
+  TTS_PLAY_TIMEOUT_MS,
+} from "@/lib/voice/timeouts";
 
 export interface UseSpeechSynthesisOptions {
   sessionUsageId?: string | null;
@@ -25,13 +31,21 @@ export interface UseSpeechSynthesisResult {
 }
 
 const BROWSER_SPEAK_DELAY_MS = 60;
-/** Safety valve when play()/speechSynthesis never fires onend (would block STT). */
-const SPEAKING_WATCHDOG_MS = 45_000;
+const BROWSER_SPEAK_TIMEOUT_MS = 30_000;
+
+const FALLBACK_HTTP_STATUSES = new Set([429, 502, 503]);
+
+type FetchServerAudioResult = {
+  blob: Blob | null;
+  fallback: boolean;
+  status?: number;
+};
 
 async function fetchServerAudio(
   text: string,
-  sessionUsageId?: string | null,
-): Promise<{ blob: Blob | null; fallback: boolean }> {
+  sessionUsageId: string | null | undefined,
+  signal: AbortSignal,
+): Promise<FetchServerAudioResult> {
   const authHeaders = await getVoiceAuthHeaders();
   const headers: Record<string, string> = {
     ...authHeaders,
@@ -43,15 +57,27 @@ async function fetchServerAudio(
     method: "POST",
     headers,
     body: JSON.stringify({ text, sessionUsageId }),
+    signal,
   });
-  if (response.status === 429) return { blob: null, fallback: true };
-  if (!response.ok) return { blob: null, fallback: true };
+
+  if (FALLBACK_HTTP_STATUSES.has(response.status)) {
+    return { blob: null, fallback: true, status: response.status };
+  }
+  if (!response.ok) {
+    return { blob: null, fallback: true, status: response.status };
+  }
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.startsWith("audio/")) return { blob: null, fallback: true };
-  return { blob: await response.blob(), fallback: false };
+  if (!contentType.startsWith("audio/")) {
+    return { blob: null, fallback: true, status: response.status };
+  }
+  return { blob: await response.blob(), fallback: false, status: response.status };
 }
 
-function speakWithBrowserSynthesis(text: string, onEnd: () => void): void {
+function speakWithBrowserSynthesis(
+  text: string,
+  onEnd: () => void,
+  timeoutMs = BROWSER_SPEAK_TIMEOUT_MS,
+): void {
   if (!isSpeechSynthesisSupported()) {
     onEnd();
     return;
@@ -61,14 +87,24 @@ function speakWithBrowserSynthesis(text: string, onEnd: () => void): void {
   synth.cancel();
   synth.resume();
 
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    window.clearTimeout(timeout);
+    onEnd();
+  };
+
+  const timeout = window.setTimeout(finish, timeoutMs);
+
   let started = false;
   const start = () => {
-    if (started) return;
+    if (started || finished) return;
     started = true;
     const utterance = new SpeechSynthesisUtterance(text);
     applySpanishVoice(utterance);
-    utterance.onend = onEnd;
-    utterance.onerror = onEnd;
+    utterance.onend = finish;
+    utterance.onerror = finish;
     synth.resume();
     synth.speak(utterance);
   };
@@ -91,6 +127,7 @@ export function useSpeechSynthesis(
   const generationRef = useRef(0);
   const pendingTextRef = useRef<string | null>(null);
   const cancelledRef = useRef(false);
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
   const useServerTts =
     voiceConfig.serverTts &&
@@ -115,10 +152,16 @@ export function useSpeechSynthesis(
     }
   }, []);
 
+  const clearSpeaking = useCallback(() => {
+    setSpeaking(false);
+  }, []);
+
   const cancel = useCallback(() => {
     cancelledRef.current = true;
     generationRef.current += 1;
     pendingTextRef.current = null;
+    fetchAbortRef.current?.abort();
+    fetchAbortRef.current = null;
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
@@ -130,18 +173,18 @@ export function useSpeechSynthesis(
   }, [revokeObjectUrl]);
 
   const speakBrowser = useCallback(
-    (text: string) => {
+    (text: string, generation: number) => {
       if (!isSpeechSynthesisSupported()) {
-        setSpeaking(false);
+        if (generation === generationRef.current) clearSpeaking();
         return;
       }
-      cancelledRef.current = false;
       setSpeaking(true);
       speakWithBrowserSynthesis(text, () => {
-        if (!cancelledRef.current) setSpeaking(false);
+        if (generation !== generationRef.current || cancelledRef.current) return;
+        clearSpeaking();
       });
     },
-    [],
+    [clearSpeaking],
   );
 
   const speakServer = useCallback(
@@ -150,11 +193,41 @@ export function useSpeechSynthesis(
       const generation = generationRef.current;
       setSpeaking(true);
 
-      const { blob, fallback } = await fetchServerAudio(text, sessionUsageId);
-      if (generation !== generationRef.current || cancelledRef.current) return;
+      fetchAbortRef.current?.abort();
+      const controller = new AbortController();
+      fetchAbortRef.current = controller;
+      const timeoutId = window.setTimeout(
+        () => controller.abort(),
+        TTS_FETCH_TIMEOUT_MS,
+      );
+
+      let blob: Blob | null = null;
+      let fallback = true;
+
+      try {
+        const result = await fetchServerAudio(
+          text,
+          sessionUsageId,
+          controller.signal,
+        );
+        blob = result.blob;
+        fallback = result.fallback;
+      } catch {
+        fallback = true;
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (fetchAbortRef.current === controller) {
+          fetchAbortRef.current = null;
+        }
+      }
+
+      if (generation !== generationRef.current || cancelledRef.current) {
+        clearSpeaking();
+        return;
+      }
 
       if (!blob || fallback) {
-        speakBrowser(text);
+        speakBrowser(text, generation);
         return;
       }
 
@@ -164,41 +237,27 @@ export function useSpeechSynthesis(
           : "blob:tts";
       objectUrlRef.current = url;
 
-      const play = async () => {
+      try {
+        await playSharedAudio(url);
         if (generation !== generationRef.current || cancelledRef.current) return;
-        try {
-          await playSharedAudio(url);
-        } catch {
-          if (generation !== generationRef.current || cancelledRef.current) return;
-          if (!isClientPlaybackUnlocked()) {
-            pendingTextRef.current = text;
-            return;
-          }
-          speakBrowser(text);
+        await waitForSharedAudioEnd(TTS_PLAY_TIMEOUT_MS);
+      } catch {
+        if (generation !== generationRef.current || cancelledRef.current) return;
+        if (!isClientPlaybackUnlocked()) {
+          pendingTextRef.current = text;
+          return;
         }
-      };
-
-      const audio = getSharedCallAudio();
-      if (audio) {
-        audio.onplay = () => {
-          if (generation === generationRef.current) setSpeaking(true);
-        };
-        audio.onended = () => {
-          if (generation !== generationRef.current) return;
-          setSpeaking(false);
-          revokeObjectUrl();
-        };
-        audio.onerror = () => {
-          if (generation !== generationRef.current || cancelledRef.current) return;
-          setSpeaking(false);
-          revokeObjectUrl();
-          speakBrowser(text);
-        };
+        speakBrowser(text, generation);
+        return;
+      } finally {
+        revokeObjectUrl();
       }
 
-      await play();
+      if (generation === generationRef.current && !cancelledRef.current) {
+        clearSpeaking();
+      }
     },
-    [revokeObjectUrl, sessionUsageId, speakBrowser],
+    [clearSpeaking, revokeObjectUrl, sessionUsageId, speakBrowser],
   );
 
   const speak = useCallback(
@@ -216,7 +275,8 @@ export function useSpeechSynthesis(
         void speakServer(text);
         return;
       }
-      speakBrowser(text);
+      const generation = generationRef.current;
+      speakBrowser(text, generation);
     },
     [useServerTts, speakServer, speakBrowser],
   );
@@ -230,7 +290,7 @@ export function useSpeechSynthesis(
         void speakServer(pending);
         return;
       }
-      speakBrowser(pending);
+      speakBrowser(pending, generationRef.current);
     });
   }, [useServerTts, speakServer, speakBrowser]);
 
@@ -239,10 +299,16 @@ export function useSpeechSynthesis(
   useEffect(() => {
     if (!speaking) return;
     const timer = window.setTimeout(() => {
-      setSpeaking(false);
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      const audio = getSharedCallAudio();
+      audio?.pause();
+      if (audio) audio.currentTime = 0;
+      clearSpeaking();
     }, SPEAKING_WATCHDOG_MS);
     return () => window.clearTimeout(timer);
-  }, [speaking]);
+  }, [speaking, clearSpeaking]);
 
   return {
     supported,

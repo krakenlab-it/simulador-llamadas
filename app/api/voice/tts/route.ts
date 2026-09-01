@@ -84,13 +84,19 @@ export async function POST(request: Request) {
     }
   }
 
-  const result = await synthesizeSpeech(text);
-  if (!result) {
+  const synthesis = await synthesizeSpeech(text);
+  if (!synthesis.result) {
     return NextResponse.json(
-      { error: "Synthesis failed.", fallbackToBrowser: true },
+      {
+        error: "Synthesis failed.",
+        fallbackToBrowser: true,
+        attempts: synthesis.failures,
+      },
       { status: 502 },
     );
   }
+
+  const result = synthesis.result;
 
   if (
     isElevenLabsTier(result.tier) &&
