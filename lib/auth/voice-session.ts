@@ -61,24 +61,65 @@ export async function endBilledVoiceSession(sessionUsageId: string): Promise<voi
   });
 }
 
-export async function startConvaiSession(input: {
-  sessionUsageId: string;
-  clientName: string;
-  scenarioContext: string;
-}): Promise<{ signedUrl?: string; fallbackToBrowser?: boolean; reason?: string }> {
+export interface ConvaiSessionResult {
+  signedUrl?: string;
+  agentId?: string;
+  fallbackToBrowser?: boolean;
+  reason?: string;
+  detail?: unknown;
+}
+
+export async function startConvaiSession(
+  input: {
+    sessionUsageId: string;
+    clientName: string;
+    scenarioContext: string;
+  },
+  signal?: AbortSignal,
+): Promise<ConvaiSessionResult> {
   const headers = await getVoiceAuthHeaders();
   if (!headers.Authorization) {
     return { fallbackToBrowser: true, reason: "voice_auth_required" };
   }
 
-  const response = await fetch("/api/voice/convai", {
-    method: "POST",
-    headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  return response.json() as Promise<{
-    signedUrl?: string;
-    fallbackToBrowser?: boolean;
-    reason?: string;
-  }>;
+  try {
+    const response = await fetch("/api/voice/convai", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      signal,
+    });
+
+    const data = (await response.json()) as ConvaiSessionResult & {
+      error?: string;
+      detail?: unknown;
+    };
+
+    if (!response.ok) {
+      return {
+        fallbackToBrowser: true,
+        reason: data.error ?? "convai_failed",
+        detail: data.detail,
+      };
+    }
+
+    if (!data.signedUrl) {
+      return {
+        fallbackToBrowser: true,
+        reason: "missing_signed_url",
+        detail: data.detail,
+      };
+    }
+
+    return data;
+  } catch (error) {
+    if (signal?.aborted) {
+      return { fallbackToBrowser: true, reason: "aborted" };
+    }
+    return {
+      fallbackToBrowser: true,
+      reason: "convai_fetch_failed",
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
 }

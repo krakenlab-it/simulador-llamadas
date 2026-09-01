@@ -72,14 +72,23 @@ export async function POST(request: Request) {
   const scenarioContext =
     body.scenarioContext?.trim() || "Estás evaluando una propuesta comercial.";
 
-  const signedUrl = await getConvaiSignedUrl(clientName, scenarioContext);
-  if (!signedUrl) {
+  const result = await getConvaiSignedUrl(clientName, scenarioContext);
+  if (!result.ok) {
     await withPgClient((client) => releaseConvaiSlot(client, sessionUsageId));
+    const status = result.status >= 400 && result.status < 600 ? result.status : 502;
     return NextResponse.json(
-      { error: "Could not obtain ConvAI session.", fallbackToBrowser: true },
-      { status: 502 },
+      {
+        error: "convai_unavailable",
+        detail: result.detail,
+        fallbackToBrowser: true,
+      },
+      { status },
     );
   }
 
-  return NextResponse.json({ signedUrl, sessionUsageId });
+  return NextResponse.json({
+    signedUrl: result.signedUrl,
+    agentId: result.agentId,
+    sessionUsageId,
+  });
 }

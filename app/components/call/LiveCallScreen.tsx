@@ -65,6 +65,7 @@ export function LiveCallScreen({
 
   const dialogueRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [convaiFailed, setConvaiFailed] = useState(false);
   const [round, setRound] = useState(1);
   const [roundLabel, setRoundLabel] = useState("Apertura");
   const [dialogue, setDialogue] = useState<DialogueEntry[]>([]);
@@ -86,7 +87,8 @@ export function LiveCallScreen({
       mode === "voz" &&
       voiceConfig.convaiEnabled &&
       voiceSession.billedActive &&
-      !voiceSession.fallbackToBrowser,
+      !voiceSession.fallbackToBrowser &&
+      !convaiFailed,
     onAgentTranscript: (text) => {
       setDialogue((prev) => {
         const last = prev[prev.length - 1];
@@ -94,13 +96,19 @@ export function LiveCallScreen({
         return [...prev, { role: "client", text }];
       });
     },
+    onUserTranscript: (text) => {
+      setUtterance(text.trim());
+    },
+    onFallback: () => {
+      setConvaiFailed(true);
+    },
   });
 
   const {
-    connect: connectConvai,
     disconnect: disconnectConvai,
     interrupt: interruptConvai,
     connected: convaiConnected,
+    failed: convaiConnectionFailed,
   } = convai;
 
   const speech = useSpeechRecognition({ sessionUsageId });
@@ -122,26 +130,8 @@ export function LiveCallScreen({
   }, [client, isPreset, mode, scenarioSlug, synthesis, voiceConfig.convaiEnabled]);
 
   useEffect(() => {
-    if (
-      mode !== "voz" ||
-      !voiceConfig.convaiEnabled ||
-      !voiceSession.billedActive ||
-      voiceSession.fallbackToBrowser ||
-      !sessionUsageId
-    ) {
-      return;
-    }
-    connectConvai();
     return () => disconnectConvai();
-  }, [
-    mode,
-    voiceConfig.convaiEnabled,
-    voiceSession.billedActive,
-    voiceSession.fallbackToBrowser,
-    sessionUsageId,
-    connectConvai,
-    disconnectConvai,
-  ]);
+  }, [disconnectConvai]);
 
   useEffect(() => {
     const el = dialogueRef.current;
@@ -153,8 +143,15 @@ export function LiveCallScreen({
     }
   }, [dialogue, turnEval]);
 
+  const useBrowserMic =
+    mode === "voz" &&
+    (!voiceConfig.convaiEnabled ||
+      convaiFailed ||
+      convaiConnectionFailed ||
+      voiceSession.fallbackToBrowser);
+
   const handleMic = () => {
-    if (mode !== "voz" || !speech.supported || busy) return;
+    if (mode !== "voz" || !useBrowserMic || !speech.supported || busy) return;
     if (speech.listening) {
       speech.stopListening();
       return;
@@ -329,14 +326,16 @@ export function LiveCallScreen({
           />
 
           <div className="call-screen__actions">
-            {mode === "voz" ? (
+            {useBrowserMic ? (
               <Button
                 variant="secondary"
                 onClick={handleMic}
-                disabled={speech.listening || !speech.supported || busy}
+                disabled={!speech.supported || busy}
               >
                 {speech.listening ? "Escuchando…" : "Micrófono"}
               </Button>
+            ) : convaiConnected ? (
+              <span className="call-screen__note">Micrófono activo en la llamada</span>
             ) : null}
             <Button
               variant="primary"
@@ -354,7 +353,7 @@ export function LiveCallScreen({
             Queda poco tiempo de voz en esta sesión.
           </p>
         ) : null}
-        {voiceSession.fallbackToBrowser ? (
+        {voiceSession.fallbackToBrowser || convaiFailed || convaiConnectionFailed ? (
           <p className="call-screen__note">
             Usando voz del navegador (sin facturación ElevenLabs).
           </p>
