@@ -1,6 +1,6 @@
 import type { DifficultyLevel } from "@/lib/db/types";
 import { enrichClinicFeedback } from "@/lib/feedback/evaluation";
-import { generateClientReply, isLlmAvailable } from "@/lib/llm/client-replies";
+import { generateClientReply, generateGroqClientReply, isGroqAvailable } from "@/lib/llm/client-replies";
 import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
 import type { RichTurnFeedback, ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { isClinicPreset } from "@/lib/scenarios/types";
@@ -78,7 +78,7 @@ export async function scoreTurnAdaptive(
     );
 
     let clientReply = templatedReply;
-    if (isLlmAvailable()) {
+    if (isGroqAvailable()) {
       const presetConfig = buildPresetScenarioConfig(input.scenarioSlug);
       if (presetConfig) {
         const roundDef: ScenarioRoundDef = {
@@ -89,7 +89,7 @@ export async function scoreTurnAdaptive(
           positiveCriteria: [],
           negativeCriteria: [],
         };
-        clientReply = await generateClientReply(
+        clientReply = await generateGroqClientReply(
           {
             config: presetConfig,
             round: roundDef,

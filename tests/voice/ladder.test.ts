@@ -77,16 +77,16 @@ describe("voice ladder — Google API key only", () => {
     restoreEnv(saved);
   });
 
-  it("uses Gemini transcribe STT and Gemini flash TTS", () => {
+  it("uses Gemini transcribe STT and browser TTS when only Google API key is set", () => {
     clearVoiceEnv();
     process.env.GOOGLE_API_KEY = "test-key";
 
     expect(resolveSttTier()).toBe("google-gemini-transcribe");
-    expect(resolveTtsTier()).toBe("google-gemini-flash");
+    expect(resolveTtsTier()).toBe("browser");
 
     const ladder = resolveVoiceLadder();
     expect(ladder.sttTier).toBe("google-gemini-transcribe");
-    expect(ladder.ttsTier).toBe("google-gemini-flash");
+    expect(ladder.ttsTier).toBe("browser");
     expect(ladder.convaiEnabled).toBe(false);
   });
 });
@@ -106,12 +106,12 @@ describe("voice ladder — GCP service account", () => {
     expect(resolveSttTier()).toBe("google-chirp3");
   });
 
-  it("uses Chirp3 TTS when only creds are set", () => {
+  it("uses browser TTS when only GCP creds are set", () => {
     clearVoiceEnv();
     process.env.GOOGLE_APPLICATION_CREDENTIALS = "/tmp/fake-sa.json";
 
-    expect(resolveTtsTier()).toBe("google-chirp3");
-    expect(resolveVoiceLadder().pronunciationDictionary).toBe(true);
+    expect(resolveTtsTier()).toBe("browser");
+    expect(resolveVoiceLadder().pronunciationDictionary).toBe(false);
   });
 });
 
@@ -161,20 +161,20 @@ describe("voice ladder — ElevenLabs", () => {
     expect(resolveTtsTier()).toBe("elevenlabs");
   });
 
-  it("degrades TTS to next tier when voice id is missing", () => {
+  it("falls back to browser TTS when voice id is missing", () => {
     clearVoiceEnv();
     process.env.ELEVENLABS_API_KEY = "el-test";
     process.env.GOOGLE_API_KEY = "g-test";
 
-    expect(resolveTtsTier()).toBe("google-gemini-flash");
+    expect(resolveTtsTier()).toBe("browser");
   });
 
-  it("degrades TTS to Chirp when voice id missing but GCP creds set", () => {
+  it("falls back to browser TTS when voice id missing even with GCP creds", () => {
     clearVoiceEnv();
     process.env.ELEVENLABS_API_KEY = "el-test";
     process.env.GOOGLE_APPLICATION_CREDENTIALS = "/tmp/fake-sa.json";
 
-    expect(resolveTtsTier()).toBe("google-chirp3");
+    expect(resolveTtsTier()).toBe("browser");
   });
 });
 

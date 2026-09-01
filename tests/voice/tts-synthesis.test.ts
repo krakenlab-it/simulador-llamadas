@@ -4,38 +4,22 @@ vi.mock("@/lib/voice/providers/elevenlabs", () => ({
   synthesizeWithElevenLabs: vi.fn(),
 }));
 
-vi.mock("@/lib/voice/providers/google-chirp-tts", () => ({
-  synthesizeWithGoogleChirp3: vi.fn(),
-}));
-
-vi.mock("@/lib/voice/providers/google-gemini-tts", () => ({
-  synthesizeWithGeminiFlash: vi.fn(),
-}));
-
 vi.mock("@/lib/voice/ladder", () => ({
   resolveTtsTier: vi.fn(() => "elevenlabs"),
 }));
 
 import { synthesizeWithElevenLabs } from "@/lib/voice/providers/elevenlabs";
-import { synthesizeWithGoogleChirp3 } from "@/lib/voice/providers/google-chirp-tts";
-import { synthesizeWithGeminiFlash } from "@/lib/voice/providers/google-gemini-tts";
 import { synthesizeSpeech } from "@/lib/voice/tts";
+import { resolveTtsTier } from "@/lib/voice/ladder";
 
 describe("synthesizeSpeech", () => {
   beforeEach(() => {
+    vi.mocked(resolveTtsTier).mockReturnValue("elevenlabs");
     vi.mocked(synthesizeWithElevenLabs).mockResolvedValue({
       ok: false,
       reason: "elevenlabs_http_error",
       status: 401,
       detail: '{"detail":"invalid_api_key"}',
-    });
-    vi.mocked(synthesizeWithGoogleChirp3).mockResolvedValue({
-      ok: false,
-      reason: "missing_GOOGLE_APPLICATION_CREDENTIALS",
-    });
-    vi.mocked(synthesizeWithGeminiFlash).mockResolvedValue({
-      ok: false,
-      reason: "missing_GOOGLE_API_KEY",
     });
   });
 
@@ -43,30 +27,21 @@ describe("synthesizeSpeech", () => {
     vi.clearAllMocks();
   });
 
-  it("returns attempt diagnostics when every provider fails", async () => {
+  it("returns ElevenLabs attempt diagnostics when synthesis fails", async () => {
     const outcome = await synthesizeSpeech("Hola");
 
     expect(outcome.result).toBeNull();
-    expect(outcome.failures).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          tier: "elevenlabs",
-          status: 401,
-          reason: "elevenlabs_http_error",
-        }),
-        expect.objectContaining({
-          tier: "google-chirp3",
-          reason: "missing_GOOGLE_APPLICATION_CREDENTIALS",
-        }),
-        expect.objectContaining({
-          tier: "google-gemini-flash",
-          reason: "missing_GOOGLE_API_KEY",
-        }),
-      ]),
-    );
+    expect(outcome.failures).toEqual([
+      expect.objectContaining({
+        tier: "elevenlabs",
+        status: 401,
+        reason: "elevenlabs_http_error",
+      }),
+    ]);
+    expect(synthesizeWithElevenLabs).toHaveBeenCalledTimes(1);
   });
 
-  it("returns audio from the first successful tier", async () => {
+  it("returns audio from ElevenLabs without calling other providers", async () => {
     vi.mocked(synthesizeWithElevenLabs).mockResolvedValue({
       ok: true,
       value: Buffer.from([1, 2, 3]),
@@ -81,6 +56,18 @@ describe("synthesizeSpeech", () => {
       }),
     );
     expect(outcome.failures).toEqual([]);
-    expect(synthesizeWithGoogleChirp3).not.toHaveBeenCalled();
+    expect(synthesizeWithElevenLabs).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips ElevenLabs when server TTS is not configured", async () => {
+    vi.mocked(resolveTtsTier).mockReturnValue("browser");
+
+    const outcome = await synthesizeSpeech("Hola");
+
+    expect(outcome.result).toBeNull();
+    expect(outcome.failures).toEqual([
+      expect.objectContaining({ reason: "server_tts_not_configured" }),
+    ]);
+    expect(synthesizeWithElevenLabs).not.toHaveBeenCalled();
   });
 });
