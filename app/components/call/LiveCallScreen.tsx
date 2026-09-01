@@ -56,10 +56,12 @@ export function LiveCallScreen({
 }: LiveCallScreenProps) {
   const { showToast } = useToast();
   const voiceConfig = useVoiceConfig();
+  const [convaiAudioActive, setConvaiAudioActive] = useState(false);
   const voiceSession = useVoiceSession(
     verifiedUserId ?? null,
     callAttemptId,
     mode,
+    { meterConvaiSeconds: convaiAudioActive },
   );
   const sessionUsageId = voiceSession.sessionUsageId;
   const scenarioContext =
@@ -133,6 +135,11 @@ export function LiveCallScreen({
    * /api/voice/tts whenever the voice session is active.
    */
   const clientVoiceIsConvai = mode === "voz" && convaiConnected;
+
+  useEffect(() => {
+    setConvaiAudioActive(clientVoiceIsConvai);
+  }, [clientVoiceIsConvai]);
+
   const useBrowserMic = mode === "voz" && !clientVoiceIsConvai;
   const convaiConnecting =
     mode === "voz" &&
