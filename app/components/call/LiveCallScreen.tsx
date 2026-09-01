@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ClientPersona } from "@/lib/clients";
 import type { PracticeMode } from "@/lib/db/types";
 import { submitTurn } from "@/lib/api/client";
 import type { RichTurnFeedback, TurnSummary } from "@/lib/api/client";
 import { stubGetOpeningLine } from "@/lib/api/stubs";
+import { newClientTurnId } from "@/lib/frontend/ids";
 import { getKeywordLabels } from "@/lib/simulation/keywords";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/lib/hooks/useSpeechSynthesis";
@@ -36,6 +37,9 @@ interface LiveCallScreenProps {
 }
 
 const ROUND_LABELS = ["Apertura", "Objeción", "Claridad", "Correo", "Cierre"];
+
+/** Time the round feedback stays on screen before the next round opens. */
+const ROUND_ADVANCE_DELAY_MS = 1800;
 
 export function LiveCallScreen({
   callAttemptId,
@@ -78,6 +82,11 @@ export function LiveCallScreen({
   const [submitting, setSubmitting] = useState(false);
   const [hangingUp, setHangingUp] = useState(false);
   const turnHistory = useRef<TurnSummary[]>([]);
+  const submittingRef = useRef(false);
+  const clientTurnIdRef = useRef<string | null>(null);
+  const lastSentRef = useRef<{ round: number; text: string } | null>(null);
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openingSpokenRef = useRef(false);
 
   const convai = useConvaiConnection({
     sessionUsageId,
@@ -117,20 +126,66 @@ export function LiveCallScreen({
   const roundMeta = isPreset ? ROUNDS[round - 1] : null;
   const busy = submitting || hangingUp || ending;
 
+  /**
+   * ConvAI only owns the audio when it is actually connected. In every other
+   * state — disabled, connecting, failed — the call runs on the browser mic
+   * and on speech synthesis, which uses billed ElevenLabs TTS through
+   * /api/voice/tts whenever the voice session is active.
+   */
+  const clientVoiceIsConvai = mode === "voz" && convaiConnected;
+  const useBrowserMic = mode === "voz" && !clientVoiceIsConvai;
+  const convaiConnecting =
+    mode === "voz" &&
+    voiceConfig.convaiEnabled &&
+    !convaiConnected &&
+    !convaiFailed &&
+    !convaiConnectionFailed &&
+    !voiceSession.fallbackToBrowser;
+
+  // Kept in a ref so speaking never re-runs the effects below when the voice
+  // tier resolves and rebuilds the speak callback.
+  const speakRef = useRef(synthesis.speak);
   useEffect(() => {
-    const opening =
+    speakRef.current = synthesis.speak;
+  }, [synthesis.speak]);
+
+  const speakClientLine = (text: string) => {
+    if (mode !== "voz" || !text || clientVoiceIsConvai) return;
+    speakRef.current(text);
+  };
+
+  const openingLine = useMemo(
+    () =>
       isPreset && client
         ? getClientLine(client, 0)
-        : stubGetOpeningLine(scenarioSlug);
-    setDialogue([{ role: "client", text: opening }]);
-    if (mode === "voz" && !voiceConfig.convaiEnabled) {
-      synthesis.speak(opening);
-    }
-    textareaRef.current?.focus();
-  }, [client, isPreset, mode, scenarioSlug, synthesis, voiceConfig.convaiEnabled]);
+        : stubGetOpeningLine(scenarioSlug),
+    [client, isPreset, scenarioSlug],
+  );
 
   useEffect(() => {
-    return () => disconnectConvai();
+    setDialogue([{ role: "client", text: openingLine }]);
+    textareaRef.current?.focus();
+  }, [openingLine]);
+
+  // Wait for the billed voice session to resolve so the opening line is spoken
+  // with the ElevenLabs voice when it is available, browser voice otherwise.
+  const voiceOutputReady =
+    !voiceConfig.requiresVoiceAuth ||
+    Boolean(sessionUsageId) ||
+    voiceSession.fallbackToBrowser;
+
+  useEffect(() => {
+    if (mode !== "voz" || !voiceOutputReady || openingSpokenRef.current) return;
+    if (convaiConnected) return;
+    openingSpokenRef.current = true;
+    speakRef.current(openingLine);
+  }, [convaiConnected, mode, openingLine, voiceOutputReady]);
+
+  useEffect(() => {
+    return () => {
+      disconnectConvai();
+      if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+    };
   }, [disconnectConvai]);
 
   useEffect(() => {
@@ -142,13 +197,6 @@ export function LiveCallScreen({
       el.scrollTop = el.scrollHeight;
     }
   }, [dialogue, turnEval]);
-
-  const useBrowserMic =
-    mode === "voz" &&
-    (!voiceConfig.convaiEnabled ||
-      convaiFailed ||
-      convaiConnectionFailed ||
-      voiceSession.fallbackToBrowser);
 
   const handleMic = () => {
     if (mode !== "voz" || !useBrowserMic || !speech.supported || busy) return;
@@ -170,13 +218,33 @@ export function LiveCallScreen({
     }
   }, [speech.listening, speech.transcript, speech]);
 
+  /**
+   * One POST per round, never two. A second click while a turn is in flight is
+   * dropped, and resending the same text for the round already sent is dropped
+   * too. A failed turn keeps its idempotency key, so a manual retry lands on
+   * the same round instead of allocating a new one.
+   */
   const handleSubmitTurn = async () => {
     const text = utterance.trim();
-    if (!text || submitting || busy) return;
+    if (!text || submittingRef.current || busy) return;
 
+    const lastSent = lastSentRef.current;
+    if (lastSent && lastSent.round === round && lastSent.text === text) return;
+
+    submittingRef.current = true;
     setSubmitting(true);
+
+    const clientTurnId = clientTurnIdRef.current ?? newClientTurnId();
+    clientTurnIdRef.current = clientTurnId;
+
     try {
-      const response = await submitTurn(callAttemptId, { utterance: text });
+      const response = await submitTurn(callAttemptId, {
+        utterance: text,
+        clientTurnId,
+      });
+
+      clientTurnIdRef.current = null;
+      lastSentRef.current = { round, text };
 
       const summary: TurnSummary = {
         roundKey: response.roundKey,
@@ -189,6 +257,7 @@ export function LiveCallScreen({
       };
       turnHistory.current.push(summary);
 
+      setUtterance("");
       setDialogue((prev) => [...prev, { role: "you", text }]);
       setTurnEval({
         roundScore: response.roundScore,
@@ -196,35 +265,35 @@ export function LiveCallScreen({
         keywordHits: response.keywordHits,
       });
 
+      if (response.clientReply) {
+        setDialogue((prev) => [
+          ...prev,
+          { role: "client", text: response.clientReply },
+        ]);
+        if (clientVoiceIsConvai) {
+          interruptConvai();
+        } else {
+          speakClientLine(response.clientReply);
+        }
+      }
+
       if (response.roundNumber < totalRounds) {
-        setTimeout(() => {
-          setUtterance("");
+        if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
+        advanceTimerRef.current = setTimeout(() => {
           setTurnEval(null);
           setRound(response.roundNumber + 1);
           setRoundLabel(response.roundLabel);
-          if (response.clientReply) {
-            setDialogue((prev) => [
-              ...prev,
-              { role: "client", text: response.clientReply },
-            ]);
-            if (mode === "voz") {
-              if (convaiConnected) {
-                interruptConvai();
-              } else {
-                synthesis.speak(response.clientReply);
-              }
-            }
-          }
           textareaRef.current?.focus();
-        }, 1800);
+        }, ROUND_ADVANCE_DELAY_MS);
       }
     } catch (error) {
       const message =
-        error instanceof Error
+        error instanceof Error && error.message
           ? error.message
           : "No se pudo enviar el turno.";
       showToast(message, "error");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -334,7 +403,7 @@ export function LiveCallScreen({
               >
                 {speech.listening ? "Escuchando…" : "Micrófono"}
               </Button>
-            ) : convaiConnected ? (
+            ) : clientVoiceIsConvai ? (
               <span className="call-screen__note">Micrófono activo en la llamada</span>
             ) : null}
             <Button
@@ -353,7 +422,14 @@ export function LiveCallScreen({
             Queda poco tiempo de voz en esta sesión.
           </p>
         ) : null}
-        {voiceSession.fallbackToBrowser || convaiFailed || convaiConnectionFailed ? (
+        {convaiConnecting ? (
+          <p className="call-screen__note">
+            Agente de voz no conectado: usa el micrófono y escucha al cliente
+            por el navegador.
+          </p>
+        ) : null}
+        {!convaiConnected &&
+        (voiceSession.fallbackToBrowser || convaiFailed || convaiConnectionFailed) ? (
           <p className="call-screen__note">
             Usando voz del navegador (sin facturación ElevenLabs).
           </p>

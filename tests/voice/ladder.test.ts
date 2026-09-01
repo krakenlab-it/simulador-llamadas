@@ -12,6 +12,7 @@ const ENV_KEYS = [
   "ELEVENLABS_API_KEY",
   "ELEVENLABS_VOICE_ID",
   "ELEVENLABS_ENABLED",
+  "ELEVENLABS_CONVAI_ENABLED",
   "GOOGLE_APPLICATION_CREDENTIALS",
   "GOOGLE_API_KEY",
   "GCP_PROJECT_ID",
@@ -127,8 +128,20 @@ describe("voice ladder — ElevenLabs", () => {
     process.env.ELEVENLABS_VOICE_ID = "voice-123";
 
     expect(resolveSttTier()).toBe("elevenlabs-scribe");
-    expect(resolveVoiceLadder().convaiEnabled).toBe(true);
     expect(resolveVoiceLadder().elevenlabsBilledAvailable).toBe(true);
+  });
+
+  it("keeps ConvAI off the call path unless it is opted into explicitly", () => {
+    clearVoiceEnv();
+    process.env.ELEVENLABS_API_KEY = "el-test";
+    process.env.ELEVENLABS_VOICE_ID = "voice-123";
+
+    // Billed TTS is available, but the call still runs on browser mic + TTS.
+    expect(resolveTtsTier()).toBe("elevenlabs");
+    expect(resolveVoiceLadder().convaiEnabled).toBe(false);
+
+    process.env.ELEVENLABS_CONVAI_ENABLED = "true";
+    expect(resolveVoiceLadder().convaiEnabled).toBe(true);
   });
 
   it("skips ElevenLabs when ELEVENLABS_ENABLED=false", () => {

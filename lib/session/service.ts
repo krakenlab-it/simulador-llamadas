@@ -2,6 +2,7 @@ import type { Client } from "pg";
 import type { DifficultyLevel, RoundType, ScoringKeyword } from "@/lib/db/types";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
 import { scoreTurnAdaptive } from "@/lib/scoring/adaptive";
+import { SessionError, toSessionError } from "./errors";
 import {
   SessionRepository,
   type CreateSessionInput,
@@ -9,11 +10,14 @@ import {
   type HistoryEntry,
   type SessionRecord,
   type TurnRecord,
+  type TurnSlot,
 } from "./repository";
 
 export interface SubmitTurnInput {
   callAttemptId: string;
   utterance: string;
+  /** Idempotency key for one user submit action; a retry reuses it. */
+  clientTurnId?: string | null;
 }
 
 export class SessionService {
@@ -27,59 +31,77 @@ export class SessionService {
     return this.repository.createSession(input);
   }
 
+  /**
+   * One round of the call. The round number is allocated by the database, not
+   * derived from a count the client could race, and scoring runs outside any
+   * lock. If scoring fails the reservation is released so the trainee can
+   * retry the same round.
+   */
   async submitTurn(input: SubmitTurnInput): Promise<TurnRecord> {
-    const session = await this.repository.getSession(input.callAttemptId);
+    const trimmed = input.utterance.trim();
+    if (!trimmed) throw new SessionError("empty_utterance");
 
-    if (!session) throw new Error("Session not found");
-    if (session.status !== "in_progress") throw new Error("Session is not in progress");
-    if (session.currentRound > session.totalRounds) {
-      throw new Error("All rounds already completed");
+    const session = await this.repository.getSession(input.callAttemptId);
+    if (!session) throw new SessionError("session_not_found");
+
+    let slot: TurnSlot;
+    try {
+      slot = await this.repository.reserveTurnSlot(input.callAttemptId, trimmed, {
+        clientTurnId: input.clientTurnId ?? null,
+        maxRounds: session.totalRounds,
+      });
+    } catch (error) {
+      throw toSessionError(error);
     }
 
-    const trimmed = input.utterance.trim();
-    if (!trimmed) throw new Error("Utterance cannot be empty");
+    if (slot.kind === "replay") return slot.turn;
 
-    const roundDef = this.repository.getRoundDef(session, session.currentRound);
-    const isLastRound = session.currentRound === session.totalRounds;
+    try {
+      const roundDef = this.repository.getRoundDef(session, slot.roundNumber);
+      const isLastRound = slot.roundNumber === session.totalRounds;
 
-    const score = await scoreTurnAdaptive({
-      utterance: trimmed,
-      roundKey: roundDef.key,
-      roundLabel: roundDef.label,
-      roundGoal:
-        roundDef.goal ||
-        (roundDef.roundType ? ROUND_EXPECTED[roundDef.roundType] : ""),
-      difficultyLevel: session.difficultyLevel,
-      scenarioSlug: session.scenarioSlug,
-      isPreset: session.isPreset,
-      config: session.config,
-      clientName: session.clientName,
-      isLastRound,
-    });
-
-    return this.repository.saveTurn(
-      input.callAttemptId,
-      session.currentRound,
-      trimmed,
-      {
-        roundType: roundDef.roundType,
+      const score = await scoreTurnAdaptive({
+        utterance: trimmed,
         roundKey: roundDef.key,
         roundLabel: roundDef.label,
-        roundScore: score.roundScore,
-        keywordHits: score.keywordHits,
-        clientReaction: score.clientReaction,
-        clientReply: score.clientReply,
-        feedback: score.feedback,
-        richFeedback: score.richFeedback,
-        hasConcreteDayAndTime: score.hasConcreteDayAndTime,
-        won: score.won,
-      },
-    );
+        roundGoal:
+          roundDef.goal ||
+          (roundDef.roundType ? ROUND_EXPECTED[roundDef.roundType] : ""),
+        difficultyLevel: session.difficultyLevel,
+        scenarioSlug: session.scenarioSlug,
+        isPreset: session.isPreset,
+        config: session.config,
+        clientName: session.clientName,
+        isLastRound,
+      });
+
+      return await this.repository.completeTurn(
+        slot.turnId,
+        slot.roundNumber,
+        trimmed,
+        {
+          roundType: roundDef.roundType,
+          roundKey: roundDef.key,
+          roundLabel: roundDef.label,
+          roundScore: score.roundScore,
+          keywordHits: score.keywordHits,
+          clientReaction: score.clientReaction,
+          clientReply: score.clientReply,
+          feedback: score.feedback,
+          richFeedback: score.richFeedback,
+          hasConcreteDayAndTime: score.hasConcreteDayAndTime,
+          won: score.won,
+        },
+      );
+    } catch (error) {
+      await this.repository.releaseTurnSlot(slot.turnId).catch(() => undefined);
+      throw toSessionError(error);
+    }
   }
 
   async endSession(callAttemptId: string): Promise<EndSessionResult> {
     const session = await this.repository.getSession(callAttemptId);
-    if (!session) throw new Error("Session not found");
+    if (!session) throw new SessionError("session_not_found");
     return this.repository.endSession(callAttemptId);
   }
 

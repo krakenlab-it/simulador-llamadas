@@ -7,7 +7,11 @@ export type {
   HistoryEntry,
   SessionRecord,
   TurnRecord,
+  TurnScoreInput,
+  TurnSlot,
 } from "./repository";
+export { SessionError, toSessionError } from "./errors";
+export type { SessionErrorCode } from "./errors";
 export {
   SessionService,
   createTrainee,

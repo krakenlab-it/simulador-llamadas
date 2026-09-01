@@ -9,6 +9,15 @@ function hasElevenLabsVoice(): boolean {
   return Boolean(process.env.ELEVENLABS_VOICE_ID?.trim());
 }
 
+/**
+ * ConvAI stays out of the call loop unless it is switched on explicitly. The
+ * working voice path is browser mic in, HTTP turn, TTS out; ConvAI agent
+ * creation is opt-in so a missing or rejected agent can never break a call.
+ */
+function isConvaiOptedIn(): boolean {
+  return process.env.ELEVENLABS_CONVAI_ENABLED?.trim().toLowerCase() === "true";
+}
+
 function hasGoogleApplicationCredentials(): boolean {
   return Boolean(process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim());
 }
@@ -63,7 +72,7 @@ export function resolveVoiceLadder(): VoiceLadderConfig {
   return {
     sttTier,
     ttsTier,
-    convaiEnabled: hasElevenLabsKey() && hasElevenLabsVoice(),
+    convaiEnabled: isConvaiOptedIn() && hasElevenLabsKey() && hasElevenLabsVoice(),
     pronunciationDictionary:
       ttsTier === "elevenlabs" || ttsTier === "google-chirp3",
     elevenlabsBilledAvailable: hasElevenLabsKey(),
