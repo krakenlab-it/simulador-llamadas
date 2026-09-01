@@ -1102,6 +1102,105 @@ body {
   color: var(--muted);
 }
 
+.analytics-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.analytics-chips__item {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  background: #141a22;
+  color: #f4efe6;
+  border: 1px solid color-mix(in srgb, #e8f07a 25%, transparent);
+}
+
+.analytics-chips__item--yes {
+  background: color-mix(in srgb, #e8f07a 18%, #141a22);
+  color: #e8f07a;
+}
+
+.scorecard-panel,
+.debrief-panel {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  border-radius: var(--radius-sm);
+  background: #141a22;
+  border: 1px solid color-mix(in srgb, #c45c26 30%, transparent);
+}
+
+.scorecard-panel__title,
+.debrief-panel__title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  color: #f4efe6;
+}
+
+.scorecard-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.scorecard-panel__item {
+  padding: 0.65rem 0;
+  border-bottom: 1px solid color-mix(in srgb, #f4efe6 8%, transparent);
+}
+
+.scorecard-panel__head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.debrief-panel__outcome,
+.debrief-panel__drill {
+  margin: 0.5rem 0;
+}
+
+.debrief-panel__lines {
+  margin: 0.75rem 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid #c45c26;
+}
+
+.dimension-sparkline {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.dimension-sparkline__item {
+  display: grid;
+  grid-template-columns: 8rem 1fr 2.5rem;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.dimension-sparkline__bar {
+  height: 6px;
+  border-radius: 3px;
+  background: #c45c26;
+  max-width: 100%;
+}
+
+.dimension-sparkline__bar--up {
+  background: #e8f07a;
+}
+
+.dimension-sparkline__bar--down {
+  background: #c45c26;
+}
+
+.dimension-sparkline__bar--flat {
+  background: color-mix(in srgb, #f4efe6 40%, #141a22);
+}
+
 .keyword-tags {
   display: flex;
   flex-wrap: wrap;

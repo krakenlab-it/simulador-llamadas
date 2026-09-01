@@ -5,6 +5,8 @@ import type {
   ScenarioRoundDef,
   SessionEvaluationSummary,
 } from "@/lib/scenarios/types";
+import type { SessionScoreResult } from "@/lib/scoring/types";
+import { resolveWinCriteria } from "@/lib/scoring/outcome";
 
 export interface TurnForEvaluation {
   roundKey: string;
@@ -23,7 +25,12 @@ export function buildSessionEvaluation(
   won: boolean,
   config: ScenarioConfig | null,
   history: HistoryScorePoint[],
+  sessionScore?: SessionScoreResult,
 ): SessionEvaluationSummary {
+  const scorecard = sessionScore?.scorecard;
+  const debrief = sessionScore?.debrief;
+  const winLabel = resolveWinCriteria(config);
+
   if (turns.length === 0) {
     return {
       verdict: "No completaste ningún turno. Intenta de nuevo con un guion más corto.",
@@ -31,6 +38,8 @@ export function buildSessionEvaluation(
       weakestRound: { key: "—", label: "—", score: 0 },
       nextDrill: "Practica la apertura: reconoce el problema del cliente en una frase.",
       trend: null,
+      scorecard,
+      debrief,
     };
   }
 
@@ -38,14 +47,18 @@ export function buildSessionEvaluation(
   const strongest = sorted[0];
   const weakest = sorted[sorted.length - 1];
 
-  const avgScore =
-    turns.reduce((sum, t) => sum + t.roundScore, 0) / turns.length;
+  const overall = scorecard?.overallScore ?? Math.round(
+    turns.reduce((sum, t) => sum + t.roundScore, 0) / turns.length,
+  );
 
+  const outcomeLabel = debrief?.outcomeLabel ?? (won ? "Advance" : "Continuation");
   const verdict = won
-    ? `¡Excelente! Lograste el objetivo: ${config?.winCriteria ?? "cerrar con día y hora"}. Promedio ${avgScore.toFixed(0)}/100.`
-    : `No alcanzaste el cierre. Promedio ${avgScore.toFixed(0)}/100 — refuerza ${weakest.roundLabel.toLowerCase()} (${weakest.roundScore} pts).`;
+    ? `¡Advance! Lograste el objetivo: ${winLabel}. Scorecard ${overall}/100 (${scorecard?.overallStars ?? "—"}/5).`
+    : `${outcomeLabel}: no alcanzaste ${winLabel}. Scorecard ${overall}/100 — refuerza ${debrief?.primaryGap.dimension ?? weakest.roundLabel}.`;
 
-  const nextDrill = buildNextDrill(weakest, config);
+  const nextDrill =
+    debrief?.drill ??
+    buildNextDrill(weakest, config);
 
   const completedHistory = history.filter((h) => h.totalScore !== null);
   const trend =
@@ -54,9 +67,10 @@ export function buildSessionEvaluation(
       : completedHistory.length === 1
         ? {
             attempts: 1,
-            averageScore: completedHistory[0].totalScore ?? avgScore,
+            averageScore: completedHistory[0].totalScore ?? overall,
             previousAverageScore: null,
             improving: false,
+            showStableLabel: false,
           }
         : null;
 
@@ -64,16 +78,21 @@ export function buildSessionEvaluation(
     verdict,
     strongestRound: {
       key: strongest.roundKey,
-      label: strongest.roundLabel,
-      score: strongest.roundScore,
+      label: debrief?.strength.dimension ?? strongest.roundLabel,
+      score: scorecard
+        ? scorecard.dimensions.find((d) => d.label === debrief?.strength.dimension)?.score ??
+          strongest.roundScore
+        : strongest.roundScore,
     },
     weakestRound: {
       key: weakest.roundKey,
-      label: weakest.roundLabel,
+      label: debrief?.primaryGap.dimension ?? weakest.roundLabel,
       score: weakest.roundScore,
     },
     nextDrill,
     trend,
+    scorecard,
+    debrief,
   };
 }
 
@@ -104,6 +123,11 @@ function buildTrend(history: HistoryScorePoint[]): SessionEvaluationSummary["tre
       ? scores.slice(0, -1).reduce((a, b) => a + b, 0) / (scores.length - 1)
       : null;
 
+  const improving =
+    previousAverageScore !== null ? averageScore > previousAverageScore : false;
+  const regressing =
+    previousAverageScore !== null ? averageScore < previousAverageScore : false;
+
   return {
     attempts: scores.length,
     averageScore: Math.round(averageScore * 100) / 100,
@@ -111,8 +135,8 @@ function buildTrend(history: HistoryScorePoint[]): SessionEvaluationSummary["tre
       previousAverageScore !== null
         ? Math.round(previousAverageScore * 100) / 100
         : null,
-    improving:
-      previousAverageScore !== null ? averageScore > previousAverageScore : false,
+    improving,
+    showStableLabel: !improving && !regressing,
   };
 }
 
@@ -121,28 +145,14 @@ export function enrichClinicFeedback(input: {
   roundScore: number;
   roundLabel: string;
   roundGoal: string;
-  keywordHits: Record<string, boolean>;
-  missedCriteriaLabels: string[];
+  coachingNote: string;
 }): RichTurnFeedback {
-  const hitLabels = Object.entries(input.keywordHits)
-    .filter(([, hit]) => hit)
-    .map(([key]) => key);
-
-  let whyScore: string;
-  if (input.roundScore >= 55) {
-    whyScore = `Buena ronda: activaste ${hitLabels.slice(0, 3).join(", ") || "criterios clave"}.`;
-  } else if (input.roundScore >= 30) {
-    whyScore = `Respuesta aceptable pero incompleta. Faltó: ${input.missedCriteriaLabels.join(", ") || "más especificidad"}.`;
-  } else {
-    whyScore = `Por debajo del estándar. No cubriste ${input.missedCriteriaLabels.slice(0, 2).join(" ni ") || "los criterios de la ronda"}.`;
-  }
-
   return {
     score: input.roundScore,
     utterance: input.utterance,
-    whyScore,
-    strongerLine: input.roundGoal,
-    missedCriteria: input.missedCriteriaLabels,
+    whyScore: input.coachingNote,
+    strongerLine: input.coachingNote,
+    missedCriteria: [],
     roundLabel: input.roundLabel,
   };
 }

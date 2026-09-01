@@ -13,7 +13,6 @@ import {
   resetToTrain,
 } from "@/lib/frontend/flow";
 import { canStartTraining } from "@/lib/frontend/training-readiness";
-import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
 
 /**
  * End-to-end journey test for the main trainee flow:
@@ -25,7 +24,7 @@ describe("training journey (main user flow)", () => {
     resetStubSessions();
   });
 
-  it("runs scenario → start → 5 rounds → hang up → score", () => {
+  it("runs scenario → start → 5 rounds → hang up → score", async () => {
     let flow = initialFlowState();
 
     const readiness = {
@@ -50,50 +49,51 @@ describe("training journey (main user flow)", () => {
     expect(flow.view).toBe("call");
 
     const utterances = [
-      "Entiendo el problema de medición en visitas a caseta",
-      "Comprendo, el ROI y KPI son clave en su sector",
-      "Mediríamos el problema concreto de tráfico al piso",
-      "¿Le parece si le mando un correo breve con el caso?",
-      "Agendemos reunión el martes 15 a las 10:30",
+      "Entiendo el problema de medición. ¿Qué le cuesta más hoy en visitas a caseta?",
+      "Comprendo su duda. ¿Qué ha probado para mejorar el tráfico?",
+      "Si esto sigue tres meses, ¿qué impacto tendría en ingresos?",
+      "Con su permiso le envío un caso breve y hablamos el jueves.",
+      "Agendemos reunión el martes 15 a las 10:30 para definir el piloto.",
     ];
 
     for (let i = 0; i < utterances.length; i++) {
-      const res = stubSubmitTurn(session.callAttemptId, {
+      const res = await stubSubmitTurn(session.callAttemptId, {
         utterance: utterances[i],
       });
       expect(res.roundNumber).toBe(i + 1);
-      expect(res.feedback).toBe(ROUND_EXPECTED[res.roundType]);
+      expect(res.richFeedback.whyScore.length).toBeGreaterThan(5);
     }
 
     flow = enterResults();
     expect(flow.view).toBe("results");
 
-    const final = stubEndSession(session.callAttemptId);
+    const final = await stubEndSession(session.callAttemptId);
     expect(final.turnsCompleted).toBe(5);
     expect(final.won).toBe(true);
     expect(final.totalScore).toBeGreaterThan(0);
     expect(final.evaluation.nextDrill).toBeTruthy();
+    expect(final.evaluation.scorecard).toBeDefined();
 
     flow = resetToTrain();
     expect(flow.view).toBe("train");
     expect(flow.phase).toBe("idle");
   });
 
-  it("supports early hang up with partial scoring", () => {
+  it("supports early hang up with partial scoring", async () => {
     const session = stubCreateSession({
       scenarioSlug: "mariana",
       mode: "texto",
       difficultyLevel: 1,
     });
 
-    stubSubmitTurn(session.callAttemptId, {
-      utterance: "Buenos días, le llamo por un tema de medición",
+    await stubSubmitTurn(session.callAttemptId, {
+      utterance: "Buenos días, ¿qué le cuesta más hoy en medición?",
     });
 
     let flow = enterCall();
     flow = enterResults();
 
-    const ended = stubEndSession(session.callAttemptId);
+    const ended = await stubEndSession(session.callAttemptId);
     expect(ended.turnsCompleted).toBe(1);
     expect(ended.won).toBe(false);
     expect(flow.view).toBe("results");

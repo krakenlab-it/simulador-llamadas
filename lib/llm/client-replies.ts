@@ -1,6 +1,7 @@
 import type { ClientReaction } from "@/lib/scoring/rondas";
 import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { templateClientReply } from "@/lib/feedback/evaluation";
+import { callLlm, isLlmAvailable } from "@/lib/llm/provider";
 
 /** Max wait for Groq preset client replies before scripted fallback. */
 export const GROQ_CLIENT_REPLY_TIMEOUT_MS = 8_000;
@@ -12,12 +13,6 @@ export interface GenerateReplyInput {
   clientName: string;
   traineeUtterance: string;
   roundNumber: number;
-}
-
-function getLlmProvider(): "groq" | "gemini" | null {
-  if (process.env.GROQ_API_KEY) return "groq";
-  if (process.env.GOOGLE_API_KEY) return "gemini";
-  return null;
 }
 
 async function callGroq(
@@ -48,33 +43,6 @@ async function callGroq(
       choices?: { message?: { content?: string } }[];
     };
     return data.choices?.[0]?.message?.content?.trim() ?? null;
-  } catch {
-    return null;
-  }
-}
-
-async function callGemini(prompt: string): Promise<string | null> {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) return null;
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 120, temperature: 0.7 },
-        }),
-      },
-    );
-
-    if (!response.ok) return null;
-    const data = (await response.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? null;
   } catch {
     return null;
   }
@@ -142,12 +110,10 @@ export async function generateClientReply(
       input.clientName,
     );
 
-  const provider = getLlmProvider();
-  if (!provider) return fallback;
+  if (!isLlmAvailable()) return fallback;
 
   const prompt = buildPrompt(input);
-  const llmReply =
-    provider === "groq" ? await callGroq(prompt) : await callGemini(prompt);
+  const llmReply = await callLlm(prompt, { maxTokens: 120, temperature: 0.7 });
 
   if (!llmReply || llmReply.length < 8 || llmReply.length > 400) {
     return fallback;
@@ -160,6 +126,4 @@ export function getOpeningLine(config: ScenarioConfig): string {
   return config.openingLines[0] ?? config.rounds[0]?.clientPrompt ?? "¿Quién habla?";
 }
 
-export function isLlmAvailable(): boolean {
-  return getLlmProvider() !== null;
-}
+export { isLlmAvailable } from "@/lib/llm/provider";

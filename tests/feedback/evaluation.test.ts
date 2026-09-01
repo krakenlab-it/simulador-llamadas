@@ -46,5 +46,6 @@ describe("session evaluation feedback", () => {
     expect(evaluation.trend).not.toBeNull();
     expect(evaluation.trend?.attempts).toBe(3);
     expect(evaluation.trend?.improving).toBe(true);
+    expect(evaluation.trend?.showStableLabel).toBe(false);
   });
 });

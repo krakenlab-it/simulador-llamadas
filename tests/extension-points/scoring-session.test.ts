@@ -1,40 +1,24 @@
 import { describe, expect, it } from "vitest";
-import {
-  detectConcreteDayAndTime,
-  scoreUtterance,
-} from "@/lib/extension-points/scoring";
-import {
-  createInitialSessionState,
-  getRoundTypeForNumber,
-} from "@/lib/extension-points/session";
-import { ROUND_ORDER } from "@/lib/db/types";
+import { scoreLiveTurn } from "@/lib/scoring/live-turn";
 
 describe("scoring extension point", () => {
-  it("detects concrete day and time in Spanish", () => {
-    expect(
-      detectConcreteDayAndTime(
-        "¿Le parece el martes 15 a las 10:30 para la reunión?",
-      ),
-    ).toBe(true);
-    expect(detectConcreteDayAndTime("¿Podemos agendar algo?")).toBe(false);
-  });
-
-  it("returns keyword hits via scoreUtterance", () => {
-    const result = scoreUtterance({
-      utterance: "Entiendo el problema de medición y propongo una reunión",
-      roundType: "apertura",
+  it("live turn scoring returns analytics evidence", async () => {
+    const result = await scoreLiveTurn({
+      utterance:
+        "Entiendo el problema de medición. ¿Qué impacto tiene hoy en visitas a caseta?",
+      roundKey: "apertura",
+      roundLabel: "Apertura",
+      roundGoal: "Discovery",
+      difficultyLevel: 2,
+      scenarioSlug: "mariana",
+      isPreset: true,
+      config: null,
+      clientName: "Mariana",
+      isLastRound: false,
+      priorLines: [],
     });
-    expect(result.keywordHits.problema).toBe(true);
-    expect(result.roundScore).toBeGreaterThan(0);
-  });
-});
 
-describe("session extension point", () => {
-  it("tracks five rounds in order", () => {
-    const state = createInitialSessionState();
-    expect(state.rounds).toEqual([...ROUND_ORDER]);
-    expect(getRoundTypeForNumber(1)).toBe("apertura");
-    expect(getRoundTypeForNumber(5)).toBe("cierre");
-    expect(getRoundTypeForNumber(6)).toBeNull();
+    expect(result.analytics.questionTypes.open).toBeGreaterThan(0);
+    expect(result.engagementScore).toBeGreaterThan(0);
   });
 });

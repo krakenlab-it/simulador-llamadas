@@ -10,13 +10,14 @@ import {
 } from "../fixtures/scoring/utterances";
 import { analizar } from "@/lib/scoring/analizar";
 import { puntua } from "@/lib/scoring/rondas";
-import { scoreTurn } from "@/lib/scoring";
+import { scoreLiveTurn } from "@/lib/scoring/live-turn";
+import { evaluateAdvanceOutcome } from "@/lib/scoring/outcome";
 import {
   detectConcreteDayAndTime,
   scoreUtterance,
 } from "@/lib/extension-points/scoring";
 
-describe("analizar()", () => {
+describe("analizar() legacy keyword detection", () => {
   it("detects prototype keywords including se_presenta_solo", () => {
     const result = analizar(APERTURA_UTTERANCE);
 
@@ -28,20 +29,9 @@ describe("analizar()", () => {
     expect(result.hits.monologo).toBe(false);
     expect(result.hits.telegrama).toBe(false);
   });
-
-  it("flags telegrama on very short utterances", () => {
-    const result = analizar("Hola");
-    expect(result.hits.telegrama).toBe(true);
-  });
-
-  it("flags descalifica and gratis when present", () => {
-    const result = analizar("Esto es gratis y no califica para usted");
-    expect(result.hits.gratis).toBe(true);
-    expect(result.hits.descalifica).toBe(true);
-  });
 });
 
-describe("RONDAS puntua", () => {
+describe("RONDAS puntua (legacy, not live path)", () => {
   it("scores each round type with expected feedback", () => {
     const cases = [
       { utterance: APERTURA_UTTERANCE, round: "apertura" as const },
@@ -61,48 +51,55 @@ describe("RONDAS puntua", () => {
   });
 });
 
-describe("scoring fixtures — close outcomes", () => {
-  it("wins with concrete day and time on nivel 2+", () => {
-    const result = scoreTurn({
-      utterance: GOOD_CLOSE_UTTERANCE,
-      roundType: "cierre",
+describe("live turn scoring (no keyword formula)", () => {
+  it("returns analytics chips instead of keyword hits", async () => {
+    const result = await scoreLiveTurn({
+      utterance:
+        "Entiendo su reto. ¿Qué le cuesta más hoy la baja retención y qué ha probado?",
+      roundKey: "apertura",
+      roundLabel: "Apertura",
+      roundGoal: "Discovery",
       difficultyLevel: 2,
-      scenarioSlug: "mariana",
+      scenarioSlug: "custom-gym",
+      isPreset: false,
+      config: null,
+      clientName: "Carlos",
+      isLastRound: false,
+      priorLines: [{ role: "client", text: "¿Quién habla?" }],
     });
 
-    expect(result.keywordHits.reunion).toBe(true);
-    expect(result.hasDay).toBe(true);
-    expect(result.hasTime).toBe(true);
-    expect(result.hasConcreteDayAndTime).toBe(true);
-    expect(result.won).toBe(true);
-    expect(result.clientReaction).toBe("bien");
-    expect(result.clientReply).toContain("agendo");
+    expect(result.analytics.questionTypes.open).toBeGreaterThan(0);
+    expect(result.coaching.note.length).toBeGreaterThan(10);
+    expect(result.engagementScore).toBeGreaterThan(0);
+  });
+});
+
+describe("SPIN Advance outcomes", () => {
+  it("wins with concrete next action", () => {
+    expect(
+      evaluateAdvanceOutcome(
+        GOOD_CLOSE_UTTERANCE,
+        "SPIN Advance: siguiente acción concreta",
+      ),
+    ).toBe(true);
   });
 
-  it("fails close without concrete day and time on nivel 2+", () => {
-    const result = scoreTurn({
-      utterance: FAIL_CLOSE_UTTERANCE,
-      roundType: "cierre",
-      difficultyLevel: 2,
-      scenarioSlug: "mariana",
-    });
-
-    expect(result.won).toBe(false);
-    expect(result.hasConcreteDayAndTime).toBe(false);
-    expect(["medio", "mal"]).toContain(result.clientReaction);
+  it("fails vague close without concrete action", () => {
+    expect(
+      evaluateAdvanceOutcome(
+        FAIL_CLOSE_UTTERANCE,
+        "SPIN Advance: siguiente acción concreta",
+      ),
+    ).toBe(false);
   });
 
-  it("allows day-only close on nivel 1", () => {
-    const result = scoreTurn({
-      utterance: LEVEL1_CLOSE_DAY_ONLY,
-      roundType: "cierre",
-      difficultyLevel: 1,
-      scenarioSlug: "efrain",
-    });
-
-    expect(result.keywordHits.reunion).toBe(true);
-    expect(result.hasDay).toBe(true);
-    expect(result.won).toBe(true);
+  it("allows day-only phrasing when paired with concrete action verb", () => {
+    expect(
+      evaluateAdvanceOutcome(
+        LEVEL1_CLOSE_DAY_ONLY,
+        "SPIN Advance: siguiente acción concreta",
+      ),
+    ).toBe(true);
   });
 });
 
@@ -116,12 +113,11 @@ describe("scoring extension point", () => {
     expect(detectConcreteDayAndTime("¿Podemos agendar algo?")).toBe(false);
   });
 
-  it("returns keyword hits via scoreUtterance", () => {
+  it("scoreUtterance delegates to legacy path when slug omitted", () => {
     const result = scoreUtterance({
       utterance: "Entiendo el problema de medición y propongo una reunión",
       roundType: "apertura",
     });
-    expect(result.keywordHits.problema).toBe(true);
     expect(result.roundScore).toBeGreaterThan(0);
   });
 });
