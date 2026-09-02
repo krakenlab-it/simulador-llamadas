@@ -16,7 +16,7 @@ import type { ClientReaction } from "@/lib/scoring/rondas";
 import { scoreCall } from "@/lib/scoring/score-call";
 import { buildTranscriptFromTurns } from "@/lib/scoring/transcript";
 import type { TranscriptLine } from "@/lib/scoring/types";
-import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
+import { scoringPhaseCount } from "@/lib/scenarios/authoring";
 import { resolveRoundKey } from "@/lib/simulation/round-keys";
 import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
 import { SessionError } from "./errors";
@@ -128,8 +128,11 @@ function parseConfig(raw: unknown): ScenarioConfig | null {
   return config;
 }
 
-function getScoringPhaseCount(): number {
-  return CLINIC_PHASE_COUNT;
+function getScoringPhaseCount(
+  config: ScenarioConfig | null,
+  isPreset: boolean,
+): number {
+  return scoringPhaseCount(config, isPreset);
 }
 
 function getMaxTurnAllocations(): number {
@@ -165,7 +168,7 @@ export class SessionRepository {
       clientName: row.client_name,
       isPreset: row.is_preset,
       config,
-      totalRounds: getScoringPhaseCount(),
+      totalRounds: getScoringPhaseCount(config, row.is_preset),
       voiceAgent: parseVoiceAgentSettings(row.voice_agent),
     };
   }
@@ -235,7 +238,7 @@ export class SessionRepository {
 
     const row = result.rows[0];
     const config = row.is_preset ? null : parseConfig(row.config);
-    const totalRounds = getScoringPhaseCount();
+    const totalRounds = getScoringPhaseCount(config, row.is_preset);
 
     return {
       callAttemptId: row.id,

@@ -1618,6 +1618,148 @@ body {
   gap: 0.65rem;
 }
 
+.builder-steps {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+@media (min-width: 720px) {
+  .builder-steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.builder-steps__button {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  text-align: left;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--paper);
+  cursor: pointer;
+}
+
+.builder-steps__item--current .builder-steps__button {
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-2) 45%, transparent);
+}
+
+.builder-steps__item--done .builder-steps__index {
+  background: var(--accent);
+  color: var(--ink);
+}
+
+.builder-steps__index {
+  flex-shrink: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: var(--radius-full);
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--surface-sunken);
+  color: var(--paper);
+}
+
+.builder-steps__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.builder-steps__copy strong {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+}
+
+.builder-steps__copy span {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.builder-beats {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.builder-beat {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.builder-beat__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.builder-beat__head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+}
+
+.builder-scorecard {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface-sunken));
+}
+
+.builder-scorecard__head h3 {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+}
+
+.builder-scorecard__head p {
+  margin: 0 0 0.85rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.builder-scorecard__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.builder-scorecard__weight {
+  color: var(--accent-2);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.scenario-card-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.scenario-card__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .app-header__signout {
   margin-left: 0.35rem;
   padding: 0.25rem 0.5rem;

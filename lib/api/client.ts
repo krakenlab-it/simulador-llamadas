@@ -1,8 +1,10 @@
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import type {
+  CreateCustomScenarioInput,
   RichTurnFeedback,
   ScenarioRecord,
   SessionEvaluationSummary,
+  UpdateCustomScenarioInput,
 } from "@/lib/scenarios/types";
 import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
 import {
@@ -13,6 +15,7 @@ import {
   stubHasSession,
   stubListScenarios,
   stubSubmitTurn,
+  stubUpdateScenario,
   type CreateSessionRequest,
   type EndSessionResponse,
   type SessionResponse,
@@ -129,18 +132,8 @@ export async function listScenarios(): Promise<ScenarioRecord[]> {
   return remote?.scenarios ?? stubListScenarios();
 }
 
-export interface CreateScenarioRequest {
-  industry: string;
-  productSold: string;
-  clientName: string;
-  clientTitle: string;
-  companyContext: string;
-  temperament: string;
-  difficultyLabel: string;
-  clientProblem: string;
-  objections: string[];
-  winCriteria: string;
-}
+export type CreateScenarioRequest = CreateCustomScenarioInput;
+export type UpdateScenarioRequest = UpdateCustomScenarioInput;
 
 export async function createScenario(
   body: CreateScenarioRequest,
@@ -161,6 +154,16 @@ export async function saveScenarioVoiceAgent(
     body: JSON.stringify({ slug, voiceAgent }),
   });
   return remote ?? stubSaveVoiceAgent(slug, voiceAgent);
+}
+
+export async function updateScenario(
+  body: UpdateScenarioRequest,
+): Promise<ScenarioRecord> {
+  const remote = await tryFetch<ScenarioRecord>(`/api/scenarios/${body.slug}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+  return remote ?? stubUpdateScenario(body);
 }
 
 export type {

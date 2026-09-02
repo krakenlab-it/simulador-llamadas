@@ -1,4 +1,11 @@
-import type { ScenarioConfig, ScenarioRoundDef, ScoringCriterionDef } from "./types";
+import type {
+  DimensionGuides,
+  ScenarioCallType,
+  ScenarioConfig,
+  ScenarioLanguage,
+  ScenarioRoundDef,
+  ScoringCriterionDef,
+} from "./types";
 
 const DEFAULT_ROUND_TEMPLATES: Omit<ScenarioRoundDef, "clientPrompt">[] = [
   {
@@ -154,6 +161,9 @@ export function buildScenarioConfig(input: {
   temperament: string;
   clientName: string;
   rounds?: ScenarioRoundDef[];
+  language?: ScenarioLanguage;
+  callType?: ScenarioCallType;
+  dimensionGuides?: DimensionGuides;
 }): ScenarioConfig {
   const rounds =
     input.rounds && input.rounds.length > 0
@@ -191,7 +201,9 @@ export function buildScenarioConfig(input: {
       `¿Quién habla? Estoy ocupado con ${input.clientProblem}.`,
       `Si es otro discurso de ${input.productSold}, no tengo tiempo.`,
     ],
-    language: "es",
+    language: input.language ?? "es",
+    callType: input.callType ?? "discovery",
+    dimensionGuides: input.dimensionGuides ?? {},
   };
 }
 

@@ -1,4 +1,11 @@
 import type { DifficultyLevel } from "@/lib/db/types";
+import type {
+  CallAnalytics,
+  CallDebrief,
+  CallScorecard,
+  CallTypeOverlay,
+  ScoreDimensionId,
+} from "@/lib/scoring/types";
 import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
 
 export const CLINIC_PRESET_SLUGS = ["mariana", "rodrigo", "efrain"] as const;
@@ -6,6 +13,20 @@ export type ClinicPresetSlug = (typeof CLINIC_PRESET_SLUGS)[number];
 
 export function isClinicPreset(slug: string): slug is ClinicPresetSlug {
   return (CLINIC_PRESET_SLUGS as readonly string[]).includes(slug);
+}
+
+export const SCENARIO_LANGUAGES = ["es", "en"] as const;
+export type ScenarioLanguage = (typeof SCENARIO_LANGUAGES)[number];
+
+export const SCENARIO_CALL_TYPES = ["fria", "discovery", "cierre"] as const;
+export type ScenarioCallType = CallTypeOverlay;
+
+export function isScenarioLanguage(value: string): value is ScenarioLanguage {
+  return (SCENARIO_LANGUAGES as readonly string[]).includes(value);
+}
+
+export function isScenarioCallType(value: string): value is ScenarioCallType {
+  return (SCENARIO_CALL_TYPES as readonly string[]).includes(value);
 }
 
 export interface ScoringCriterionDef {
@@ -21,7 +42,11 @@ export interface ScenarioRoundDef {
   clientPrompt: string;
   positiveCriteria: string[];
   negativeCriteria: string[];
+  /** Plain-language "good" for this beat. Scoring still uses the KLM-50 card. */
+  whatGoodLooksLike?: string;
 }
+
+export type DimensionGuides = Partial<Record<ScoreDimensionId, string>>;
 
 export interface ScenarioConfig {
   industry: string;
@@ -36,6 +61,8 @@ export interface ScenarioConfig {
   openingLines: string[];
   /** ISO 639-1. Clinic presets and undeclared custom scenarios are Spanish. */
   language?: string;
+  callType?: ScenarioCallType;
+  dimensionGuides?: DimensionGuides;
 }
 
 export interface ScenarioRecord {
@@ -54,6 +81,7 @@ export interface ScenarioRecord {
   clientProblem: string | null;
   objections: string[];
   winCriteria: string | null;
+  language: string;
   config: ScenarioConfig;
   /** Trainer voice-agent knobs; replay restores the same agent. */
   voiceAgent?: VoiceAgentSettings;
@@ -70,14 +98,16 @@ export interface CreateCustomScenarioInput {
   clientProblem: string;
   objections: string[];
   winCriteria: string;
+  language?: ScenarioLanguage;
+  callType?: ScenarioCallType;
+  rounds?: ScenarioRoundDef[];
+  dimensionGuides?: DimensionGuides;
   traineeId?: string;
 }
 
-import type {
-  CallAnalytics,
-  CallDebrief,
-  CallScorecard,
-} from "@/lib/scoring/types";
+export interface UpdateCustomScenarioInput extends CreateCustomScenarioInput {
+  slug: string;
+}
 
 export interface RichTurnFeedback {
   score: number;

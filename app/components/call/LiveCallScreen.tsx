@@ -41,6 +41,7 @@ interface LiveCallScreenProps {
   mode: PracticeMode;
   level: number;
   totalRounds: number;
+  phaseLabels?: string[];
   verifiedUserId?: string;
   voiceAgent?: VoiceAgentSettings;
   ending?: boolean;
@@ -61,6 +62,7 @@ export function LiveCallScreen({
   mode,
   level,
   totalRounds,
+  phaseLabels,
   verifiedUserId,
   voiceAgent = DEFAULT_VOICE_AGENT_SETTINGS,
   ending = false,
@@ -504,7 +506,9 @@ export function LiveCallScreen({
           />
         </div>
         <ol className="round-progress__steps">
-          {ROUND_LABELS.slice(0, totalRounds).map((label, i) => {
+          {(phaseLabels?.length ? phaseLabels : ROUND_LABELS)
+            .slice(0, totalRounds)
+            .map((label, i) => {
             const stepNum = i + 1;
             const state =
               stepNum < round
@@ -514,7 +518,7 @@ export function LiveCallScreen({
                   : "pending";
             return (
               <li
-                key={label}
+                key={`${label}-${stepNum}`}
                 className={`round-progress__step round-progress__step--${state}`}
               >
                 <span className="round-progress__dot" aria-hidden="true" />
