@@ -584,7 +584,10 @@ export function stubGetSessionDetail(callAttemptId: string): SessionDetail {
     endedAt: session.endedAt ?? null,
     durationSeconds: durationSecondsBetween(session.startedAt, session.endedAt),
     turnsCompleted: session.turns.length,
-    totalRounds: CLINIC_PHASE_COUNT,
+    totalRounds: scoringPhaseCount(
+      session.scenario.record.config,
+      session.scenario.record.isPreset,
+    ),
     evaluation: session.evaluation,
     turns: [...session.turns],
   };
