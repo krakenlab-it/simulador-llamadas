@@ -3,7 +3,14 @@
  * Pure state machine — easy to test without rendering React.
  */
 
-export type AppView = "train" | "history" | "builder" | "call" | "results";
+export type AppView =
+  | "home"
+  | "train"
+  | "history"
+  | "builder"
+  | "call"
+  | "results"
+  | "detail";
 
 export type TrainingPhase = "idle" | "starting" | "in-call" | "evaluating";
 
@@ -15,7 +22,7 @@ export interface FlowState {
 
 export function initialFlowState(): FlowState {
   return {
-    view: "train",
+    view: "home",
     phase: "idle",
     hasActiveSession: false,
   };
@@ -31,7 +38,10 @@ export function canNavigateTo(
   if (from.view === "call" && target !== "results") {
     return false;
   }
-  if (from.view === "results" && (target === "call" || target === "builder")) {
+  if (
+    (from.view === "results" || from.view === "detail") &&
+    (target === "call" || target === "builder")
+  ) {
     return false;
   }
   return true;
@@ -65,12 +75,28 @@ export function enterResults(): FlowState {
   };
 }
 
+export function enterDetail(): FlowState {
+  return {
+    view: "detail",
+    phase: "idle",
+    hasActiveSession: true,
+  };
+}
+
 export function finishEvaluating(state: FlowState): FlowState {
   return { ...state, phase: "idle" };
 }
 
-export function resetToTrain(): FlowState {
+export function resetToHome(): FlowState {
   return initialFlowState();
+}
+
+export function resetToTrain(): FlowState {
+  return {
+    view: "train",
+    phase: "idle",
+    hasActiveSession: false,
+  };
 }
 
 export function openBuilder(state: FlowState): FlowState {

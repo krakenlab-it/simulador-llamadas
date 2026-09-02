@@ -3,12 +3,15 @@ import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import {
   SessionService,
   createTrainee,
+  findOrCreateTrainee,
   withPgClient,
 } from "@/lib/session";
 
 interface CreateSessionBody {
   traineeId?: string;
   traineeDisplayName?: string;
+  traineeEmail?: string;
+  traineeAuthUserId?: string;
   scenarioSlug: string;
   difficultyLevel: DifficultyLevel;
   mode: PracticeMode;
@@ -27,14 +30,23 @@ export async function POST(request: Request) {
 
     const session = await withPgClient(async (client) => {
       const service = new SessionService(client);
-      let traineeId = body.traineeId;
-
-      if (!traineeId) {
-        traineeId = await createTrainee(
-          client,
-          body.traineeDisplayName ?? "Trainee",
-        );
-      }
+      const hasIdentity = Boolean(
+        body.traineeEmail?.trim() || body.traineeAuthUserId?.trim(),
+      );
+      const traineeId =
+        body.traineeId && !hasIdentity
+          ? body.traineeId
+          : hasIdentity
+            ? await findOrCreateTrainee(client, {
+                traineeId: body.traineeId,
+                email: body.traineeEmail,
+                authUserId: body.traineeAuthUserId,
+                displayName: body.traineeDisplayName,
+              })
+            : await createTrainee(
+                client,
+                body.traineeDisplayName ?? "Trainee",
+              );
 
       return service.startSession({
         traineeId,

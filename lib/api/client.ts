@@ -12,12 +12,16 @@ import {
   stubCreateScenario,
   stubSaveVoiceAgent,
   stubEndSession,
+  stubGetSessionDetail,
   stubHasSession,
+  stubListHistory,
   stubListScenarios,
   stubSubmitTurn,
   stubUpdateScenario,
   type CreateSessionRequest,
   type EndSessionResponse,
+  type HistoryEntry,
+  type SessionDetail,
   type SessionResponse,
   type TurnRequest,
   type TurnResponse,
@@ -166,11 +170,41 @@ export async function updateScenario(
   return remote ?? stubUpdateScenario(body);
 }
 
+export async function listHistory(query: {
+  traineeId?: string | null;
+  email?: string | null;
+  scenarioSlug?: string;
+}): Promise<HistoryEntry[]> {
+  const params = new URLSearchParams();
+  if (query.traineeId) params.set("traineeId", query.traineeId);
+  if (query.email) params.set("email", query.email);
+  if (query.scenarioSlug) params.set("scenarioSlug", query.scenarioSlug);
+
+  const remote = await tryFetch<{ history: HistoryEntry[] }>(
+    `/api/history?${params.toString()}`,
+  );
+  if (remote) return remote.history;
+  return stubListHistory(query.traineeId ?? undefined, query.email ?? undefined);
+}
+
+export async function getSessionDetail(
+  callAttemptId: string,
+): Promise<SessionDetail> {
+  const remote = await tryFetch<SessionDetail>(
+    `/api/sessions/${callAttemptId}`,
+    undefined,
+    { stubAvailable: stubHasSession(callAttemptId) },
+  );
+  return remote ?? stubGetSessionDetail(callAttemptId);
+}
+
 export type {
   CreateSessionRequest,
   EndSessionResponse,
+  HistoryEntry,
   RichTurnFeedback,
   ScenarioRecord,
+  SessionDetail,
   SessionEvaluationSummary,
   SessionResponse,
   TurnRequest,

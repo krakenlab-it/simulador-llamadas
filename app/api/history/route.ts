@@ -1,20 +1,31 @@
 import { NextResponse } from "next/server";
-import { SessionService, withPgClient } from "@/lib/session";
+import {
+  SessionService,
+  findTraineeId,
+  withPgClient,
+} from "@/lib/session";
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const traineeId = url.searchParams.get("traineeId");
+    const traineeIdParam = url.searchParams.get("traineeId");
+    const email = url.searchParams.get("email");
     const scenarioSlug = url.searchParams.get("scenarioSlug") ?? undefined;
 
-    if (!traineeId) {
+    if (!traineeIdParam && !email) {
       return NextResponse.json(
-        { error: "traineeId query parameter is required" },
+        { error: "traineeId or email query parameter is required" },
         { status: 400 },
       );
     }
 
     const history = await withPgClient(async (client) => {
+      const traineeId =
+        traineeIdParam ??
+        (await findTraineeId(client, { email }));
+
+      if (!traineeId) return [];
+
       const service = new SessionService(client);
       return service.listHistory(traineeId, scenarioSlug);
     });

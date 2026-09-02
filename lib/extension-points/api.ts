@@ -8,11 +8,13 @@ export type ApiRoute =
   | "sessions.create"
   | "sessions.submitTurn"
   | "sessions.end"
+  | "sessions.detail"
   | "history.list";
 
 export const API_ROUTES = {
   create: "POST /api/sessions",
   submitTurn: "POST /api/sessions/:id/turns",
   end: "POST /api/sessions/:id/end",
+  detail: "GET /api/sessions/:id",
   listHistory: "GET /api/history",
 } as const;

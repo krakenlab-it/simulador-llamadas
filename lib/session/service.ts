@@ -7,6 +7,7 @@ import {
   type CreateSessionInput,
   type EndSessionResult,
   type HistoryEntry,
+  type SessionDetail,
   type SessionRecord,
   type TurnRecord,
   type TurnSlot,
@@ -118,6 +119,10 @@ export class SessionService {
   ): Promise<HistoryEntry[]> {
     return this.repository.listHistoryForTrainee(traineeId, scenarioSlug);
   }
+
+  async getSessionDetail(callAttemptId: string): Promise<SessionDetail | null> {
+    return this.repository.getSessionDetail(callAttemptId);
+  }
 }
 
 export async function createTrainee(
@@ -130,6 +135,13 @@ export async function createTrainee(
   );
   return result.rows[0].id;
 }
+
+export {
+  findOrCreateTrainee,
+  findTraineeId,
+  normalizeTraineeEmail,
+} from "./trainees";
+export type { TraineeIdentity } from "./trainees";
 
 export {
   evaluateCloseWinFromScore,

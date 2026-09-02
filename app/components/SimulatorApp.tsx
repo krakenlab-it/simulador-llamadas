@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import {
   createSession,
   endSession,
+  getSessionDetail,
   type EndSessionResponse,
   type TurnSummary,
 } from "@/lib/api/client";
@@ -13,10 +14,12 @@ import {
   beginStarting,
   closeBuilder,
   enterCall,
+  enterDetail,
   enterResults,
   initialFlowState,
   navigate,
   openBuilder,
+  resetToHome,
   resetToTrain,
   type AppView,
   type FlowState,
@@ -36,6 +39,9 @@ import { HistoryView } from "@/app/components/history/HistoryView";
 import { AuthScreen } from "@/app/components/AuthScreen";
 import { AuthProvider, useAuth } from "@/lib/auth/context";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
+import { phaseLabelsForCall } from "@/lib/scenarios/authoring";
+import { durationSecondsBetween } from "@/lib/session/duration";
+import { DEFAULT_VOICE_AGENT_SETTINGS } from "@/lib/voice/agent-settings";
 
 interface EvaluationState {
   result: EndSessionResponse;
@@ -43,7 +49,34 @@ interface EvaluationState {
 }
 
 function shellTabFromView(view: AppView): ShellTab {
-  return view === "history" ? "history" : "train";
+  switch (view) {
+    case "home":
+    case "history":
+    case "detail":
+    case "results":
+      return "home";
+    case "train":
+    case "builder":
+    case "call":
+      return "train";
+    default: {
+      const _exhaustive: never = view;
+      return _exhaustive;
+    }
+  }
+}
+
+function tabToView(tab: ShellTab): AppView {
+  switch (tab) {
+    case "home":
+      return "home";
+    case "train":
+      return "train";
+    default: {
+      const _exhaustive: never = tab;
+      return _exhaustive;
+    }
+  }
 }
 
 function SimulatorShell() {
@@ -52,10 +85,12 @@ function SimulatorShell() {
   const [textOnly, setTextOnly] = useState(false);
   const [flow, setFlow] = useState<FlowState>(initialFlowState);
   const [callAttemptId, setCallAttemptId] = useState<string | null>(null);
+  const [traineeId, setTraineeId] = useState<string | null>(null);
   const [config, setConfig] = useState<SetupConfig | null>(null);
   const [evaluation, setEvaluation] = useState<EvaluationState | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [openingDetail, setOpeningDetail] = useState(false);
   const [callStartedAt, setCallStartedAt] = useState<string | null>(null);
   const [scenarioRefresh, setScenarioRefresh] = useState(0);
   const [historyRefresh, setHistoryRefresh] = useState(0);
@@ -72,10 +107,15 @@ function SimulatorShell() {
   );
 
   const isStarting = flow.phase === "starting";
+  const traineeEmail = session?.user.email ?? null;
 
   const handleTabChange = useCallback((tab: ShellTab) => {
-    const target: AppView = tab === "history" ? "history" : "train";
-    setFlow((prev) => navigate(prev, target));
+    setFlow((prev) => navigate(prev, tabToView(tab)));
+  }, []);
+
+  const handleGoHome = useCallback(() => {
+    setFlow(resetToHome);
+    setHistoryRefresh((k) => k + 1);
   }, []);
 
   const handleStart = useCallback(
@@ -86,7 +126,12 @@ function SimulatorShell() {
           scenarioSlug: setup.scenarioSlug,
           mode: setup.mode,
           difficultyLevel: setup.difficultyLevel,
+          traineeId: traineeId ?? undefined,
+          traineeEmail: traineeEmail ?? undefined,
+          traineeAuthUserId: session?.user.id,
+          traineeDisplayName: shellUser?.displayName,
         });
+        setTraineeId(created.traineeId);
         setCallAttemptId(created.callAttemptId);
         setCallStartedAt(new Date().toISOString());
         setConfig({
@@ -104,7 +149,7 @@ function SimulatorShell() {
         setFlow((prev) => ({ ...prev, phase: "idle" }));
       }
     },
-    [showToast],
+    [showToast, traineeId, traineeEmail, session?.user.id, shellUser?.displayName],
   );
 
   const handleHangUp = useCallback(
@@ -115,6 +160,7 @@ function SimulatorShell() {
       setFlow(() => enterResults());
       try {
         const result = await endSession(callAttemptId);
+        const startedAt = callStartedAt ?? new Date().toISOString();
         appendLocalHistory({
           callAttemptId,
           scenarioSlug: config.scenarioSlug,
@@ -124,7 +170,8 @@ function SimulatorShell() {
           won: result.won,
           totalScore: result.totalScore,
           turnsCompleted: result.turnsCompleted,
-          startedAt: callStartedAt ?? new Date().toISOString(),
+          startedAt,
+          durationSeconds: durationSecondsBetween(startedAt, new Date().toISOString()),
         });
         setEvaluation({ result, turns });
         setHistoryRefresh((k) => k + 1);
@@ -140,6 +187,54 @@ function SimulatorShell() {
       }
     },
     [callAttemptId, config, callStartedAt, ending, showToast],
+  );
+
+  const handleOpenCall = useCallback(
+    async (id: string) => {
+      if (openingDetail) return;
+      setOpeningDetail(true);
+      try {
+        const detail = await getSessionDetail(id);
+        if (!detail.evaluation) {
+          showToast("Esta llamada aún no tiene scorecard guardado.", "error");
+          return;
+        }
+        setCallAttemptId(detail.callAttemptId);
+        setTraineeId(detail.traineeId);
+        setConfig({
+          scenarioSlug: detail.scenarioSlug,
+          clientName: detail.clientName,
+          isPreset: detail.isPreset,
+          mode: detail.mode,
+          difficultyLevel: detail.difficultyLevel,
+          totalRounds: detail.totalRounds,
+          phaseLabels: phaseLabelsForCall(null, detail.isPreset),
+          voiceAgent: DEFAULT_VOICE_AGENT_SETTINGS,
+        });
+        setEvaluation({
+          result: {
+            callAttemptId: detail.callAttemptId,
+            status: detail.status === "completed" ? "completed" : "abandoned",
+            won: detail.won ?? false,
+            totalScore: detail.totalScore ?? 0,
+            turnsCompleted: detail.turnsCompleted,
+            totalRounds: detail.totalRounds,
+            evaluation: detail.evaluation,
+          },
+          turns: detail.turns,
+        });
+        setFlow(() => enterDetail());
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "No se pudo abrir esta llamada.";
+        showToast(message, "error");
+      } finally {
+        setOpeningDetail(false);
+      }
+    },
+    [openingDetail, showToast],
   );
 
   const handleRepeat = useCallback(async () => {
@@ -191,6 +286,8 @@ function SimulatorShell() {
   }
 
   const compactShell = flow.view === "call";
+  const showScorecard =
+    (flow.view === "results" || flow.view === "detail") && config;
 
   return (
     <AppShell
@@ -208,6 +305,16 @@ function SimulatorShell() {
       compact={compactShell}
     >
       <ScreenTransition screenKey={flow.view}>
+        {(flow.view === "home" || flow.view === "history") && (
+          <HistoryView
+            refreshKey={historyRefresh}
+            traineeId={traineeId}
+            traineeEmail={traineeEmail}
+            onStartTraining={() => handleTabChange("train")}
+            onOpenCall={(id) => void handleOpenCall(id)}
+          />
+        )}
+
         {flow.view === "train" && (
           <ScenarioHub
             refreshKey={scenarioRefresh}
@@ -222,13 +329,6 @@ function SimulatorShell() {
               setBuilderScenario(scenario);
               setFlow((prev) => openBuilder(prev));
             }}
-          />
-        )}
-
-        {flow.view === "history" && (
-          <HistoryView
-            refreshKey={historyRefresh}
-            onStartTraining={() => handleTabChange("train")}
           />
         )}
 
@@ -261,19 +361,20 @@ function SimulatorShell() {
           />
         )}
 
-        {flow.view === "results" && config && (
+        {showScorecard ? (
           <ResultsScreen
             result={evaluation?.result ?? null}
             turns={evaluation?.turns ?? []}
             clientName={config.clientName}
             scenarioSlug={config.scenarioSlug}
             totalRounds={config.totalRounds}
-            loading={evaluating}
+            loading={evaluating || openingDetail}
             onRepeat={() => void handleRepeat()}
             onNewScenario={handleNewScenario}
-            onViewHistory={() => handleTabChange("history")}
+            onViewHistory={handleGoHome}
+            historyActionLabel="Volver al inicio"
           />
-        )}
+        ) : null}
       </ScreenTransition>
     </AppShell>
   );

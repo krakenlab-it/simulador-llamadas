@@ -19,6 +19,7 @@ import type { TranscriptLine } from "@/lib/scoring/types";
 import { scoringPhaseCount } from "@/lib/scenarios/authoring";
 import { resolveRoundKey } from "@/lib/simulation/round-keys";
 import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
+import { durationSecondsBetween } from "./duration";
 import { SessionError } from "./errors";
 import { resolveEndSessionWin } from "./win";
 import {
@@ -108,7 +109,39 @@ export interface HistoryEntry {
   totalScore: number | null;
   startedAt: string;
   endedAt: string | null;
+  durationSeconds: number | null;
   turnsCompleted: number;
+}
+
+export interface SessionDetailTurn {
+  roundKey: string;
+  roundLabel: string;
+  roundType: RoundType | null;
+  utterance: string;
+  expectedPhrase: string;
+  roundScore: number;
+  richFeedback: RichTurnFeedback;
+  keywordHits?: Record<string, boolean>;
+}
+
+export interface SessionDetail {
+  callAttemptId: string;
+  traineeId: string;
+  scenarioSlug: string;
+  clientName: string;
+  isPreset: boolean;
+  difficultyLevel: DifficultyLevel;
+  mode: PracticeMode;
+  status: CallStatus;
+  won: boolean | null;
+  totalScore: number | null;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  turnsCompleted: number;
+  totalRounds: number;
+  evaluation: SessionEvaluationSummary | null;
+  turns: SessionDetailTurn[];
 }
 
 interface ScenarioContext {
@@ -137,6 +170,15 @@ function getScoringPhaseCount(
 
 function getMaxTurnAllocations(): number {
   return SESSION_MAX_TURN_ALLOCATIONS;
+}
+
+function parseEvaluationSummary(
+  raw: unknown,
+): SessionEvaluationSummary | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as SessionEvaluationSummary;
+  if (typeof value.verdict !== "string") return null;
+  return value;
 }
 
 export class SessionRepository {
@@ -652,7 +694,102 @@ export class SessionRepository {
       totalScore: row.total_score === null ? null : Number(row.total_score),
       startedAt: row.started_at.toISOString(),
       endedAt: row.ended_at ? row.ended_at.toISOString() : null,
+      durationSeconds: durationSecondsBetween(row.started_at, row.ended_at),
       turnsCompleted: row.turns_completed,
     }));
+  }
+
+  async getSessionDetail(callAttemptId: string): Promise<SessionDetail | null> {
+    const header = await this.client.query<{
+      id: string;
+      trainee_id: string;
+      scenario_slug: string;
+      client_name: string;
+      is_preset: boolean;
+      difficulty_level: DifficultyLevel;
+      mode: PracticeMode;
+      status: CallStatus;
+      won: boolean | null;
+      total_score: string | null;
+      started_at: Date;
+      ended_at: Date | null;
+      evaluation_summary: SessionEvaluationSummary | null;
+      config: ScenarioConfig;
+    }>(
+      `SELECT
+         ca.id,
+         ca.trainee_id,
+         s.slug AS scenario_slug,
+         s.client_name,
+         s.is_preset,
+         s.config,
+         ca.difficulty_level,
+         ca.mode,
+         ca.status,
+         ca.won,
+         ca.total_score,
+         ca.started_at,
+         ca.ended_at,
+         ca.evaluation_summary
+       FROM call_attempts ca
+       JOIN scenarios s ON s.id = ca.scenario_id
+       WHERE ca.id = $1`,
+      [callAttemptId],
+    );
+
+    if (header.rows.length === 0) return null;
+
+    const row = header.rows[0];
+    const config = row.is_preset ? null : parseConfig(row.config);
+    const turnRows = await this.client.query<{
+      round_key: string | null;
+      round_label: string | null;
+      round_type: RoundType | null;
+      trainee_utterance: string | null;
+      expected_phrase: string | null;
+      round_score: string;
+      feedback_detail: RichTurnFeedback;
+      keyword_hits: Record<string, boolean> | null;
+    }>(
+      `SELECT
+         ct.round_key, ct.round_label, ct.round_type, ct.trainee_utterance,
+         ct.expected_phrase, ts.round_score, ts.feedback_detail, ts.keyword_hits
+       FROM call_turns ct
+       JOIN turn_scores ts ON ts.turn_id = ct.id
+       WHERE ct.call_attempt_id = $1
+       ORDER BY ct.round_number`,
+      [callAttemptId],
+    );
+
+    const turns: SessionDetailTurn[] = turnRows.rows.map((turn) => ({
+      roundKey: turn.round_key ?? turn.round_type ?? "round",
+      roundLabel: turn.round_label ?? turn.round_type ?? "Ronda",
+      roundType: turn.round_type,
+      utterance: turn.trainee_utterance ?? "",
+      expectedPhrase: turn.expected_phrase ?? "",
+      roundScore: Number(turn.round_score),
+      richFeedback: turn.feedback_detail,
+      keywordHits: turn.keyword_hits ?? undefined,
+    }));
+
+    return {
+      callAttemptId: row.id,
+      traineeId: row.trainee_id,
+      scenarioSlug: row.scenario_slug,
+      clientName: row.client_name,
+      isPreset: row.is_preset,
+      difficultyLevel: row.difficulty_level,
+      mode: row.mode,
+      status: row.status,
+      won: row.won,
+      totalScore: row.total_score === null ? null : Number(row.total_score),
+      startedAt: row.started_at.toISOString(),
+      endedAt: row.ended_at ? row.ended_at.toISOString() : null,
+      durationSeconds: durationSecondsBetween(row.started_at, row.ended_at),
+      turnsCompleted: turns.length,
+      totalRounds: getScoringPhaseCount(config, row.is_preset),
+      evaluation: parseEvaluationSummary(row.evaluation_summary),
+      turns,
+    };
   }
 }

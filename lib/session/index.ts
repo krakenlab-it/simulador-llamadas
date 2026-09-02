@@ -5,21 +5,28 @@ export type {
   CreateSessionInput,
   EndSessionResult,
   HistoryEntry,
+  SessionDetail,
+  SessionDetailTurn,
   SessionRecord,
   TurnRecord,
   TurnScoreInput,
   TurnSlot,
 } from "./repository";
+export { durationSecondsBetween, formatDurationLabel } from "./duration";
 export { SessionError, toSessionError } from "./errors";
 export type { SessionErrorCode } from "./errors";
 export {
   SessionService,
   createTrainee,
+  findOrCreateTrainee,
+  findTraineeId,
+  normalizeTraineeEmail,
   evaluateCloseWinFromScore,
   resolveEndSessionWin,
   utteranceHasDay,
   utteranceHasTime,
 } from "./service";
+export type { TraineeIdentity } from "./service";
 export type { EndSessionTurnInput } from "./service";
 
 let sharedPool: Pool | null = null;

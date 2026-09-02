@@ -16,6 +16,7 @@ interface ResultsScreenProps {
   onRepeat: () => void;
   onNewScenario: () => void;
   onViewHistory: () => void;
+  historyActionLabel?: string;
 }
 
 export function ResultsScreen({
@@ -28,6 +29,7 @@ export function ResultsScreen({
   onRepeat,
   onNewScenario,
   onViewHistory,
+  historyActionLabel = "Ver historial",
 }: ResultsScreenProps) {
   if (loading || !result) {
     return (
@@ -222,7 +224,7 @@ export function ResultsScreen({
           Otro escenario
         </Button>
         <Button variant="ghost" onClick={onViewHistory}>
-          Ver historial
+          {historyActionLabel}
         </Button>
       </div>
     </section>

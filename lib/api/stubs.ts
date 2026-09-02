@@ -25,6 +25,7 @@ import { scoreTurnAdaptive } from "@/lib/scoring/adaptive";
 import { scoreCall } from "@/lib/scoring/score-call";
 import { buildTranscriptFromTurns } from "@/lib/scoring/transcript";
 import type { ClientReaction } from "@/lib/scoring/rondas";
+import { durationSecondsBetween } from "@/lib/session/duration";
 import { resolveEndSessionWin } from "@/lib/session/win";
 import { DEFAULT_WIN_CRITERIA } from "@/lib/scoring/outcome";
 import { getOpeningLine } from "@/lib/llm/client-replies";
@@ -40,6 +41,8 @@ export interface CreateSessionRequest {
   difficultyLevel: DifficultyLevel;
   traineeId?: string;
   traineeDisplayName?: string;
+  traineeEmail?: string;
+  traineeAuthUserId?: string;
 }
 
 export interface HistoryEntry {
@@ -54,6 +57,7 @@ export interface HistoryEntry {
   totalScore: number | null;
   startedAt: string;
   endedAt: string | null;
+  durationSeconds?: number | null;
   turnsCompleted: number;
 }
 
@@ -114,6 +118,26 @@ export interface EndSessionResponse {
   evaluation: SessionEvaluationSummary;
 }
 
+export interface SessionDetail {
+  callAttemptId: string;
+  traineeId: string;
+  scenarioSlug: string;
+  clientName: string;
+  isPreset: boolean;
+  difficultyLevel: DifficultyLevel;
+  mode: PracticeMode;
+  status: CallStatus;
+  won: boolean | null;
+  totalScore: number | null;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  turnsCompleted: number;
+  totalRounds: number;
+  evaluation: SessionEvaluationSummary | null;
+  turns: TurnSummary[];
+}
+
 interface StubScenario {
   record: ScenarioRecord;
 }
@@ -121,6 +145,7 @@ interface StubScenario {
 interface StubSession {
   callAttemptId: string;
   traineeId: string;
+  traineeEmail?: string;
   scenario: StubScenario;
   mode: PracticeMode;
   difficultyLevel: DifficultyLevel;
@@ -129,10 +154,14 @@ interface StubSession {
   turns: TurnSummary[];
   won: boolean;
   startedAt: string;
+  endedAt?: string;
+  totalScore?: number;
+  evaluation?: SessionEvaluationSummary;
 }
 
 const sessions = new Map<string, StubSession>();
 const historyByTrainee = new Map<string, HistoryEntry[]>();
+const traineeIdByEmail = new Map<string, string>();
 const customScenarios = new Map<string, StubScenario>();
 const voiceAgentBySlug = new Map<string, VoiceAgentSettings>();
 
@@ -288,9 +317,17 @@ export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
     scenario.record.isPreset,
   );
 
+  const email = body.traineeEmail?.trim().toLowerCase();
+  const traineeId =
+    body.traineeId ??
+    (email ? traineeIdByEmail.get(email) : undefined) ??
+    generateId("trainee");
+  if (email) traineeIdByEmail.set(email, traineeId);
+
   const session: StubSession = {
     callAttemptId,
-    traineeId: body.traineeId ?? generateId("trainee"),
+    traineeId,
+    traineeEmail: email,
     scenario,
     mode: body.mode,
     difficultyLevel: body.difficultyLevel,
@@ -480,6 +517,10 @@ export async function stubEndSession(callAttemptId: string): Promise<EndSessionR
   );
 
   const endedAt = new Date().toISOString();
+  session.endedAt = endedAt;
+  session.totalScore = totalScore;
+  session.evaluation = evaluation;
+
   const entry: HistoryEntry = {
     callAttemptId,
     traineeId: session.traineeId,
@@ -492,6 +533,7 @@ export async function stubEndSession(callAttemptId: string): Promise<EndSessionR
     totalScore,
     startedAt: session.startedAt,
     endedAt,
+    durationSeconds: durationSecondsBetween(session.startedAt, endedAt),
     turnsCompleted: session.turns.length,
   };
 
@@ -509,8 +551,46 @@ export async function stubEndSession(callAttemptId: string): Promise<EndSessionR
   };
 }
 
-export function stubListHistory(traineeId: string): HistoryEntry[] {
-  return [...(historyByTrainee.get(traineeId) ?? [])];
+export function stubListHistory(
+  traineeId?: string,
+  email?: string,
+): HistoryEntry[] {
+  const resolvedId =
+    traineeId ??
+    (email ? traineeIdByEmail.get(email.trim().toLowerCase()) : undefined);
+  if (!resolvedId) return [];
+  return [...(historyByTrainee.get(resolvedId) ?? [])];
+}
+
+export function stubGetSessionDetail(callAttemptId: string): SessionDetail {
+  const session = sessions.get(callAttemptId);
+  if (!session) throw new Error("Sesión no encontrada");
+  if (session.status !== "completed" || !session.evaluation) {
+    throw new Error("Esta llamada aún no tiene evaluación.");
+  }
+
+  return {
+    callAttemptId,
+    traineeId: session.traineeId,
+    scenarioSlug: session.scenario.record.slug,
+    clientName: session.scenario.record.clientName,
+    isPreset: session.scenario.record.isPreset,
+    difficultyLevel: session.difficultyLevel,
+    mode: session.mode,
+    status: session.status,
+    won: session.won,
+    totalScore: session.totalScore ?? null,
+    startedAt: session.startedAt,
+    endedAt: session.endedAt ?? null,
+    durationSeconds: durationSecondsBetween(session.startedAt, session.endedAt),
+    turnsCompleted: session.turns.length,
+    totalRounds: scoringPhaseCount(
+      session.scenario.record.config,
+      session.scenario.record.isPreset,
+    ),
+    evaluation: session.evaluation,
+    turns: [...session.turns],
+  };
 }
 
 export function stubGetOpeningLine(scenarioSlug: string): string {
@@ -530,5 +610,7 @@ export function stubGetTurnSummaries(callAttemptId: string): TurnSummary[] {
 export function resetStubSessions(): void {
   sessions.clear();
   historyByTrainee.clear();
+  traineeIdByEmail.clear();
+  voiceAgentBySlug.clear();
   customScenarios.clear();
 }

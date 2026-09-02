@@ -17,6 +17,7 @@ export interface LocalHistoryEntry {
   totalScore: number;
   turnsCompleted: number;
   startedAt: string;
+  durationSeconds?: number | null;
 }
 
 export interface LocalHistoryTrend {
