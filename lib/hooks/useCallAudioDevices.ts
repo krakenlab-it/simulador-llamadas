@@ -25,6 +25,7 @@ export interface UseCallAudioDevicesResult {
   refreshDevices: () => Promise<void>;
   selectMic: (deviceId: string) => Promise<void>;
   selectSpeaker: (deviceId: string) => Promise<void>;
+  releaseMic: () => void;
 }
 
 const BROWSER_STT_MIC_NOTE =
@@ -40,8 +41,10 @@ export function useCallAudioDevices(
   const [selectedMicId, setSelectedMicId] = useState("");
   const [selectedSpeakerId, setSelectedSpeakerId] = useState("");
   const micStreamRef = useRef<MediaStream | null>(null);
+  const micCaptureGenerationRef = useRef(0);
 
   const stopMicStream = useCallback(() => {
+    micCaptureGenerationRef.current += 1;
     micStreamRef.current?.getTracks().forEach((track) => track.stop());
     micStreamRef.current = null;
   }, []);
@@ -49,7 +52,13 @@ export function useCallAudioDevices(
   const holdMicStream = useCallback(async (deviceId: string) => {
     stopMicStream();
     if (!deviceId) return;
-    micStreamRef.current = await openMicCaptureStream(deviceId);
+    const generation = micCaptureGenerationRef.current;
+    const stream = await openMicCaptureStream(deviceId);
+    if (generation !== micCaptureGenerationRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+    micStreamRef.current = stream;
   }, [stopMicStream]);
 
   const refreshDevices = useCallback(async () => {
@@ -123,5 +132,6 @@ export function useCallAudioDevices(
     refreshDevices,
     selectMic,
     selectSpeaker,
+    releaseMic: stopMicStream,
   };
 }

@@ -75,6 +75,7 @@ export function useSpeechRecognition(
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listeningWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingUtteranceRestartRef = useRef(false);
+  const captureGenerationRef = useRef(0);
   const startBrowserRecognitionRef = useRef<() => void>(() => undefined);
 
   keepAliveRef.current = keepAlive;
@@ -105,6 +106,7 @@ export function useSpeechRecognition(
   }, []);
 
   const cleanupMedia = useCallback(() => {
+    captureGenerationRef.current += 1;
     mediaRecorderRef.current?.stop();
     mediaRecorderRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -147,10 +149,26 @@ export function useSpeechRecognition(
     }, RESTART_DELAY_MS);
   }, [clearRestartTimer]);
 
+  const releaseMicCapture = useCallback(() => {
+    clearRestartTimer();
+    clearListeningWatchdog();
+    pendingUtteranceRestartRef.current = false;
+    recognitionRef.current?.abort();
+    recognitionRef.current = null;
+    cleanupMedia();
+    setListening(false);
+  }, [cleanupMedia, clearListeningWatchdog, clearRestartTimer]);
+
   const primeMicCapture = useCallback(async () => {
     if (streamRef.current) return;
+    const generation = captureGenerationRef.current;
     try {
-      streamRef.current = await openMicCaptureStream(micDeviceIdRef.current);
+      const stream = await openMicCaptureStream(micDeviceIdRef.current);
+      if (generation !== captureGenerationRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      streamRef.current = stream;
     } catch {
       // Web Speech can still run on the default device.
     }
@@ -293,12 +311,13 @@ export function useSpeechRecognition(
     clearListeningWatchdog();
     pendingUtteranceRestartRef.current = false;
     if (mediaRecorderRef.current?.state === "recording") {
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
       mediaRecorderRef.current.stop();
       return;
     }
-    recognitionRef.current?.stop();
-    setListening(false);
-  }, [clearRestartTimer, clearListeningWatchdog]);
+    releaseMicCapture();
+  }, [clearListeningWatchdog, clearRestartTimer, releaseMicCapture]);
 
   const ensureListening = useCallback(() => {
     if (!keepAliveRef.current || pausedRef.current) return;
@@ -325,10 +344,11 @@ export function useSpeechRecognition(
     if (!keepAlive || paused) {
       clearRestartTimer();
       clearListeningWatchdog();
-      if (paused || !keepAlive) {
-        recognitionRef.current?.stop();
-        if (paused) setListening(false);
-      }
+      pendingUtteranceRestartRef.current = false;
+      recognitionRef.current?.abort();
+      recognitionRef.current = null;
+      cleanupMedia();
+      if (paused) setListening(false);
       return;
     }
 
@@ -343,6 +363,7 @@ export function useSpeechRecognition(
     keepAlive,
     useServerStt,
     startBrowserRecognition,
+    cleanupMedia,
     clearListeningWatchdog,
     clearRestartTimer,
   ]);
@@ -359,12 +380,9 @@ export function useSpeechRecognition(
 
   useEffect(() => {
     return () => {
-      clearRestartTimer();
-      clearListeningWatchdog();
-      recognitionRef.current?.abort();
-      cleanupMedia();
+      releaseMicCapture();
     };
-  }, [cleanupMedia, clearListeningWatchdog, clearRestartTimer]);
+  }, [releaseMicCapture]);
 
   return {
     supported,
