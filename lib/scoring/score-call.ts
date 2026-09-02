@@ -1,4 +1,6 @@
 import { callLlm, parseJsonFromLlm } from "@/lib/llm/provider";
+import { formatDimensionGuidesForPrompt } from "@/lib/scenarios/authoring";
+import { resolveScenarioLanguage } from "@/lib/scenarios/language";
 import type { ScenarioConfig } from "@/lib/scenarios/types";
 import {
   dimensionHundred,
@@ -82,8 +84,12 @@ async function scoreWithLlm(
 
   const callType = inferCallType(input.config, input.isPreset);
   const winCriteria = resolveWinCriteria(input.config);
+  const authoredGuides = formatDimensionGuidesForPrompt(
+    input.config?.dimensionGuides,
+  );
+  const language = resolveScenarioLanguage(input.config).promptName;
 
-  const prompt = `Eres coach de ventas B2B en español (México). Evalúa la transcripción contra 6 dimensiones con escala anclada 1-5 (1=muy débil, 3=aceptable, 5=excelente).
+  const prompt = `Eres coach de ventas B2B en ${language}. Evalúa la transcripción contra 6 dimensiones con escala anclada 1-5 (1=muy débil, 3=aceptable, 5=excelente).
 
 Dimensiones y peso base:
 - apertura_contrato (15%): presentación, permiso, contrato de llamada
@@ -95,7 +101,7 @@ Dimensiones y peso base:
 
 Overlay de tipo de llamada: ${callType}.
 Criterio de éxito del escenario: ${winCriteria}.
-NO evalúes conversión ni cierre de venta final.
+${authoredGuides ? `Qué se ve bien según quien diseñó el escenario (mismas 6 dimensiones, no inventes otra tarjeta):\n${authoredGuides}\n` : ""}NO evalúes conversión ni cierre de venta final.
 
 Industria: ${input.config?.industry ?? "general"}.
 Producto: ${input.config?.productSold ?? "N/A"}.

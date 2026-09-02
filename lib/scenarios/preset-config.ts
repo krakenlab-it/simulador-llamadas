@@ -31,5 +31,7 @@ export function buildPresetScenarioConfig(slug: string): ScenarioConfig | null {
     globalPositiveCriteria: ["problema", "medicion", "reunion"],
     openingLines: [...client.openings],
     language: "es",
+    callType: "fria",
+    dimensionGuides: {},
   };
 }

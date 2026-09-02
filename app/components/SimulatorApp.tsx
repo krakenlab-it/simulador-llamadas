@@ -35,6 +35,7 @@ import { ResultsScreen } from "@/app/components/results/ResultsScreen";
 import { HistoryView } from "@/app/components/history/HistoryView";
 import { AuthScreen } from "@/app/components/AuthScreen";
 import { AuthProvider, useAuth } from "@/lib/auth/context";
+import type { ScenarioRecord } from "@/lib/scenarios/types";
 
 interface EvaluationState {
   result: EndSessionResponse;
@@ -59,6 +60,9 @@ function SimulatorShell() {
   const [scenarioRefresh, setScenarioRefresh] = useState(0);
   const [historyRefresh, setHistoryRefresh] = useState(0);
   const [selectedSlugOnLoad, setSelectedSlugOnLoad] = useState<string | null>(
+    null,
+  );
+  const [builderScenario, setBuilderScenario] = useState<ScenarioRecord | null>(
     null,
   );
 
@@ -210,7 +214,14 @@ function SimulatorShell() {
             selectedSlugOnLoad={selectedSlugOnLoad}
             isStarting={isStarting}
             onStart={(c) => void handleStart(c)}
-            onCreateScenario={() => setFlow((prev) => openBuilder(prev))}
+            onCreateScenario={() => {
+              setBuilderScenario(null);
+              setFlow((prev) => openBuilder(prev));
+            }}
+            onEditScenario={(scenario) => {
+              setBuilderScenario(scenario);
+              setFlow((prev) => openBuilder(prev));
+            }}
           />
         )}
 
@@ -223,7 +234,11 @@ function SimulatorShell() {
 
         {flow.view === "builder" && (
           <ScenarioBuilderScreen
-            onCancel={() => setFlow((prev) => closeBuilder(prev))}
+            initialScenario={builderScenario}
+            onCancel={() => {
+              setBuilderScenario(null);
+              setFlow((prev) => closeBuilder(prev));
+            }}
             onSave={({ scenario }) => handleScenarioSaved(scenario.slug)}
           />
         )}
@@ -238,6 +253,7 @@ function SimulatorShell() {
             mode={config.mode}
             level={config.difficultyLevel}
             totalRounds={config.totalRounds}
+            phaseLabels={config.phaseLabels}
             verifiedUserId={config.verifiedUserId}
             voiceAgent={config.voiceAgent}
             ending={ending}

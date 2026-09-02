@@ -12,6 +12,16 @@ export {
   type ScenarioConfig,
   type ScenarioRecord,
   type CreateCustomScenarioInput,
+  type UpdateCustomScenarioInput,
   type RichTurnFeedback,
   type SessionEvaluationSummary,
+  type ScenarioLanguage,
+  type ScenarioCallType,
 } from "./types";
+export {
+  scoringPhaseCount,
+  phaseLabelsForCall,
+  draftFromRecord,
+  draftToCreateInput,
+  parseAuthoringBody,
+} from "./authoring";

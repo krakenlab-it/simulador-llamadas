@@ -1,24 +1,39 @@
 import { NextResponse } from "next/server";
 import { parseAuthoringBody } from "@/lib/scenarios/authoring";
 import { ScenarioRepository } from "@/lib/scenarios";
+import {
+  PresetScenarioLockedError,
+  ScenarioNotFoundError,
+} from "@/lib/scenarios/repository";
 import type { CreateCustomScenarioInput } from "@/lib/scenarios/types";
 import { withPgClient } from "@/lib/session";
 
-export async function GET() {
+interface RouteContext {
+  params: Promise<{ slug: string }>;
+}
+
+export async function GET(_request: Request, context: RouteContext) {
   try {
-    const scenarios = await withPgClient(async (client) => {
+    const { slug } = await context.params;
+    const scenario = await withPgClient(async (client) => {
       const repo = new ScenarioRepository(client);
-      return repo.listScenarios();
+      return repo.getBySlug(slug);
     });
-    return NextResponse.json({ scenarios });
+
+    if (!scenario) {
+      return NextResponse.json({ error: "Scenario not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(scenario);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
-export async function POST(request: Request) {
+export async function PATCH(request: Request, context: RouteContext) {
   try {
+    const { slug } = await context.params;
     const body = (await request.json()) as Partial<CreateCustomScenarioInput>;
     const parsed = parseAuthoringBody(body);
     if (!parsed.ok) {
@@ -27,11 +42,17 @@ export async function POST(request: Request) {
 
     const scenario = await withPgClient(async (client) => {
       const repo = new ScenarioRepository(client);
-      return repo.createCustom(parsed.input);
+      return repo.updateCustom({ ...parsed.input, slug });
     });
 
-    return NextResponse.json(scenario, { status: 201 });
+    return NextResponse.json(scenario);
   } catch (error) {
+    if (error instanceof ScenarioNotFoundError) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    if (error instanceof PresetScenarioLockedError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

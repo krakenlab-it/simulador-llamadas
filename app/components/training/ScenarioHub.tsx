@@ -30,6 +30,10 @@ import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { SegmentedControl, Switch } from "@/app/components/ui/Switch";
 import { unlockClientPlayback } from "@/lib/voice/client-playback";
+import {
+  phaseLabelsForCall,
+  scoringPhaseCount,
+} from "@/lib/scenarios/authoring";
 
 export interface SetupConfig {
   scenarioSlug: string;
@@ -38,6 +42,7 @@ export interface SetupConfig {
   mode: PracticeMode;
   difficultyLevel: DifficultyLevel;
   totalRounds: number;
+  phaseLabels: string[];
   verifiedUserId?: string;
   verifiedEmail?: string;
   client?: ClientPersona;
@@ -47,6 +52,7 @@ export interface SetupConfig {
 interface ScenarioHubProps {
   onStart: (config: SetupConfig) => void;
   onCreateScenario: () => void;
+  onEditScenario: (scenario: ScenarioRecord) => void;
   refreshKey?: number;
   selectedSlugOnLoad?: string | null;
   isStarting?: boolean;
@@ -57,6 +63,7 @@ type ScenarioTab = "library" | "custom";
 export function ScenarioHub({
   onStart,
   onCreateScenario,
+  onEditScenario,
   refreshKey = 0,
   selectedSlugOnLoad = null,
   isStarting = false,
@@ -124,6 +131,7 @@ export function ScenarioHub({
               indicator: c.indicator,
               painPoints: c.pains,
               isPreset: true,
+              language: "es",
               config: { rounds: [] },
             }) as unknown as ScenarioRecord,
         );
@@ -186,7 +194,8 @@ export function ScenarioHub({
       isPreset: selected.isPreset,
       mode,
       difficultyLevel: level,
-      totalRounds: 5,
+      totalRounds: scoringPhaseCount(selected.config, selected.isPreset),
+      phaseLabels: phaseLabelsForCall(selected.config, selected.isPreset),
       client: selectedClient ?? undefined,
       verifiedUserId: verifiedUserId ?? undefined,
       verifiedEmail: verifiedEmail ?? undefined,
@@ -197,47 +206,55 @@ export function ScenarioHub({
   const renderScenarioCard = (scenario: ScenarioRecord) => {
     const isSelected = selectedSlug === scenario.slug;
     return (
-      <Card
-        key={scenario.slug}
-        interactive
-        selected={isSelected}
-        role="button"
-        tabIndex={0}
-        aria-pressed={isSelected}
-        onClick={() => setSelectedSlug(scenario.slug)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setSelectedSlug(scenario.slug);
-          }
-        }}
-      >
-        <div className="scenario-card__head">
-          <h3 className="scenario-card__name">{scenario.clientName}</h3>
-          <span
-            className={`chip ${scenario.isPreset ? "chip--preset" : "chip--custom"}`}
-          >
+      <div key={scenario.slug} className="scenario-card-wrap">
+        <Card
+          interactive
+          selected={isSelected}
+          role="button"
+          tabIndex={0}
+          aria-pressed={isSelected}
+          onClick={() => setSelectedSlug(scenario.slug)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setSelectedSlug(scenario.slug);
+            }
+          }}
+        >
+          <div className="scenario-card__head">
+            <h3 className="scenario-card__name">{scenario.clientName}</h3>
+            <span
+              className={`chip ${scenario.isPreset ? "chip--preset" : "chip--custom"}`}
+            >
+              {scenario.isPreset
+                ? scenario.difficultyLabel ?? "Preset"
+                : scenario.industry ?? "Personalizado"}
+            </span>
+          </div>
+          <p className="scenario-card__role">
+            {scenario.clientTitle} · {scenario.companyContext}
+          </p>
+          <p className="scenario-card__hint">
             {scenario.isPreset
-              ? scenario.difficultyLabel ?? "Preset"
-              : scenario.industry ?? "Personalizado"}
-          </span>
-        </div>
-        <p className="scenario-card__role">
-          {scenario.clientTitle} · {scenario.companyContext}
-        </p>
-        <p className="scenario-card__hint">
-          {scenario.isPreset
-            ? `Indicador: ${scenario.indicator}`
-            : `Vende: ${scenario.productSold}`}
-        </p>
-        {(scenario.painPoints ?? []).length > 0 ? (
-          <ul className="scenario-card__pains">
-            {(scenario.painPoints ?? []).slice(0, 2).map((pain) => (
-              <li key={pain}>{pain}</li>
-            ))}
-          </ul>
+              ? `Indicador: ${scenario.indicator}`
+              : `Vende: ${scenario.productSold}`}
+          </p>
+          {(scenario.painPoints ?? []).length > 0 ? (
+            <ul className="scenario-card__pains">
+              {(scenario.painPoints ?? []).slice(0, 2).map((pain) => (
+                <li key={pain}>{pain}</li>
+              ))}
+            </ul>
+          ) : null}
+        </Card>
+        {!scenario.isPreset ? (
+          <div className="scenario-card__actions">
+            <Button variant="ghost" onClick={() => onEditScenario(scenario)}>
+              Editar {scenario.clientName}
+            </Button>
+          </div>
         ) : null}
-      </Card>
+      </div>
     );
   };
 

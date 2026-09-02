@@ -3,7 +3,9 @@ import {
   stubCreateScenario,
   stubCreateSession,
   stubEndSession,
+  stubListScenarios,
   stubSubmitTurn,
+  stubUpdateScenario,
   resetStubSessions,
 } from "@/lib/api/stubs";
 
@@ -48,5 +50,51 @@ describe("custom scenario stubs", () => {
     expect(ended.evaluation.nextDrill).toBeTruthy();
     expect(ended.evaluation.scorecard).toBeDefined();
     expect(ended.totalRounds).toBe(5);
+  });
+
+  it("updates success criteria on a custom scenario and keeps the slug", () => {
+    const created = stubCreateScenario({
+      industry: "banco",
+      productSold: "cuenta pyme",
+      clientName: "Ana Soto",
+      clientTitle: "Gerente",
+      companyContext: "Banco Sur",
+      temperament: "Directa",
+      difficultyLabel: "Media",
+      clientProblem: "filas largas",
+      objections: ["Ya tenemos core"],
+      winCriteria: "Cita en sucursal",
+      language: "es",
+      callType: "discovery",
+    });
+
+    const updated = stubUpdateScenario({
+      slug: created.slug,
+      industry: created.industry ?? "banco",
+      productSold: created.productSold ?? "cuenta pyme",
+      clientName: created.clientName,
+      clientTitle: created.clientTitle,
+      companyContext: created.companyContext,
+      temperament: created.temperament ?? "Directa",
+      difficultyLabel: created.difficultyLabel,
+      clientProblem: created.clientProblem ?? "filas largas",
+      objections: created.objections,
+      winCriteria: "SPIN Advance: mesa de trabajo el viernes a las 11",
+      language: "es",
+      callType: "cierre",
+      dimensionGuides: {
+        cierre_siguiente_paso: "Agenda mesa de trabajo con hora.",
+      },
+    });
+
+    expect(updated.slug).toBe(created.slug);
+    expect(updated.winCriteria).toBe(
+      "SPIN Advance: mesa de trabajo el viernes a las 11",
+    );
+    expect(updated.config.callType).toBe("cierre");
+    expect(updated.config.dimensionGuides?.cierre_siguiente_paso).toContain(
+      "mesa de trabajo",
+    );
+    expect(stubListScenarios().some((s) => s.slug === created.slug)).toBe(true);
   });
 });

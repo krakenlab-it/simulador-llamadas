@@ -71,6 +71,7 @@ export function buildClientReplyPrompt(input: GenerateReplyInput): string {
     input.roundNumber >= 5 || phaseKey === "cierre"
       ? `Estás en ${input.round.label} (turno ${input.roundNumber || phaseKey}). Sigue en ${language.promptName} hasta colgar.`
       : `Ronda: ${input.round.label}.`;
+  const goodLooksLike = input.round.whatGoodLooksLike?.trim();
 
   return `Eres ${input.clientName}, cliente en ${input.config.industry}.
 Problema: ${input.config.clientProblem}.
@@ -78,6 +79,7 @@ Vendes/compras: ${input.config.productSold}.
 Temperamento: ${input.config.temperament}.
 Idioma obligatorio: ${language.promptName} (${language.iso639}). Habla SOLO en ${language.promptName}.
 ${turnLabel}
+${goodLooksLike ? `En esta fase, una buena respuesta del vendedor se ve así: ${goodLooksLike}.` : ""}
 El vendedor dijo: "${input.traineeUtterance}".
 Responde en 1-2 oraciones cortas, tono ${mood}.
 Solo la réplica del cliente, sin comillas ni explicación.`;

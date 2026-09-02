@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ScenarioHub } from "@/app/components/training/ScenarioHub";
-import { marianaScenarioFixture } from "@/tests/frontend/fixtures";
+import {
+  customGymScenarioFixture,
+  marianaScenarioFixture,
+} from "@/tests/frontend/fixtures";
 
 vi.mock("@/lib/api/client", () => ({
   listScenarios: vi.fn(),
@@ -41,16 +44,18 @@ function renderHub(
 ) {
   const onStart = vi.fn();
   const onCreateScenario = vi.fn();
+  const onEditScenario = vi.fn();
 
   render(
     <ScenarioHub
       onStart={onStart}
       onCreateScenario={onCreateScenario}
+      onEditScenario={onEditScenario}
       {...props}
     />,
   );
 
-  return { onStart, onCreateScenario };
+  return { onStart, onCreateScenario, onEditScenario };
 }
 
 describe("ScenarioHub flow", () => {
@@ -85,6 +90,7 @@ describe("ScenarioHub flow", () => {
         mode: "texto",
         difficultyLevel: 1,
         totalRounds: 5,
+        phaseLabels: ["Apertura", "Objeción", "Claridad", "Correo", "Cierre"],
       }),
     );
   });
@@ -241,5 +247,32 @@ describe("ScenarioHub flow", () => {
     renderHub();
 
     expect(screen.getByText("Cargando escenarios…")).toBeInTheDocument();
+  });
+
+  it("offers edit on custom scenarios and never on clinic presets", async () => {
+    vi.mocked(listScenarios).mockResolvedValue([
+      marianaScenarioFixture,
+      customGymScenarioFixture,
+    ]);
+    const user = userEvent.setup();
+    const { onEditScenario } = renderHub();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /Mariana Escobedo/i }),
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByRole("button", { name: /Editar Mariana/i }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Mis escenarios" }));
+    await user.click(
+      screen.getByRole("button", { name: "Editar Laura Méndez" }),
+    );
+    expect(onEditScenario).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: "laura-gimnasio", isPreset: false }),
+    );
   });
 });

@@ -5,16 +5,20 @@ import type {
   RoundType,
 } from "@/lib/db/types";
 import { getRoundTypeForNumber } from "@/lib/extension-points/session";
-import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
 import { resolveRoundKey } from "@/lib/simulation/round-keys";
 import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
 import { getClientBySlug } from "@/lib/clients";
+import {
+  buildAuthoredScenarioConfig,
+  scoringPhaseCount,
+} from "@/lib/scenarios/authoring";
 import { buildScenarioConfig } from "@/lib/scenarios/defaults";
 import type {
   CreateCustomScenarioInput,
   RichTurnFeedback,
   ScenarioRecord,
   SessionEvaluationSummary,
+  UpdateCustomScenarioInput,
 } from "@/lib/scenarios/types";
 import { buildSessionEvaluation } from "@/lib/feedback/evaluation";
 import { scoreTurnAdaptive } from "@/lib/scoring/adaptive";
@@ -157,6 +161,7 @@ function buildPresetScenario(slug: string): StubScenario | null {
       clientProblem: null,
       objections: [],
       winCriteria: null,
+      language: "es",
       config: buildScenarioConfig({
         industry: client.company,
         productSold: client.indicator,
@@ -211,27 +216,15 @@ export function stubSaveVoiceAgent(
   return record;
 }
 
-export function stubCreateScenario(
+function recordFromInput(
   input: CreateCustomScenarioInput,
+  slug: string,
+  id: string,
 ): ScenarioRecord {
-  const config = buildScenarioConfig({
-    industry: input.industry,
-    productSold: input.productSold,
-    clientProblem: input.clientProblem,
-    objections: input.objections,
-    winCriteria: input.winCriteria,
-    temperament: input.temperament,
-    clientName: input.clientName,
-  });
-
-  const slug = `${input.clientName}-${input.industry}`
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .slice(0, 40);
-
-  const record: ScenarioRecord = {
-    id: generateId("scenario"),
-    slug: `${slug}-${Date.now().toString(36).slice(-4)}`,
+  const config = buildAuthoredScenarioConfig(input);
+  return {
+    id,
+    slug,
     isPreset: false,
     clientName: input.clientName,
     clientTitle: input.clientTitle,
@@ -245,9 +238,40 @@ export function stubCreateScenario(
     clientProblem: input.clientProblem,
     objections: input.objections,
     winCriteria: input.winCriteria,
+    language: config.language || "es",
     config,
   };
+}
 
+export function stubCreateScenario(
+  input: CreateCustomScenarioInput,
+): ScenarioRecord {
+  const slugBase = `${input.clientName}-${input.industry}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 40);
+  const record = recordFromInput(
+    input,
+    `${slugBase}-${Date.now().toString(36).slice(-4)}`,
+    generateId("scenario"),
+  );
+  customScenarios.set(record.slug, { record });
+  return record;
+}
+
+export function stubUpdateScenario(
+  input: UpdateCustomScenarioInput,
+): ScenarioRecord {
+  const existing = customScenarios.get(input.slug);
+  if (!existing) {
+    throw new Error(`Escenario no encontrado: ${input.slug}`);
+  }
+  if (existing.record.isPreset) {
+    throw new Error(`Clinic presets cannot be edited: ${input.slug}`);
+  }
+  const record = withSavedVoiceAgent(
+    recordFromInput(input, existing.record.slug, existing.record.id),
+  );
   customScenarios.set(record.slug, { record });
   return record;
 }
@@ -259,7 +283,10 @@ export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
   }
 
   const callAttemptId = generateId("stub");
-  const totalRounds = CLINIC_PHASE_COUNT;
+  const totalRounds = scoringPhaseCount(
+    scenario.record.config,
+    scenario.record.isPreset,
+  );
 
   const session: StubSession = {
     callAttemptId,
@@ -302,7 +329,10 @@ export async function stubSubmitTurn(
   if (!session) throw new Error("Sesión no encontrada");
   if (session.status !== "in_progress") throw new Error("La sesión ya terminó");
 
-  const phaseCount = CLINIC_PHASE_COUNT;
+  const phaseCount = scoringPhaseCount(
+    session.scenario.record.config,
+    session.scenario.record.isPreset,
+  );
 
   if (session.currentRound > SESSION_MAX_TURN_ALLOCATIONS) {
     throw new Error("All rounds already completed");
@@ -400,7 +430,10 @@ export async function stubEndSession(callAttemptId: string): Promise<EndSessionR
 
   session.status = "completed";
 
-  const totalRounds = CLINIC_PHASE_COUNT;
+  const totalRounds = scoringPhaseCount(
+    session.scenario.record.config,
+    session.scenario.record.isPreset,
+  );
 
   const closeRoundKey = session.scenario.record.isPreset
     ? "cierre"

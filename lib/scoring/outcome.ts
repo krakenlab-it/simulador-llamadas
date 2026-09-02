@@ -14,6 +14,10 @@ export function inferCallType(
   config: ScenarioConfig | null,
   isPreset: boolean,
 ): CallTypeOverlay {
+  if (config?.callType) {
+    return config.callType;
+  }
+
   if (!config) {
     return isPreset ? "fria" : "discovery";
   }

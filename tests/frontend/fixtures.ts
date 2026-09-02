@@ -16,6 +16,7 @@ export const marianaScenarioFixture: ScenarioRecord = {
   clientProblem: null,
   objections: [],
   winCriteria: null,
+  language: "es",
   isPreset: true,
   config: {
     industry: "clinica",
@@ -28,5 +29,40 @@ export const marianaScenarioFixture: ScenarioRecord = {
     criteria: [],
     globalPositiveCriteria: [],
     openingLines: ["Hola"],
+  },
+};
+
+/** Custom scenario fixture for authoring/edit tests. */
+export const customGymScenarioFixture: ScenarioRecord = {
+  id: "custom-gym",
+  slug: "laura-gimnasio",
+  clientName: "Laura Méndez",
+  clientTitle: "Gerente",
+  companyContext: "Cadena de gimnasios",
+  difficultyLabel: "Media",
+  indicator: "Retención",
+  painPoints: ["baja retención"],
+  industry: "gimnasio",
+  productSold: "membresía anual",
+  temperament: "Impaciente",
+  clientProblem: "baja retención de socios",
+  objections: ["Muy caro"],
+  winCriteria: "Clase prueba el viernes a las 18",
+  language: "es",
+  isPreset: false,
+  config: {
+    industry: "gimnasio",
+    productSold: "membresía anual",
+    clientProblem: "baja retención de socios",
+    objections: ["Muy caro"],
+    winCriteria: "Clase prueba el viernes a las 18",
+    temperament: "Impaciente",
+    rounds: [],
+    criteria: [],
+    globalPositiveCriteria: [],
+    openingLines: ["¿Quién habla?"],
+    language: "es",
+    callType: "discovery",
+    dimensionGuides: {},
   },
 };
