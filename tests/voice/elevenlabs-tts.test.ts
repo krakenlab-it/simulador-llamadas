@@ -62,6 +62,46 @@ describe("synthesizeWithElevenLabs", () => {
     vi.resetModules();
   });
 
+  it("still sends language_code es for a last-phase Spanish clinic line", async () => {
+    const { synthesizeWithElevenLabs } = await loadProvider();
+    const lastPhaseLine = "Si no hay fecha en la agenda, no hay reunión.";
+
+    const result = await synthesizeWithElevenLabs(lastPhaseLine);
+
+    expect(result.ok).toBe(true);
+    expect(calledBody(0)).toEqual({
+      text: lastPhaseLine,
+      model_id: "eleven_flash_v2_5",
+      language_code: "es",
+    });
+  });
+
+  it("records language_code es on voice.tts.attempt for the last phase", async () => {
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const { synthesizeWithElevenLabs } = await loadProvider();
+
+    await synthesizeWithElevenLabs("Sin día y hora concretos no hay siguiente paso.", {
+      requestId: "req-cierre-10",
+      charsRequested: 48,
+      charsSent: 48,
+      sessionExtraTtsRemaining: 400,
+      turnId: "cierre-10",
+    });
+
+    const attempt = infoSpy.mock.calls
+      .map(([raw]) => {
+        try {
+          return JSON.parse(String(raw)) as { event?: string; languageCode?: string };
+        } catch {
+          return null;
+        }
+      })
+      .find((entry) => entry?.event === "voice.tts.attempt");
+
+    expect(attempt?.languageCode).toBe("es");
+    infoSpy.mockRestore();
+  });
+
   it("buffers a complete MP3 from the convert endpoint with Spanish flash v2.5", async () => {
     const { synthesizeWithElevenLabs } = await loadProvider();
 

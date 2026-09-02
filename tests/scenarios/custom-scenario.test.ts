@@ -19,6 +19,7 @@ describe("custom scenarios", () => {
   it("builds industry-specific scenario config", () => {
     expect(tireShopConfig.criteria.length).toBeGreaterThan(5);
     expect(tireShopConfig.rounds).toHaveLength(5);
+    expect(tireShopConfig.language).toBe("es");
   });
 
   it("scores tire shop utterance on 6 dimensions, not caseta keywords", async () => {

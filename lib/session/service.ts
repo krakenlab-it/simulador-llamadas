@@ -73,6 +73,7 @@ export class SessionService {
         config: session.config,
         clientName: session.clientName,
         isLastRound,
+        roundNumber: slot.roundNumber,
         priorLines,
       });
 

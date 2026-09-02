@@ -46,6 +46,7 @@ describe("tts-trace", () => {
       sessionExtraTtsRemaining: 720,
       fallbackToBrowser: true,
       durationMs: 412,
+      languageCode: "es",
     });
 
     expect(infoSpy).toHaveBeenCalledTimes(1);
@@ -65,6 +66,7 @@ describe("tts-trace", () => {
       sessionExtraTtsRemaining: 720,
       fallbackToBrowser: true,
       durationMs: 412,
+      languageCode: "es",
     });
     expect(JSON.stringify(payload)).not.toContain("sk_");
   });

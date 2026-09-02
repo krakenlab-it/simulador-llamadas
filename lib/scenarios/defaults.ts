@@ -191,6 +191,7 @@ export function buildScenarioConfig(input: {
       `¿Quién habla? Estoy ocupado con ${input.clientProblem}.`,
       `Si es otro discurso de ${input.productSold}, no tengo tiempo.`,
     ],
+    language: "es",
   };
 }
 

@@ -55,6 +55,7 @@ function logRouteTtsOutcome(
     fallbackToBrowser: payload.fallbackToBrowser,
     durationMs: payload.durationMs,
     recovered: payload.recovered,
+    languageCode: "es",
   });
 }
 
@@ -96,6 +97,7 @@ export async function POST(request: Request) {
     charsRequested: requestedChars,
     charsSent: sentChars,
     sessionExtraTtsRemaining,
+    languageCode: "es",
   });
 
   if (!isSpeakableTtsText(rawText)) {

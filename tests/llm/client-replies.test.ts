@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GenerateReplyInput } from "@/lib/llm/client-replies";
 import {
   GROQ_CLIENT_REPLY_TIMEOUT_MS,
+  buildClientReplyPrompt,
   generateGroqClientReply,
   isGroqAvailable,
 } from "@/lib/llm/client-replies";
@@ -121,5 +122,47 @@ describe("generateGroqClientReply", () => {
 
     expect(reply).toBe("Réplica guionizada.");
     vi.useRealTimers();
+  });
+
+  it("locks Spanish on the last cierre overflow turn even if the seller used English", async () => {
+    process.env.GROQ_API_KEY = "gsk-test";
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "Sin día y hora concretos no hay reunión." } }],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const lastPhase: GenerateReplyInput = {
+      ...baseInput,
+      config: { ...baseInput.config, language: "es" },
+      round: {
+        key: "cierre",
+        label: "Cierre",
+        goal: "Día y hora",
+        clientPrompt: "Si no hay fecha, no hay reunión.",
+        positiveCriteria: [],
+        negativeCriteria: [],
+      },
+      roundNumber: 10,
+      traineeUtterance: "Let's schedule a follow-up meeting next Tuesday at 10.",
+    };
+
+    const prompt = buildClientReplyPrompt(lastPhase);
+    expect(prompt.toLowerCase()).toMatch(/español/);
+    expect(prompt).not.toMatch(/mismo idioma que el vendedor/i);
+
+    await generateGroqClientReply(lastPhase, "Sin día y hora no hay reunión.");
+
+    const init = vi.mocked(fetch).mock.calls[0]?.[1];
+    const body = JSON.parse(String(init?.body)) as {
+      messages: { role: string; content: string }[];
+    };
+    const sent = body.messages.map((m) => m.content).join("\n");
+    expect(sent.toLowerCase()).toMatch(/español/);
+    expect(sent).not.toMatch(/mismo idioma que el vendedor/i);
+    expect(body.messages.some((m) => m.role === "system")).toBe(true);
   });
 });

@@ -33,6 +33,8 @@ export interface ScenarioConfig {
   criteria: ScoringCriterionDef[];
   globalPositiveCriteria: string[];
   openingLines: string[];
+  /** ISO 639-1. Clinic presets and undeclared custom scenarios are Spanish. */
+  language?: string;
 }
 
 export interface ScenarioRecord {
