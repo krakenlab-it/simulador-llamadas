@@ -8,6 +8,9 @@ const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
 export const RELAX_THREE_SCENARIO_LIMIT_FILE =
   "20250831000003_relax_three_scenario_limit.sql";
 
+export const TRAINEE_IDENTITY_MIGRATION_FILE =
+  "20250902000000_trainee_identity.sql";
+
 function listMigrationFiles(): string[] {
   return readdirSync(MIGRATIONS_DIR)
     .filter((f) => f.endsWith(".sql"))
@@ -58,5 +61,16 @@ export async function ensureMigrated(client: Client): Promise<void> {
   if (!columns.has("is_preset") || !columns.has("voice_agent")) {
     await client.query("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;");
     await client.query(loadMigrationSql());
+    return;
+  }
+
+  const index = await client.query<{ indexname: string }>(
+    `SELECT indexname FROM pg_indexes
+     WHERE schemaname = 'public' AND indexname = 'trainees_email_lower_uidx'`,
+  );
+  if (index.rows.length === 0) {
+    await client.query(
+      readFileSync(join(MIGRATIONS_DIR, TRAINEE_IDENTITY_MIGRATION_FILE), "utf-8"),
+    );
   }
 }

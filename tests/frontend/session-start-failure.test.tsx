@@ -12,7 +12,10 @@ vi.mock("@/lib/api/client", () => ({
   submitTurn: vi.fn(),
   endSession: vi.fn(),
   createScenario: vi.fn(),
+  updateScenario: vi.fn(),
   saveScenarioVoiceAgent: vi.fn(),
+  listHistory: vi.fn().mockResolvedValue([]),
+  getSessionDetail: vi.fn(),
 }));
 
 vi.mock("@/lib/hooks/useSpeechSynthesis", () => ({
@@ -84,6 +87,13 @@ describe("session start failure", () => {
     render(<SimulatorApp />);
 
     await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Nueva práctica" }),
+      ).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "Nueva práctica" }));
+
+    await waitFor(() => {
       expect(screen.getByRole("button", { name: /Mariana Escobedo/i })).toBeInTheDocument();
     });
 
@@ -113,6 +123,13 @@ describe("session start failure", () => {
 
     const user = userEvent.setup();
     render(<SimulatorApp />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Nueva práctica" }),
+      ).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "Nueva práctica" }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Mariana Escobedo/i })).toBeInTheDocument();

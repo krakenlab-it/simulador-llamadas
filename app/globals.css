@@ -176,6 +176,13 @@ body {
 
   .app-header {
     padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+  }
+
+  .app-nav {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
   }
 }
 
@@ -1457,6 +1464,30 @@ body {
   padding: 3rem 0;
 }
 
+.dashboard-home__hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dashboard-home__cta {
+  flex-shrink: 0;
+}
+
+.dashboard-home__error {
+  margin: 0 0 1rem;
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .dashboard-home__cta {
+    width: 100%;
+  }
+}
+
 .history-list {
   list-style: none;
   margin: 0;
@@ -1478,9 +1509,26 @@ body {
     box-shadow var(--duration-fast) var(--ease);
 }
 
+.history-list__item--button {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
 .history-list__item:hover {
   border-color: color-mix(in srgb, var(--paper) 15%, transparent);
   box-shadow: var(--shadow-sm);
+}
+
+.history-list__score {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .history-list__main {

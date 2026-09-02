@@ -95,6 +95,6 @@ describeIfDb("call history API", () => {
 
     expect(response.status).toBe(400);
     const body = (await response.json()) as { error: string };
-    expect(body.error).toContain("traineeId");
+    expect(body.error).toMatch(/traineeId|email/);
   });
 });
