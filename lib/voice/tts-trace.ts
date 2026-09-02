@@ -12,6 +12,8 @@ export interface TtsTraceContext {
   charsRequested: number;
   charsSent: number;
   sessionExtraTtsRemaining: number | null;
+  /** ISO 639-1 requested for this billed attempt (clinic: es). */
+  languageCode?: string;
 }
 
 export interface TtsAttemptLog {
@@ -30,6 +32,8 @@ export interface TtsAttemptLog {
   fallbackToBrowser: boolean;
   durationMs: number;
   recovered?: boolean;
+  /** ISO 639-1 the turn intended, even if a 422 retry omitted language_code. */
+  languageCode?: string;
 }
 
 export function createTtsRequestId(): string {

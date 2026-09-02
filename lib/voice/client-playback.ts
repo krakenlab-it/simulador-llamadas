@@ -153,12 +153,39 @@ export function loadBrowserVoices(): SpeechSynthesisVoice[] {
   return window.speechSynthesis.getVoices();
 }
 
+export function pickVoiceForLocale(
+  voices: ReadonlyArray<{ lang: string; name: string }>,
+  locale: string,
+): { lang: string; name: string } | null {
+  const wanted = locale.replace(/_/g, "-").toLowerCase();
+  const prefix = wanted.split("-")[0] ?? wanted;
+  const normalized = voices.map((voice) => ({
+    voice,
+    lang: voice.lang.replace(/_/g, "-").toLowerCase(),
+  }));
+  const match =
+    normalized.find(({ lang }) => lang === wanted || lang.startsWith(`${wanted}-`)) ??
+    normalized.find(({ lang }) => lang.startsWith(`${prefix}-`)) ??
+    normalized.find(({ lang }) => lang === prefix || lang.startsWith(prefix));
+  return match?.voice ?? null;
+}
+
 export function applySpanishVoice(utterance: SpeechSynthesisUtterance): void {
-  utterance.lang = SPEECH_LANG;
+  applyScenarioVoice(utterance, SPEECH_LANG);
+}
+
+export function applyScenarioVoice(
+  utterance: SpeechSynthesisUtterance,
+  locale: string = SPEECH_LANG,
+): void {
+  utterance.lang = locale;
   utterance.volume = 1;
   utterance.rate = 1;
   utterance.pitch = 1;
-  const voice = pickSpanishVoice(loadBrowserVoices());
+  const voices = loadBrowserVoices();
+  const voice = locale.toLowerCase().replace(/_/g, "-").startsWith("es")
+    ? pickSpanishVoice(voices)
+    : pickVoiceForLocale(voices, locale);
   if (voice) utterance.voice = voice as SpeechSynthesisVoice;
 }
 
@@ -225,7 +252,11 @@ export function cancelBrowserSpeech(): void {
  * but never started. `onDone` runs exactly once so the caller can release the
  * mic even when nothing was audible.
  */
-export function speakSpanishText(text: string, onDone: () => void): () => void {
+export function speakSpanishText(
+  text: string,
+  onDone: () => void,
+  locale: string = SPEECH_LANG,
+): () => void {
   if (typeof window === "undefined" || !window.speechSynthesis) {
     onDone();
     return () => undefined;
@@ -268,7 +299,7 @@ export function speakSpanishText(text: string, onDone: () => void): () => void {
     }
 
     const utterance = new SpeechSynthesisUtterance(chunk);
-    applySpanishVoice(utterance);
+    applyScenarioVoice(utterance, locale);
     liveUtterances.push(utterance);
 
     let started = false;

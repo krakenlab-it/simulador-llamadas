@@ -27,6 +27,8 @@ export interface LiveTurnInput {
   config: ScenarioConfig | null;
   clientName: string;
   isLastRound: boolean;
+  /** 1-based call turn (1–10). Overflow cierre is 6–10. */
+  roundNumber?: number;
   priorLines: TranscriptLine[];
 }
 
@@ -92,6 +94,15 @@ function buildCoachingNote(
   return `${roundLabel}: escucha activa; profundiza en el impacto del problema.`;
 }
 
+function resolveTurnNumber(input: LiveTurnInput): number {
+  if (typeof input.roundNumber === "number" && input.roundNumber > 0) {
+    return input.roundNumber;
+  }
+  const match = /-(\d+)$/.exec(input.roundKey);
+  if (match) return Number(match[1]);
+  return 0;
+}
+
 function resolveScoringRoundType(input: LiveTurnInput): RoundType | null {
   if (input.roundType) return input.roundType;
   const phaseKey = phaseKeyFromPersistenceKey(input.roundKey);
@@ -143,7 +154,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
             reaction: clientReaction,
             clientName: input.clientName,
             traineeUtterance: input.utterance,
-            roundNumber: 0,
+            roundNumber: resolveTurnNumber(input),
           },
           templatedReply,
         );
@@ -167,7 +178,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       reaction: clientReaction,
       clientName: input.clientName,
       traineeUtterance: input.utterance,
-      roundNumber: 0,
+      roundNumber: resolveTurnNumber(input),
     });
   } else {
     clientReply = "Entiendo. Siga.";

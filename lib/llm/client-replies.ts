@@ -2,6 +2,11 @@ import type { ClientReaction } from "@/lib/scoring/rondas";
 import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { templateClientReply } from "@/lib/feedback/evaluation";
 import { callLlm, isLlmAvailable } from "@/lib/llm/provider";
+import {
+  buildLanguageLockSystemPrompt,
+  resolveScenarioLanguage,
+} from "@/lib/scenarios/language";
+import { phaseKeyFromPersistenceKey } from "@/lib/simulation/round-keys";
 
 /** Max wait for Groq preset client replies before scripted fallback. */
 export const GROQ_CLIENT_REPLY_TIMEOUT_MS = 8_000;
@@ -17,7 +22,8 @@ export interface GenerateReplyInput {
 
 async function callGroq(
   prompt: string,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  systemPrompt: string,
 ): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
@@ -32,7 +38,10 @@ async function callGroq(
       signal,
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
-        messages: [{ role: "user", content: prompt }],
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
         max_tokens: 120,
         temperature: 0.7,
       }),
@@ -48,7 +57,8 @@ async function callGroq(
   }
 }
 
-function buildPrompt(input: GenerateReplyInput): string {
+export function buildClientReplyPrompt(input: GenerateReplyInput): string {
+  const language = resolveScenarioLanguage(input.config);
   const mood =
     input.reaction === "bien"
       ? "interesado pero exigente"
@@ -56,13 +66,20 @@ function buildPrompt(input: GenerateReplyInput): string {
         ? "escéptico, poco tiempo"
         : "frustrado, a punto de colgar";
 
+  const phaseKey = phaseKeyFromPersistenceKey(input.round.key);
+  const turnLabel =
+    input.roundNumber >= 5 || phaseKey === "cierre"
+      ? `Estás en ${input.round.label} (turno ${input.roundNumber || phaseKey}). Sigue en ${language.promptName} hasta colgar.`
+      : `Ronda: ${input.round.label}.`;
+
   return `Eres ${input.clientName}, cliente en ${input.config.industry}.
 Problema: ${input.config.clientProblem}.
 Vendes/compras: ${input.config.productSold}.
 Temperamento: ${input.config.temperament}.
-Ronda: ${input.round.label}.
+Idioma obligatorio: ${language.promptName} (${language.iso639}). Habla SOLO en ${language.promptName}.
+${turnLabel}
 El vendedor dijo: "${input.traineeUtterance}".
-Responde en 1-2 oraciones cortas, en el mismo idioma que el vendedor, tono ${mood}.
+Responde en 1-2 oraciones cortas, tono ${mood}.
 Solo la réplica del cliente, sin comillas ni explicación.`;
 }
 
@@ -84,8 +101,13 @@ export async function generateGroqClientReply(
   );
 
   try {
-    const prompt = buildPrompt(input);
-    const llmReply = await callGroq(prompt, controller.signal);
+    const language = resolveScenarioLanguage(input.config);
+    const prompt = buildClientReplyPrompt(input);
+    const llmReply = await callGroq(
+      prompt,
+      controller.signal,
+      buildLanguageLockSystemPrompt(language),
+    );
     if (!llmReply || llmReply.length < 8 || llmReply.length > 400) {
       return fallbackText;
     }
@@ -112,7 +134,8 @@ export async function generateClientReply(
 
   if (!isLlmAvailable()) return fallback;
 
-  const prompt = buildPrompt(input);
+  const language = resolveScenarioLanguage(input.config);
+  const prompt = `${buildLanguageLockSystemPrompt(language)}\n\n${buildClientReplyPrompt(input)}`;
   const llmReply = await callLlm(prompt, { maxTokens: 120, temperature: 0.7 });
 
   if (!llmReply || llmReply.length < 8 || llmReply.length > 400) {

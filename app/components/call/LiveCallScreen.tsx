@@ -133,7 +133,10 @@ export function LiveCallScreen({
   const clientVoiceIsConvai = mode === "voz" && convaiConnected;
   const useBrowserMic = mode === "voz" && !clientVoiceIsConvai;
 
-  const synthesis = useSpeechSynthesis({ sessionUsageId });
+  const synthesis = useSpeechSynthesis({
+    sessionUsageId,
+    locale: "es-MX",
+  });
   const busy = submitting || hangingUp || ending;
   const holdMic = busy || synthesis.speaking;
   const callDevices = useCallAudioDevices(

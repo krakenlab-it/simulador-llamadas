@@ -10,6 +10,7 @@ describe("buildPresetScenarioConfig", () => {
       "Si es otro discurso de branding, cuelgo.",
     );
     expect(config?.rounds).toHaveLength(5);
+    expect(config?.language).toBe("es");
   });
 
   it("returns null for non-preset slugs", () => {

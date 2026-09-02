@@ -22,6 +22,8 @@ import { isSpeakableTtsText } from "@/lib/voice/tts-budget";
 
 export interface UseSpeechSynthesisOptions {
   sessionUsageId?: string | null;
+  /** BCP-47 for browser speechSynthesis. Clinic calls stay on es-MX. */
+  locale?: string;
 }
 
 export interface UseSpeechSynthesisResult {
@@ -75,7 +77,7 @@ async function fetchServerAudio(
 export function useSpeechSynthesis(
   options: UseSpeechSynthesisOptions = {},
 ): UseSpeechSynthesisResult {
-  const { sessionUsageId } = options;
+  const { sessionUsageId, locale = "es-MX" } = options;
   const voiceConfig = useVoiceConfig();
   const [supported, setSupported] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -160,13 +162,17 @@ export function useSpeechSynthesis(
       }
       setSpeaking(true);
       stopBrowserSpeechRef.current?.();
-      stopBrowserSpeechRef.current = speakSpanishText(text, () => {
-        stopBrowserSpeechRef.current = null;
-        if (generation !== generationRef.current) return;
-        clearSpeaking();
-      });
+      stopBrowserSpeechRef.current = speakSpanishText(
+        text,
+        () => {
+          stopBrowserSpeechRef.current = null;
+          if (generation !== generationRef.current) return;
+          clearSpeaking();
+        },
+        locale,
+      );
     },
-    [clearSpeaking],
+    [clearSpeaking, locale],
   );
 
   const speakServer = useCallback(

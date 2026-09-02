@@ -135,6 +135,7 @@ function emitTtsAttemptLog(
     sessionExtraTtsRemaining: trace.sessionExtraTtsRemaining,
     fallbackToBrowser: false,
     durationMs: Date.now() - startedAt,
+    languageCode: trace.languageCode ?? TTS_LANGUAGE,
   });
 }
 

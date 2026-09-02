@@ -82,6 +82,16 @@ describe("speakSpanishText", () => {
     vi.useRealTimers();
   });
 
+  it("keeps es-MX on the last cierre line even when only English voices exist", () => {
+    voices = [{ lang: "en-US", name: "Samantha" }];
+    speakSpanishText("Si no hay fecha en la agenda, no hay reunión.", vi.fn());
+    vi.advanceTimersByTime(SETTLE_MS);
+
+    expect(lastUtterance().text).toBe("Si no hay fecha en la agenda, no hay reunión.");
+    expect(lastUtterance().lang).toBe("es-MX");
+    expect(lastUtterance().voice).not.toEqual({ lang: "en-US", name: "Samantha" });
+  });
+
   it("speaks the Spanish line with a Mexican voice", () => {
     const onDone = vi.fn();
     speakSpanishText("¿Ustedes miden gente real o solo leads?", onDone);
