@@ -21,6 +21,11 @@ import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
 import { AUTOSUBMIT_SILENCE_MS } from "@/lib/voice/timeouts";
 import { isAutosubmitReady } from "@/lib/voice/autosubmit";
+import { resolveSpeechLocale } from "@/lib/scenarios/language";
+import {
+  DEFAULT_VOICE_AGENT_SETTINGS,
+  type VoiceAgentSettings,
+} from "@/lib/voice/agent-settings";
 
 interface DialogueEntry {
   role: "client" | "you";
@@ -37,6 +42,7 @@ interface LiveCallScreenProps {
   level: number;
   totalRounds: number;
   verifiedUserId?: string;
+  voiceAgent?: VoiceAgentSettings;
   ending?: boolean;
   onHangUp: (turns: TurnSummary[]) => void;
 }
@@ -56,6 +62,7 @@ export function LiveCallScreen({
   level,
   totalRounds,
   verifiedUserId,
+  voiceAgent = DEFAULT_VOICE_AGENT_SETTINGS,
   ending = false,
   onHangUp,
 }: LiveCallScreenProps) {
@@ -135,10 +142,11 @@ export function LiveCallScreen({
 
   const synthesis = useSpeechSynthesis({
     sessionUsageId,
-    locale: "es-MX",
+    locale: resolveSpeechLocale({ language: voiceAgent.language }),
+    voiceAgent,
   });
   const busy = submitting || hangingUp || ending;
-  const holdMic = busy || synthesis.speaking;
+  const holdMic = busy || (synthesis.speaking && !voiceAgent.bargeIn);
   const callDevices = useCallAudioDevices(
     mode === "voz" && useBrowserMic && !hangingUp && !ending,
     voiceConfig.sttTier === "browser" || !voiceConfig.serverStt,
@@ -430,6 +438,12 @@ export function LiveCallScreen({
   useEffect(() => {
     if (holdMic) clearAutosubmitTimer();
   }, [clearAutosubmitTimer, holdMic]);
+
+  useEffect(() => {
+    if (!voiceAgent.bargeIn || !synthesis.speaking) return;
+    if (!speech.transcript.trim()) return;
+    synthesis.cancel();
+  }, [speech.transcript, synthesis, voiceAgent.bargeIn]);
 
   useEffect(() => {
     if (!micArmed || mode !== "voz" || holdMic) return;

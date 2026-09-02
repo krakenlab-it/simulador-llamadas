@@ -19,11 +19,18 @@ import {
   TTS_PLAY_TIMEOUT_MS,
 } from "@/lib/voice/timeouts";
 import { isSpeakableTtsText } from "@/lib/voice/tts-budget";
+import { resolveSpeechLocale } from "@/lib/scenarios/language";
+import {
+  DEFAULT_VOICE_AGENT_SETTINGS,
+  voiceAgentToTtsOptions,
+  type VoiceAgentSettings,
+} from "@/lib/voice/agent-settings";
 
 export interface UseSpeechSynthesisOptions {
   sessionUsageId?: string | null;
   /** BCP-47 for browser speechSynthesis. Clinic calls stay on es-MX. */
   locale?: string;
+  voiceAgent?: VoiceAgentSettings | null;
 }
 
 export interface UseSpeechSynthesisResult {
@@ -46,6 +53,7 @@ async function fetchServerAudio(
   text: string,
   sessionUsageId: string | null | undefined,
   signal: AbortSignal,
+  voiceAgent?: VoiceAgentSettings | null,
 ): Promise<FetchServerAudioResult> {
   const authHeaders = await getVoiceAuthHeaders();
   const headers: Record<string, string> = {
@@ -53,11 +61,20 @@ async function fetchServerAudio(
     "Content-Type": "application/json",
   };
   if (sessionUsageId) headers["x-voice-session-id"] = sessionUsageId;
+  const ttsOptions = voiceAgentToTtsOptions(
+    voiceAgent ?? DEFAULT_VOICE_AGENT_SETTINGS,
+  );
 
   const response = await fetch("/api/voice/tts", {
     method: "POST",
     headers,
-    body: JSON.stringify({ text, sessionUsageId }),
+    body: JSON.stringify({
+      text,
+      sessionUsageId,
+      voiceId: ttsOptions.voiceId,
+      language: ttsOptions.language,
+      speakingRate: ttsOptions.speakingRate,
+    }),
     signal,
   });
 
@@ -77,7 +94,10 @@ async function fetchServerAudio(
 export function useSpeechSynthesis(
   options: UseSpeechSynthesisOptions = {},
 ): UseSpeechSynthesisResult {
-  const { sessionUsageId, locale = "es-MX" } = options;
+  const { sessionUsageId, voiceAgent } = options;
+  const locale = voiceAgent
+    ? resolveSpeechLocale({ language: voiceAgent.language })
+    : (options.locale ?? "es-MX");
   const voiceConfig = useVoiceConfig();
   const [supported, setSupported] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -90,8 +110,13 @@ export function useSpeechSynthesis(
   const billedAudioCacheRef = useRef<Map<string, Blob>>(new Map());
 
   const billedTtsCacheKey = useCallback(
-    (line: string) => `${sessionUsageId ?? ""}::${line}`,
-    [sessionUsageId],
+    (line: string) => {
+      const tts = voiceAgentToTtsOptions(
+        voiceAgent ?? DEFAULT_VOICE_AGENT_SETTINGS,
+      );
+      return `${sessionUsageId ?? ""}::${tts.voiceId}::${tts.language}::${tts.speakingRate}::${line}`;
+    },
+    [sessionUsageId, voiceAgent],
   );
 
   const useServerTts =
@@ -162,6 +187,9 @@ export function useSpeechSynthesis(
       }
       setSpeaking(true);
       stopBrowserSpeechRef.current?.();
+      const tts = voiceAgentToTtsOptions(
+        voiceAgent ?? DEFAULT_VOICE_AGENT_SETTINGS,
+      );
       stopBrowserSpeechRef.current = speakSpanishText(
         text,
         () => {
@@ -169,10 +197,10 @@ export function useSpeechSynthesis(
           if (generation !== generationRef.current) return;
           clearSpeaking();
         },
-        locale,
+        { locale, speakingRate: tts.speakingRate },
       );
     },
-    [clearSpeaking, locale],
+    [clearSpeaking, locale, voiceAgent],
   );
 
   const speakServer = useCallback(
@@ -217,6 +245,7 @@ export function useSpeechSynthesis(
           text,
           sessionUsageId,
           controller.signal,
+          voiceAgent,
         );
         blob = result.blob;
         fallback = result.fallback;
@@ -271,7 +300,14 @@ export function useSpeechSynthesis(
       }
       clearSpeaking();
     },
-    [billedTtsCacheKey, clearSpeaking, revokeObjectUrl, sessionUsageId, speakBrowser],
+    [
+      billedTtsCacheKey,
+      clearSpeaking,
+      revokeObjectUrl,
+      sessionUsageId,
+      speakBrowser,
+      voiceAgent,
+    ],
   );
 
   const speak = useCallback(

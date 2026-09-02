@@ -232,6 +232,51 @@ describe("POST /api/voice/tts", () => {
     );
   });
 
+  it("still caps billed TTS when the trainer sends voice knobs", async () => {
+    const long =
+      "Mire, yo entiendo lo que dice, pero en la clínica ya tenemos muchos proveedores " +
+      "y la verdad es que no veo cómo esto me ayuda con las citas de la tarde ni con el personal " +
+      "que ya está saturado atendiendo pacientes en recepción y en consultorio todos los días.";
+    vi.mocked(synthesizeSpeech).mockResolvedValue({
+      result: {
+        audio: Buffer.from([0x49, 0x44, 0x33, 0x04]),
+        mimeType: "audio/mpeg",
+        tier: "elevenlabs",
+        endpoint: "convert",
+      },
+      failures: [],
+    });
+
+    const response = await POST(
+      new Request("https://example.com/api/voice/tts", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-voice-session-id": "usage-1",
+        },
+        body: JSON.stringify({
+          text: long,
+          sessionUsageId: "usage-1",
+          voiceId: "EXAVITQu4vr4xnSDxMaL",
+          language: "en",
+          speakingRate: 1.15,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const spoken = vi.mocked(synthesizeSpeech).mock.calls[0]?.[0] as string;
+    expect(spoken.length).toBeLessThanOrEqual(220);
+    const options = vi.mocked(synthesizeSpeech).mock.calls[0]?.[2];
+    expect(options).toEqual(
+      expect.objectContaining({
+        voiceId: "EXAVITQu4vr4xnSDxMaL",
+        language: "en",
+        speakingRate: 1.15,
+      }),
+    );
+  });
+
   it("returns browser fallback when the session extra TTS cap is exceeded", async () => {
     vi.mocked(getSessionUsage).mockResolvedValueOnce({
       id: "usage-1",

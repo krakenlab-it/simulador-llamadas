@@ -12,6 +12,7 @@ vi.mock("@/lib/api/client", () => ({
   submitTurn: vi.fn(),
   endSession: vi.fn(),
   createScenario: vi.fn(),
+  saveScenarioVoiceAgent: vi.fn(),
 }));
 
 vi.mock("@/lib/hooks/useSpeechSynthesis", () => ({

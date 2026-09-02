@@ -5,6 +5,10 @@ import type {
   ScenarioConfig,
   ScenarioRecord,
 } from "./types";
+import {
+  parseVoiceAgentSettings,
+  type VoiceAgentSettings,
+} from "@/lib/voice/agent-settings";
 
 interface ScenarioRow {
   id: string;
@@ -23,6 +27,7 @@ interface ScenarioRow {
   objections: string[];
   win_criteria: string | null;
   config: ScenarioConfig;
+  voice_agent?: unknown;
 }
 
 function mapRow(row: ScenarioRow): ScenarioRecord {
@@ -43,6 +48,7 @@ function mapRow(row: ScenarioRow): ScenarioRecord {
     objections: row.objections ?? [],
     winCriteria: row.win_criteria,
     config: row.config ?? ({} as ScenarioConfig),
+    voiceAgent: parseVoiceAgentSettings(row.voice_agent),
   };
 }
 
@@ -54,7 +60,7 @@ export class ScenarioRepository {
       `SELECT
          id, slug, is_preset, client_name, client_title, company_context,
          difficulty_label, indicator, pain_points, industry, product_sold,
-         temperament, client_problem, objections, win_criteria, config
+         temperament, client_problem, objections, win_criteria, config, voice_agent
        FROM scenarios
        ORDER BY is_preset DESC, sort_order NULLS LAST, created_at DESC`,
     );
@@ -66,7 +72,7 @@ export class ScenarioRepository {
       `SELECT
          id, slug, is_preset, client_name, client_title, company_context,
          difficulty_label, indicator, pain_points, industry, product_sold,
-         temperament, client_problem, objections, win_criteria, config
+         temperament, client_problem, objections, win_criteria, config, voice_agent
        FROM scenarios WHERE slug = $1`,
       [slug],
     );
@@ -98,7 +104,7 @@ export class ScenarioRepository {
        RETURNING
          id, slug, is_preset, client_name, client_title, company_context,
          difficulty_label, indicator, pain_points, industry, product_sold,
-         temperament, client_problem, objections, win_criteria, config`,
+         temperament, client_problem, objections, win_criteria, config, voice_agent`,
       [
         slug,
         input.clientName,
@@ -119,5 +125,23 @@ export class ScenarioRepository {
     );
 
     return mapRow(rows[0]);
+  }
+
+  async updateVoiceAgent(
+    slug: string,
+    settings: VoiceAgentSettings,
+  ): Promise<ScenarioRecord | null> {
+    const voiceAgent = parseVoiceAgentSettings(settings);
+    const { rows } = await this.client.query<ScenarioRow>(
+      `UPDATE scenarios
+          SET voice_agent = $2::jsonb
+        WHERE slug = $1
+        RETURNING
+          id, slug, is_preset, client_name, client_title, company_context,
+          difficulty_label, indicator, pain_points, industry, product_sold,
+          temperament, client_problem, objections, win_criteria, config, voice_agent`,
+      [slug, JSON.stringify(voiceAgent)],
+    );
+    return rows[0] ? mapRow(rows[0]) : null;
   }
 }

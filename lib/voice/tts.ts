@@ -1,7 +1,11 @@
 import { synthesizeWithElevenLabs } from "@/lib/voice/providers/elevenlabs";
 import { resolveTtsTier } from "@/lib/voice/ladder";
 import type { TtsTraceContext } from "@/lib/voice/tts-trace";
-import type { TtsAttemptFailure, TtsSynthesisOutcome } from "@/lib/voice/types";
+import type {
+  TtsAttemptFailure,
+  TtsSpeakOptions,
+  TtsSynthesisOutcome,
+} from "@/lib/voice/types";
 
 export type { TtsResult } from "@/lib/voice/types";
 
@@ -28,6 +32,7 @@ export function describeTtsFailures(failures: TtsAttemptFailure[]): string {
 export async function synthesizeSpeech(
   text: string,
   trace?: TtsTraceContext,
+  options?: TtsSpeakOptions,
 ): Promise<TtsSynthesisOutcome> {
   const tier = resolveTtsTier();
   if (tier !== "elevenlabs") {
@@ -37,7 +42,7 @@ export async function synthesizeSpeech(
     };
   }
 
-  const outcome = await synthesizeWithElevenLabs(text, trace);
+  const outcome = await synthesizeWithElevenLabs(text, trace, options);
   const failures: TtsAttemptFailure[] = outcome.failures.map((failure) => ({
     tier: "elevenlabs",
     ...failure,

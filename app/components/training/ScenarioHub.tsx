@@ -3,9 +3,16 @@
 import { useEffect, useId, useState } from "react";
 import type { ClientPersona } from "@/lib/clients";
 import { CLIENTS } from "@/lib/clients";
-import { listScenarios } from "@/lib/api/client";
+import { listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
+import {
+  DEFAULT_VOICE_AGENT_SETTINGS,
+  parseVoiceAgentSettings,
+  voiceAgentFromRecord,
+  type VoiceAgentSettings,
+} from "@/lib/voice/agent-settings";
+import { VoiceAgentControls } from "@/app/components/training/VoiceAgentControls";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { VoiceAuthGate } from "@/app/components/VoiceAuthGate";
@@ -34,6 +41,7 @@ export interface SetupConfig {
   verifiedUserId?: string;
   verifiedEmail?: string;
   client?: ClientPersona;
+  voiceAgent: VoiceAgentSettings;
 }
 
 interface ScenarioHubProps {
@@ -59,6 +67,9 @@ export function ScenarioHub({
   const [loadingScenarios, setLoadingScenarios] = useState(true);
   const [mode, setMode] = useState<PracticeMode>("voz");
   const [level, setLevel] = useState<DifficultyLevel>(1);
+  const [voiceAgent, setVoiceAgent] = useState<VoiceAgentSettings>(
+    DEFAULT_VOICE_AGENT_SETTINGS,
+  );
   const [micVerified, setMicVerified] = useState(false);
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
@@ -126,6 +137,13 @@ export function ScenarioHub({
 
   const selectedClient = CLIENTS.find((c) => c.slug === selectedSlug) ?? null;
 
+  useEffect(() => {
+    if (!selected) return;
+    const restored = voiceAgentFromRecord(selected);
+    setVoiceAgent(restored);
+    setLevel(restored.difficultyLevel);
+  }, [selected]);
+
   const needsVoiceAuth =
     mode === "voz" &&
     voiceConfig.requiresVoiceAuth &&
@@ -155,6 +173,13 @@ export function ScenarioHub({
   const handleStart = () => {
     if (!selected || !canStart) return;
     unlockClientPlayback();
+    const settings = parseVoiceAgentSettings({
+      ...voiceAgent,
+      difficultyLevel: level,
+    });
+    void Promise.resolve(saveScenarioVoiceAgent(selected.slug, settings)).catch(
+      () => undefined,
+    );
     onStart({
       scenarioSlug: selected.slug,
       clientName: selected.clientName,
@@ -165,6 +190,7 @@ export function ScenarioHub({
       client: selectedClient ?? undefined,
       verifiedUserId: verifiedUserId ?? undefined,
       verifiedEmail: verifiedEmail ?? undefined,
+      voiceAgent: settings,
     });
   };
 
@@ -305,9 +331,22 @@ export function ScenarioHub({
               value: String(n),
               label: DIFFICULTY_LABELS[n],
             }))}
-            onChange={(v) => setLevel(Number(v) as DifficultyLevel)}
+            onChange={(v) => {
+              const next = Number(v) as DifficultyLevel;
+              setLevel(next);
+              setVoiceAgent((prev) => ({ ...prev, difficultyLevel: next }));
+            }}
           />
         </div>
+
+        <VoiceAgentControls
+          value={voiceAgent}
+          onChange={(next) => {
+            setVoiceAgent(next);
+            setLevel(next.difficultyLevel);
+          }}
+          showBargeIn={mode === "voz"}
+        />
 
         {mode === "voz" && needsVoiceAuth ? (
           <div className="config-panel__section">

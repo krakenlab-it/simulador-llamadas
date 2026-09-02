@@ -1,4 +1,5 @@
 import type { DifficultyLevel } from "@/lib/db/types";
+import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
 
 export const CLINIC_PRESET_SLUGS = ["mariana", "rodrigo", "efrain"] as const;
 export type ClinicPresetSlug = (typeof CLINIC_PRESET_SLUGS)[number];
@@ -54,6 +55,8 @@ export interface ScenarioRecord {
   objections: string[];
   winCriteria: string | null;
   config: ScenarioConfig;
+  /** Trainer voice-agent knobs; replay restores the same agent. */
+  voiceAgent?: VoiceAgentSettings;
 }
 
 export interface CreateCustomScenarioInput {

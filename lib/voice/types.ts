@@ -32,6 +32,13 @@ export interface TtsRequest {
   text: string;
 }
 
+/** Trainer knobs honored on billed TTS. Language is passed through, not rewritten. */
+export interface TtsSpeakOptions {
+  voiceId?: string;
+  language?: string;
+  speakingRate?: number;
+}
+
 export interface TtsResult {
   audio: Buffer;
   mimeType: string;

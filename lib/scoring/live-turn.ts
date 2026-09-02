@@ -1,6 +1,10 @@
 import type { DifficultyLevel, RoundType } from "@/lib/db/types";
 import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import {
+  temperamentWithPersonality,
+  type VoiceAgentSettings,
+} from "@/lib/voice/agent-settings";
+import {
   generateClientReply,
   generateGroqClientReply,
   isGroqAvailable,
@@ -30,6 +34,7 @@ export interface LiveTurnInput {
   /** 1-based call turn (1–10). Overflow cierre is 6–10. */
   roundNumber?: number;
   priorLines: TranscriptLine[];
+  voiceAgent?: VoiceAgentSettings;
 }
 
 export interface LiveTurnCoaching {
@@ -45,6 +50,20 @@ export interface LiveTurnResult {
   /** Interim engagement score 0-100 for storage; not keyword-derived. */
   engagementScore: number;
   won: boolean;
+}
+
+function applyVoiceAgentPersonality(
+  config: ScenarioConfig | null,
+  voiceAgent?: VoiceAgentSettings,
+): ScenarioConfig | null {
+  if (!config || !voiceAgent) return config;
+  return {
+    ...config,
+    temperament: temperamentWithPersonality(
+      config.temperament,
+      voiceAgent.personality,
+    ),
+  };
 }
 
 const ROUND_LABELS: Record<string, string> = {
@@ -137,7 +156,10 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
 
     clientReply = templatedReply;
     if (isGroqAvailable()) {
-      const presetConfig = buildPresetScenarioConfig(input.scenarioSlug);
+      const presetConfig = applyVoiceAgentPersonality(
+        buildPresetScenarioConfig(input.scenarioSlug),
+        input.voiceAgent,
+      );
       if (presetConfig) {
         const roundDef: ScenarioRoundDef = {
           key: roundType,
@@ -173,7 +195,8 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       };
 
     clientReply = await generateClientReply({
-      config: input.config,
+      config:
+        applyVoiceAgentPersonality(input.config, input.voiceAgent) ?? input.config,
       round,
       reaction: clientReaction,
       clientName: input.clientName,

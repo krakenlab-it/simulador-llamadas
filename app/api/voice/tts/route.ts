@@ -24,6 +24,12 @@ import {
   isVoiceAuthContext,
   resolveVoiceAuth,
 } from "@/lib/auth/require-voice-session";
+import {
+  clampSpeakingRate,
+  parseVoiceAgentSettings,
+  resolvePremadeVoiceId,
+} from "@/lib/voice/agent-settings";
+import type { TtsSpeakOptions } from "@/lib/voice/types";
 
 function logRouteTtsOutcome(
   trace: TtsTraceContext,
@@ -55,8 +61,44 @@ function logRouteTtsOutcome(
     fallbackToBrowser: payload.fallbackToBrowser,
     durationMs: payload.durationMs,
     recovered: payload.recovered,
-    languageCode: "es",
+    languageCode: trace.languageCode ?? "es",
   });
+}
+
+function resolveTtsSpeakOptions(body: {
+  voiceId?: string;
+  language?: string;
+  speakingRate?: number | string;
+}): TtsSpeakOptions | undefined {
+  const parsed = parseVoiceAgentSettings({
+    voiceId: body.voiceId,
+    language: body.language,
+    speakingRate:
+      body.speakingRate === 0.85 || body.speakingRate === "lento"
+        ? "lento"
+        : body.speakingRate === 1.15 || body.speakingRate === "rapido"
+          ? "rapido"
+          : "normal",
+  });
+  const options: TtsSpeakOptions = {};
+  if (body.voiceId) options.voiceId = resolvePremadeVoiceId(body.voiceId);
+  if (body.language) options.language = parsed.language;
+  if (body.speakingRate !== undefined && body.speakingRate !== "") {
+    const numeric =
+      typeof body.speakingRate === "number"
+        ? body.speakingRate
+        : Number(body.speakingRate);
+    options.speakingRate = Number.isFinite(numeric)
+      ? clampSpeakingRate(numeric)
+      : clampSpeakingRate(
+          parsed.speakingRate === "lento"
+            ? 0.85
+            : parsed.speakingRate === "rapido"
+              ? 1.15
+              : 1,
+        );
+  }
+  return Object.keys(options).length > 0 ? options : undefined;
 }
 
 export async function POST(request: Request) {
@@ -77,11 +119,15 @@ export async function POST(request: Request) {
     text?: string;
     sessionUsageId?: string;
     turnId?: string;
+    voiceId?: string;
+    language?: string;
+    speakingRate?: number | string;
   };
   const rawText = body.text?.trim() ?? "";
   const sessionUsageId =
     body.sessionUsageId ?? request.headers.get("x-voice-session-id") ?? undefined;
   const turnId = body.turnId ?? request.headers.get("x-voice-turn-id") ?? undefined;
+  const speakOptions = resolveTtsSpeakOptions(body);
 
   if (!rawText) {
     return NextResponse.json({ error: "Missing text." }, { status: 400 });
@@ -97,7 +143,7 @@ export async function POST(request: Request) {
     charsRequested: requestedChars,
     charsSent: sentChars,
     sessionExtraTtsRemaining,
-    languageCode: "es",
+    languageCode: speakOptions?.language ?? "es",
   });
 
   if (!isSpeakableTtsText(rawText)) {
@@ -179,7 +225,7 @@ export async function POST(request: Request) {
   }
 
   const synthesisStartedAt = Date.now();
-  const synthesis = await synthesizeSpeech(spokenText, baseTrace());
+  const synthesis = await synthesizeSpeech(spokenText, baseTrace(), speakOptions);
 
   if (isElevenLabsTier(tier) && sessionUsageId) {
     sessionExtraTtsRemaining = await withPgClient(async (client) => {

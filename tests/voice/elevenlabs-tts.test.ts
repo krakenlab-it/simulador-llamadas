@@ -345,6 +345,42 @@ describe("synthesizeWithElevenLabs", () => {
     expect(result.failures[0].detail).toContain("[redacted:ELEVENLABS_API_KEY]");
   });
 
+  it("uses a trainer-selected premade voice instead of the env library id", async () => {
+    const { synthesizeWithElevenLabs, ELEVENLABS_DEFAULT_PREMADE_VOICE } =
+      await loadProvider();
+    const { PREMADE_VOICES } = await import("@/lib/voice/agent-settings");
+
+    const result = await synthesizeWithElevenLabs("Hola, soy Laura.", undefined, {
+      voiceId: PREMADE_VOICES[1].id,
+      language: "en",
+      speakingRate: 0.85,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(calledUrls()[0]).toContain(PREMADE_VOICES[1].id);
+    expect(calledUrls()[0]).not.toContain("voice-123");
+    expect(calledBody(0)).toEqual({
+      text: "Hola, soy Laura.",
+      model_id: "eleven_flash_v2_5",
+      language_code: "en",
+      voice_settings: { speed: 0.85 },
+    });
+    expect(PREMADE_VOICES[1].id).not.toBe(ELEVENLABS_DEFAULT_PREMADE_VOICE.id);
+  });
+
+  it("refuses a library voice id and bills Sarah instead", async () => {
+    const { synthesizeWithElevenLabs, ELEVENLABS_DEFAULT_PREMADE_VOICE } =
+      await loadProvider();
+
+    const result = await synthesizeWithElevenLabs("Hola.", undefined, {
+      voiceId: "library-paid-voice",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(calledUrls()[0]).toContain(ELEVENLABS_DEFAULT_PREMADE_VOICE.id);
+  });
+
   it("never echoes the API key back from an ElevenLabs error body", async () => {
     vi.mocked(fetch).mockResolvedValue(
       errorResponse(401, `{"detail":"invalid key ${API_KEY}"}`),
