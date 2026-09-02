@@ -75,6 +75,7 @@ export class SessionService {
         isLastRound,
         roundNumber: slot.roundNumber,
         priorLines,
+        voiceAgent: session.voiceAgent,
       });
 
       return await this.repository.completeTurn(

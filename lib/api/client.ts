@@ -4,9 +4,11 @@ import type {
   ScenarioRecord,
   SessionEvaluationSummary,
 } from "@/lib/scenarios/types";
+import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
 import {
   stubCreateSession,
   stubCreateScenario,
+  stubSaveVoiceAgent,
   stubEndSession,
   stubHasSession,
   stubListScenarios,
@@ -148,6 +150,17 @@ export async function createScenario(
     body: JSON.stringify(body),
   });
   return remote ?? stubCreateScenario(body);
+}
+
+export async function saveScenarioVoiceAgent(
+  slug: string,
+  voiceAgent: VoiceAgentSettings,
+): Promise<ScenarioRecord> {
+  const remote = await tryFetch<ScenarioRecord>("/api/scenarios/voice-agent", {
+    method: "PATCH",
+    body: JSON.stringify({ slug, voiceAgent }),
+  });
+  return remote ?? stubSaveVoiceAgent(slug, voiceAgent);
 }
 
 export type {

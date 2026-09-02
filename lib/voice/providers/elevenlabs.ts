@@ -16,7 +16,11 @@ import {
   TTS_PROVIDER_TIMEOUT_MS,
 } from "@/lib/voice/timeouts";
 import { withPgClient } from "@/lib/session";
-import type { SttResult } from "@/lib/voice/types";
+import type { SttResult, TtsSpeakOptions } from "@/lib/voice/types";
+import {
+  clampSpeakingRate,
+  resolvePremadeVoiceId,
+} from "@/lib/voice/agent-settings";
 
 const TTS_MODEL = "eleven_flash_v2_5";
 const CONVAI_TTS_MODEL = "eleven_flash_v2_5";
@@ -148,13 +152,24 @@ async function requestElevenLabsSpeech(
   withLanguageCode: boolean,
   timeoutMs: number,
   trace?: TtsTraceContext,
+  speakOptions?: TtsSpeakOptions,
 ): Promise<AttemptResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const startedAt = Date.now();
 
   const body: Record<string, unknown> = { text, model_id: TTS_MODEL };
-  if (withLanguageCode) body.language_code = TTS_LANGUAGE;
+  if (withLanguageCode) {
+    const language = speakOptions?.language?.trim();
+    body.language_code = language || TTS_LANGUAGE;
+  }
+  if (
+    speakOptions?.speakingRate !== undefined &&
+    Number.isFinite(speakOptions.speakingRate) &&
+    speakOptions.speakingRate !== 1
+  ) {
+    body.voice_settings = { speed: clampSpeakingRate(speakOptions.speakingRate) };
+  }
 
   try {
     const response = await fetch(buildTtsUrl(kind, voiceId), {
@@ -305,9 +320,14 @@ function shouldRetryWithPremadeVoice(
 export async function synthesizeWithElevenLabs(
   text: string,
   trace?: TtsTraceContext,
+  options?: TtsSpeakOptions,
 ): Promise<ElevenLabsTtsOutcome> {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
-  const voiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
+  const envVoiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
+  const trainerVoiceId = options?.voiceId
+    ? resolvePremadeVoiceId(options.voiceId)
+    : undefined;
+  const voiceId = trainerVoiceId ?? envVoiceId;
   if (!isElevenLabsEnabled()) {
     return { ok: false, failures: [{ reason: "elevenlabs_disabled" }] };
   }
@@ -335,6 +355,7 @@ export async function synthesizeWithElevenLabs(
     true,
     TTS_PROVIDER_TIMEOUT_MS,
     trace,
+    options,
   );
   if (first.ok) {
     return { ok: true, value: first.value, endpoint: "convert", failures };
@@ -364,6 +385,7 @@ export async function synthesizeWithElevenLabs(
       true,
       remaining,
       trace,
+      options,
     );
     if (premade.ok) {
       return { ok: true, value: premade.value, endpoint: "convert", failures };
@@ -390,6 +412,7 @@ export async function synthesizeWithElevenLabs(
     false,
     remaining,
     trace,
+    options,
   );
   if (second.ok) {
     return { ok: true, value: second.value, endpoint: "stream", failures };

@@ -46,15 +46,16 @@ export async function resetAndMigrateAll(client: Client): Promise<void> {
 }
 
 export async function ensureMigrated(client: Client): Promise<void> {
-  const { rows } = await client.query<{ is_preset: string | null }>(
-    `SELECT column_name AS is_preset
+  const { rows } = await client.query<{ column_name: string }>(
+    `SELECT column_name
      FROM information_schema.columns
      WHERE table_schema = 'public'
        AND table_name = 'scenarios'
-       AND column_name = 'is_preset'`,
+       AND column_name IN ('is_preset', 'voice_agent')`,
   );
 
-  if (rows.length === 0) {
+  const columns = new Set(rows.map((row) => row.column_name));
+  if (!columns.has("is_preset") || !columns.has("voice_agent")) {
     await client.query("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;");
     await client.query(loadMigrationSql());
   }

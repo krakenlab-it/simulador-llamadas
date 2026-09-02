@@ -24,6 +24,11 @@ import type { ClientReaction } from "@/lib/scoring/rondas";
 import { resolveEndSessionWin } from "@/lib/session/win";
 import { DEFAULT_WIN_CRITERIA } from "@/lib/scoring/outcome";
 import { getOpeningLine } from "@/lib/llm/client-replies";
+import {
+  applyVoiceAgentToRecord,
+  parseVoiceAgentSettings,
+  type VoiceAgentSettings,
+} from "@/lib/voice/agent-settings";
 
 export interface CreateSessionRequest {
   scenarioSlug: string;
@@ -125,6 +130,7 @@ interface StubSession {
 const sessions = new Map<string, StubSession>();
 const historyByTrainee = new Map<string, HistoryEntry[]>();
 const customScenarios = new Map<string, StubScenario>();
+const voiceAgentBySlug = new Map<string, VoiceAgentSettings>();
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -164,15 +170,45 @@ function buildPresetScenario(slug: string): StubScenario | null {
   };
 }
 
+function withSavedVoiceAgent(record: ScenarioRecord): ScenarioRecord {
+  const saved = voiceAgentBySlug.get(record.slug);
+  return saved ? applyVoiceAgentToRecord(record, saved) : record;
+}
+
 function getScenario(slug: string): StubScenario | null {
-  return customScenarios.get(slug) ?? buildPresetScenario(slug);
+  const found = customScenarios.get(slug) ?? buildPresetScenario(slug);
+  if (!found) return null;
+  return { record: withSavedVoiceAgent(found.record) };
 }
 
 export function stubListScenarios(): ScenarioRecord[] {
   const presets = ["mariana", "rodrigo", "efrain"]
     .map((slug) => buildPresetScenario(slug)?.record)
-    .filter((s): s is ScenarioRecord => s !== undefined);
-  return [...presets, ...Array.from(customScenarios.values()).map((s) => s.record)];
+    .filter((s): s is ScenarioRecord => s !== undefined)
+    .map(withSavedVoiceAgent);
+  return [
+    ...presets,
+    ...Array.from(customScenarios.values()).map((s) =>
+      withSavedVoiceAgent(s.record),
+    ),
+  ];
+}
+
+export function stubSaveVoiceAgent(
+  slug: string,
+  settings: VoiceAgentSettings,
+): ScenarioRecord {
+  const scenario = getScenario(slug);
+  if (!scenario) {
+    throw new Error(`Cliente no encontrado: ${slug}`);
+  }
+  const parsed = parseVoiceAgentSettings(settings);
+  voiceAgentBySlug.set(slug, parsed);
+  const record = applyVoiceAgentToRecord(scenario.record, parsed);
+  if (!record.isPreset) {
+    customScenarios.set(slug, { record });
+  }
+  return record;
 }
 
 export function stubCreateScenario(

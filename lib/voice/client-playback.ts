@@ -189,6 +189,30 @@ export function applyScenarioVoice(
   if (voice) utterance.voice = voice as SpeechSynthesisVoice;
 }
 
+export interface BrowserSpeakOptions {
+  locale?: string;
+  language?: string;
+  speakingRate?: number;
+}
+
+function resolveSpeakLocale(
+  localeOrOptions: string | BrowserSpeakOptions,
+): string {
+  if (typeof localeOrOptions === "string") return localeOrOptions;
+  if (localeOrOptions.locale) return localeOrOptions.locale;
+  if (localeOrOptions.language === "en") return "en-US";
+  return SPEECH_LANG;
+}
+
+function resolveSpeakOptions(
+  localeOrOptions: string | BrowserSpeakOptions,
+): BrowserSpeakOptions {
+  if (typeof localeOrOptions === "string") {
+    return { locale: localeOrOptions };
+  }
+  return localeOrOptions;
+}
+
 /**
  * Split a client reply into utterances the engine reliably finishes. Chrome
  * truncates long utterances, so break on sentence ends and then on words.
@@ -255,8 +279,11 @@ export function cancelBrowserSpeech(): void {
 export function speakSpanishText(
   text: string,
   onDone: () => void,
-  locale: string = SPEECH_LANG,
+  localeOrOptions: string | BrowserSpeakOptions = SPEECH_LANG,
 ): () => void {
+  const speakOptions = resolveSpeakOptions(localeOrOptions);
+  const locale = resolveSpeakLocale(localeOrOptions);
+
   if (typeof window === "undefined" || !window.speechSynthesis) {
     onDone();
     return () => undefined;
@@ -300,6 +327,9 @@ export function speakSpanishText(
 
     const utterance = new SpeechSynthesisUtterance(chunk);
     applyScenarioVoice(utterance, locale);
+    if (speakOptions.speakingRate !== undefined) {
+      utterance.rate = Math.min(1.3, Math.max(0.7, speakOptions.speakingRate));
+    }
     liveUtterances.push(utterance);
 
     let started = false;

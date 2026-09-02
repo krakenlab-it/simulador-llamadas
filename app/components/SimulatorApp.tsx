@@ -239,6 +239,7 @@ function SimulatorShell() {
             level={config.difficultyLevel}
             totalRounds={config.totalRounds}
             verifiedUserId={config.verifiedUserId}
+            voiceAgent={config.voiceAgent}
             ending={ending}
             onHangUp={(turns) => void handleHangUp(turns)}
           />

@@ -759,6 +759,23 @@ body {
   color: var(--success);
 }
 
+.config-panel__select {
+  width: 100%;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--paper);
+  padding: 0.55rem 0.65rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.config-panel__select:focus {
+  outline: none;
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 45%, transparent);
+}
+
 /* ── Start bar ───────────────────────────────────────── */
 
 .start-bar {

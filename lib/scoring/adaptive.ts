@@ -3,6 +3,7 @@ import type { RichTurnFeedback, ScenarioConfig } from "@/lib/scenarios/types";
 import { scoreLiveTurn, type LiveTurnInput } from "./live-turn";
 import type { CallAnalytics, TranscriptLine } from "./types";
 import type { ClientReaction } from "./rondas";
+import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
 
 export interface AdaptiveScoreInput {
   utterance: string;
@@ -19,6 +20,7 @@ export interface AdaptiveScoreInput {
   /** 1-based call turn (1–10). Overflow cierre is 6–10. */
   roundNumber?: number;
   priorLines?: TranscriptLine[];
+  voiceAgent?: VoiceAgentSettings;
 }
 
 export interface AdaptiveScoreResult {

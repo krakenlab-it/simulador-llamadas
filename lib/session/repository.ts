@@ -21,6 +21,10 @@ import { resolveRoundKey } from "@/lib/simulation/round-keys";
 import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
 import { SessionError } from "./errors";
 import { resolveEndSessionWin } from "./win";
+import {
+  parseVoiceAgentSettings,
+  type VoiceAgentSettings,
+} from "@/lib/voice/agent-settings";
 
 export interface CreateSessionInput {
   traineeId: string;
@@ -41,6 +45,7 @@ export interface SessionRecord {
   currentRound: number;
   totalRounds: number;
   config: ScenarioConfig | null;
+  voiceAgent?: VoiceAgentSettings;
 }
 
 export interface TurnScoreInput {
@@ -113,6 +118,7 @@ interface ScenarioContext {
   isPreset: boolean;
   config: ScenarioConfig | null;
   totalRounds: number;
+  voiceAgent: VoiceAgentSettings;
 }
 
 function parseConfig(raw: unknown): ScenarioConfig | null {
@@ -140,8 +146,9 @@ export class SessionRepository {
       client_name: string;
       is_preset: boolean;
       config: ScenarioConfig;
+      voice_agent: unknown;
     }>(
-      `SELECT id, slug, client_name, is_preset, config FROM scenarios WHERE slug = $1`,
+      `SELECT id, slug, client_name, is_preset, config, voice_agent FROM scenarios WHERE slug = $1`,
       [slug],
     );
 
@@ -159,6 +166,7 @@ export class SessionRepository {
       isPreset: row.is_preset,
       config,
       totalRounds: getScoringPhaseCount(),
+      voiceAgent: parseVoiceAgentSettings(row.voice_agent),
     };
   }
 
@@ -184,6 +192,7 @@ export class SessionRepository {
       currentRound: 1,
       totalRounds: scenario.totalRounds,
       config: scenario.config,
+      voiceAgent: scenario.voiceAgent,
     };
   }
 
@@ -199,6 +208,7 @@ export class SessionRepository {
       mode: PracticeMode;
       status: CallStatus;
       last_round: string;
+      voice_agent: unknown;
     }>(
       `SELECT
          ca.id,
@@ -207,6 +217,7 @@ export class SessionRepository {
          s.client_name,
          s.is_preset,
          s.config,
+         s.voice_agent,
          ca.difficulty_level,
          ca.mode,
          ca.status,
@@ -216,7 +227,7 @@ export class SessionRepository {
        LEFT JOIN call_turns ct ON ct.call_attempt_id = ca.id
        WHERE ca.id = $1
        GROUP BY ca.id, ca.trainee_id, s.slug, s.client_name, s.is_preset, s.config,
-                ca.difficulty_level, ca.mode, ca.status`,
+                s.voice_agent, ca.difficulty_level, ca.mode, ca.status`,
       [callAttemptId],
     );
 
@@ -238,6 +249,7 @@ export class SessionRepository {
       currentRound: Number(row.last_round) + 1,
       totalRounds,
       config,
+      voiceAgent: parseVoiceAgentSettings(row.voice_agent),
     };
   }
 
