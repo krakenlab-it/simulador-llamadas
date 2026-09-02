@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { SessionError, SessionService, toSessionError, withPgClient } from "@/lib/session";
+import { logTurnSubmit } from "@/lib/voice/turn-trace";
 
 interface SubmitTurnBody {
   utterance?: string;
@@ -13,8 +14,10 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await context.params;
+  let clientTurnId: string | null = null;
+
   try {
-    const { id } = await context.params;
     const body = await request
       .json()
       .then((parsed) => parsed as SubmitTurnBody)
@@ -26,7 +29,7 @@ export async function POST(
       throw new SessionError("empty_utterance");
     }
 
-    const clientTurnId =
+    clientTurnId =
       body.clientTurnId && UUID_PATTERN.test(body.clientTurnId)
         ? body.clientTurnId
         : null;
@@ -40,12 +43,26 @@ export async function POST(
       });
     });
 
+    logTurnSubmit({
+      callAttemptId: id,
+      roundNumber: turn.roundNumber,
+      turnId: turn.turnId,
+      clientTurnId,
+      httpStatus: 200,
+    });
+
     return NextResponse.json(turn);
   } catch (error) {
     const sessionError = toSessionError(error);
     if (sessionError.code === "turn_failed" || sessionError.code === "schema_outdated") {
       console.error("submitTurn failed", error);
     }
+    logTurnSubmit({
+      callAttemptId: id,
+      clientTurnId,
+      httpStatus: sessionError.httpStatus,
+      code: sessionError.code,
+    });
     return NextResponse.json(
       { error: sessionError.message, code: sessionError.code },
       { status: sessionError.httpStatus },

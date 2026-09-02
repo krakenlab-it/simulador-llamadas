@@ -6,6 +6,12 @@ import {
   type ProviderFailure,
 } from "@/lib/voice/provider-result";
 import {
+  logTtsAttempt,
+  parseElevenLabsErrorCode,
+  resolveVoiceIdCategory,
+  type TtsTraceContext,
+} from "@/lib/voice/tts-trace";
+import {
   TTS_PROVIDER_RETRY_FLOOR_MS,
   TTS_PROVIDER_TIMEOUT_MS,
 } from "@/lib/voice/timeouts";
@@ -105,16 +111,46 @@ type AttemptResult =
   | { ok: true; value: Buffer }
   | { ok: false; failure: ProviderFailure };
 
+function emitTtsAttemptLog(
+  trace: TtsTraceContext | undefined,
+  configuredVoiceId: string,
+  attemptVoiceId: string,
+  kind: TtsEndpointKind,
+  startedAt: number,
+  failure: ProviderFailure | null,
+  httpStatus?: number,
+): void {
+  if (!trace) return;
+  logTtsAttempt({
+    requestId: trace.requestId,
+    sessionUsageId: trace.sessionUsageId,
+    turnId: trace.turnId,
+    voiceIdCategory: resolveVoiceIdCategory(configuredVoiceId, attemptVoiceId),
+    endpoint: kind,
+    httpStatus,
+    elevenlabsErrorCode: parseElevenLabsErrorCode(failure?.detail),
+    failureReason: failure?.reason,
+    charsRequested: trace.charsRequested,
+    charsSent: trace.charsSent,
+    sessionExtraTtsRemaining: trace.sessionExtraTtsRemaining,
+    fallbackToBrowser: false,
+    durationMs: Date.now() - startedAt,
+  });
+}
+
 async function requestElevenLabsSpeech(
   kind: TtsEndpointKind,
   apiKey: string,
   voiceId: string,
+  configuredVoiceId: string,
   text: string,
   withLanguageCode: boolean,
   timeoutMs: number,
+  trace?: TtsTraceContext,
 ): Promise<AttemptResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
 
   const body: Record<string, unknown> = { text, model_id: TTS_MODEL };
   if (withLanguageCode) body.language_code = TTS_LANGUAGE;
@@ -133,15 +169,22 @@ async function requestElevenLabsSpeech(
     });
 
     if (!response.ok) {
-      return {
-        ok: false,
-        failure: {
-          reason: "elevenlabs_http_error",
-          status: response.status,
-          detail: await readResponseDetail(response),
-          endpoint: kind,
-        },
+      const failure: ProviderFailure = {
+        reason: "elevenlabs_http_error",
+        status: response.status,
+        detail: await readResponseDetail(response),
+        endpoint: kind,
       };
+      emitTtsAttemptLog(
+        trace,
+        configuredVoiceId,
+        voiceId,
+        kind,
+        startedAt,
+        failure,
+        response.status,
+      );
+      return { ok: false, failure };
     }
 
     const contentType = response.headers.get("content-type") ?? "";
@@ -149,45 +192,67 @@ async function requestElevenLabsSpeech(
     const bytes = new Uint8Array(arrayBuffer);
 
     if (bytes.byteLength === 0) {
-      return {
-        ok: false,
-        failure: {
-          reason: "elevenlabs_empty_audio",
-          status: response.status,
-          endpoint: kind,
-        },
+      const failure: ProviderFailure = {
+        reason: "elevenlabs_empty_audio",
+        status: response.status,
+        endpoint: kind,
       };
+      emitTtsAttemptLog(
+        trace,
+        configuredVoiceId,
+        voiceId,
+        kind,
+        startedAt,
+        failure,
+        response.status,
+      );
+      return { ok: false, failure };
     }
 
     // A 200 carrying a JSON error body would otherwise reach the browser
     // labelled audio/mpeg and play as silence.
     if (!contentType.startsWith("audio/") && !looksLikeMpeg(bytes)) {
-      return {
-        ok: false,
-        failure: {
-          reason: "elevenlabs_non_audio_response",
-          status: response.status,
-          detail: describeNonAudioBody(bytes, contentType),
-          endpoint: kind,
-        },
+      const failure: ProviderFailure = {
+        reason: "elevenlabs_non_audio_response",
+        status: response.status,
+        detail: describeNonAudioBody(bytes, contentType),
+        endpoint: kind,
       };
+      emitTtsAttemptLog(
+        trace,
+        configuredVoiceId,
+        voiceId,
+        kind,
+        startedAt,
+        failure,
+        response.status,
+      );
+      return { ok: false, failure };
     }
 
+    emitTtsAttemptLog(
+      trace,
+      configuredVoiceId,
+      voiceId,
+      kind,
+      startedAt,
+      null,
+      response.status,
+    );
     return { ok: true, value: Buffer.from(arrayBuffer) };
   } catch (error) {
     const aborted =
       controller.signal.aborted ||
       (error instanceof Error && error.name === "AbortError");
-    return {
-      ok: false,
-      failure: {
-        reason: aborted ? "elevenlabs_timeout" : "elevenlabs_exception",
-        detail: redactSecrets(
-          error instanceof Error ? error.message : String(error),
-        ),
-        endpoint: kind,
-      },
+    const failure: ProviderFailure = {
+      reason: aborted ? "elevenlabs_timeout" : "elevenlabs_exception",
+      detail: redactSecrets(
+        error instanceof Error ? error.message : String(error),
+      ),
+      endpoint: kind,
     };
+    emitTtsAttemptLog(trace, configuredVoiceId, voiceId, kind, startedAt, failure);
+    return { ok: false, failure };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -238,6 +303,7 @@ function shouldRetryWithPremadeVoice(
 
 export async function synthesizeWithElevenLabs(
   text: string,
+  trace?: TtsTraceContext,
 ): Promise<ElevenLabsTtsOutcome> {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
   const voiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
@@ -263,9 +329,11 @@ export async function synthesizeWithElevenLabs(
     "convert",
     apiKey,
     voiceId,
+    voiceId,
     normalized,
     true,
     TTS_PROVIDER_TIMEOUT_MS,
+    trace,
   );
   if (first.ok) {
     return { ok: true, value: first.value, endpoint: "convert", failures };
@@ -290,9 +358,11 @@ export async function synthesizeWithElevenLabs(
       "convert",
       apiKey,
       premadeVoice.id,
+      voiceId,
       normalized,
       true,
       remaining,
+      trace,
     );
     if (premade.ok) {
       return { ok: true, value: premade.value, endpoint: "convert", failures };
@@ -314,9 +384,11 @@ export async function synthesizeWithElevenLabs(
     "stream",
     apiKey,
     voiceId,
+    voiceId,
     normalized,
     false,
     remaining,
+    trace,
   );
   if (second.ok) {
     return { ok: true, value: second.value, endpoint: "stream", failures };
