@@ -49,6 +49,7 @@ import { POST } from "@/app/api/voice/tts/route";
 import { gateElevenLabsCall } from "@/lib/voice/gates";
 import { getSessionUsage } from "@/lib/voice/usage";
 import { synthesizeSpeech } from "@/lib/voice/tts";
+import type { TtsAttemptLog } from "@/lib/voice/tts-trace";
 
 function ttsRequest(text = "¿Quién habla?"): Request {
   return new Request("https://example.com/api/voice/tts", {
@@ -59,6 +60,20 @@ function ttsRequest(text = "¿Quién habla?"): Request {
     },
     body: JSON.stringify({ text, sessionUsageId: "usage-1" }),
   });
+}
+
+function attemptLogs(spy: ReturnType<typeof vi.spyOn>): TtsAttemptLog[] {
+  return spy.mock.calls
+    .map((call) => {
+      const raw = call[0];
+      if (typeof raw !== "string" || !raw.startsWith("{")) return null;
+      try {
+        return JSON.parse(raw) as TtsAttemptLog;
+      } catch {
+        return null;
+      }
+    })
+    .filter((entry): entry is TtsAttemptLog => entry?.event === "voice.tts.attempt");
 }
 
 describe("POST /api/voice/tts", () => {
@@ -98,19 +113,24 @@ describe("POST /api/voice/tts", () => {
       expect.objectContaining({ fallbackToBrowser: true }),
     );
 
-    expect(errorSpy).toHaveBeenCalledWith("voice.tts.elevenlabs_failed", {
-      recovered: false,
-      textLength: "¿Quién habla?".length,
-      attempts:
-        'convert:elevenlabs_http_error status=402 detail={"detail":{"status":"quota_exceeded"}}',
-    });
-    expect(infoSpy).toHaveBeenCalledWith(
-      "voice.tts.spend",
+    expect(errorSpy).toHaveBeenCalledWith(
+      "voice.tts.elevenlabs_failed",
       expect.objectContaining({
+        recovered: false,
+        textLength: "¿Quién habla?".length,
+        attempts:
+          'convert:elevenlabs_http_error status=402 detail={"detail":{"status":"quota_exceeded"}}',
+      }),
+    );
+    const logs = attemptLogs(infoSpy);
+    expect(logs.at(-1)).toEqual(
+      expect.objectContaining({
+        event: "voice.tts.attempt",
+        httpStatus: 502,
+        fallbackToBrowser: true,
+        failureReason: "elevenlabs_http_error",
         charsRequested: "¿Quién habla?".length,
         charsSent: 0,
-        fallbackToBrowser: true,
-        reason: "synthesis_failed",
       }),
     );
   });
@@ -137,9 +157,12 @@ describe("POST /api/voice/tts", () => {
       "voice.tts.elevenlabs_failed",
       expect.objectContaining({ recovered: true }),
     );
+    expect(attemptLogs(infoSpy).at(-1)).toEqual(
+      expect.objectContaining({ fallbackToBrowser: false, recovered: true }),
+    );
   });
 
-  it("stays quiet when the billed call succeeds outright", async () => {
+  it("stays quiet on elevenlabs_failed when the billed call succeeds outright", async () => {
     vi.mocked(synthesizeSpeech).mockResolvedValue({
       result: {
         audio: Buffer.from([0x49, 0x44, 0x33, 0x04]),
@@ -154,8 +177,7 @@ describe("POST /api/voice/tts", () => {
 
     expect(response.status).toBe(200);
     expect(errorSpy).not.toHaveBeenCalled();
-    expect(infoSpy).toHaveBeenCalledWith(
-      "voice.tts.spend",
+    expect(attemptLogs(infoSpy).at(-1)).toEqual(
       expect.objectContaining({
         charsRequested: "¿Quién habla?".length,
         charsSent: "¿Quién habla?".length,
@@ -170,13 +192,12 @@ describe("POST /api/voice/tts", () => {
 
     expect(response.status).toBe(400);
     expect(synthesizeSpeech).not.toHaveBeenCalled();
-    expect(infoSpy).toHaveBeenCalledWith(
-      "voice.tts.spend",
+    expect(attemptLogs(infoSpy).at(-1)).toEqual(
       expect.objectContaining({
         charsRequested: 3,
         charsSent: 0,
         fallbackToBrowser: true,
-        reason: "not_speakable",
+        failureReason: "not_speakable",
       }),
     );
   });
@@ -202,8 +223,7 @@ describe("POST /api/voice/tts", () => {
     const spoken = vi.mocked(synthesizeSpeech).mock.calls[0]?.[0] as string;
     expect(spoken.length).toBeLessThan(long.length);
     expect(spoken.length).toBeLessThanOrEqual(220);
-    expect(infoSpy).toHaveBeenCalledWith(
-      "voice.tts.spend",
+    expect(attemptLogs(infoSpy).at(-1)).toEqual(
       expect.objectContaining({
         charsRequested: long.length,
         charsSent: spoken.length,
@@ -231,14 +251,13 @@ describe("POST /api/voice/tts", () => {
 
     expect(response.status).toBe(429);
     expect(synthesizeSpeech).not.toHaveBeenCalled();
-    expect(infoSpy).toHaveBeenCalledWith(
-      "voice.tts.spend",
+    expect(attemptLogs(infoSpy).at(-1)).toEqual(
       expect.objectContaining({
         charsRequested: "Hola Mariana.".length,
         charsSent: 0,
         sessionExtraTtsRemaining: 12,
         fallbackToBrowser: true,
-        reason: "session_extra_tts_limit",
+        failureReason: "session_extra_tts_limit",
       }),
     );
   });
@@ -258,6 +277,7 @@ describe("POST /api/voice/tts", () => {
 
     await POST(ttsRequest());
 
+    expect(JSON.stringify(infoSpy.mock.calls)).not.toContain(API_KEY);
     expect(JSON.stringify(errorSpy.mock.calls)).not.toContain(API_KEY);
   });
 });

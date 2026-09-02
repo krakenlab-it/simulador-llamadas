@@ -31,6 +31,10 @@ coverage/
 *.pem
 .vercel
 
+# TTS proof audio (README tracked)
+artifacts/tts-proof/*
+!artifacts/tts-proof/README.md
+
 # supabase local
 supabase/.branches
 supabase/.temp
