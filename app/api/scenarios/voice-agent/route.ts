@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ScenarioRepository } from "@/lib/scenarios";
-import { withPgClient } from "@/lib/session";
+import { toPublicRouteError, withPgClient } from "@/lib/session";
 import { parseVoiceAgentSettings } from "@/lib/voice/agent-settings";
 
 interface PatchVoiceAgentBody {
@@ -28,7 +28,10 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(scenario);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const mapped = toPublicRouteError(
+      error,
+      "No se pudieron guardar los ajustes de voz.",
+    );
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }

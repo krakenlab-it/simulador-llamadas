@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { submitTurn } from "@/lib/api/client";
+import {
+  createSession,
+  listHistory,
+  listScenarios,
+  saveScenarioVoiceAgent,
+  submitTurn,
+} from "@/lib/api/client";
+import { DEFAULT_VOICE_AGENT_SETTINGS } from "@/lib/voice/agent-settings";
 
 function mockFetchOnce(status: number, body: unknown): void {
   vi.stubGlobal(
@@ -69,5 +76,47 @@ describe("api client error messages", () => {
     expect(await messageFromFailedTurn()).toBe(
       "La base de datos no tiene la última migración aplicada. Avisa al equipo técnico.",
     );
+  });
+
+  it("does not start a stub call when POST /api/sessions returns 500", async () => {
+    mockFetchOnce(500, {
+      error:
+        "La base de datos no tiene la última migración aplicada. Avisa al equipo técnico.",
+      code: "schema_outdated",
+    });
+
+    await expect(
+      createSession({
+        scenarioSlug: "mariana",
+        mode: "texto",
+        difficultyLevel: 1,
+      }),
+    ).rejects.toThrow(
+      "La base de datos no tiene la última migración aplicada. Avisa al equipo técnico.",
+    );
+  });
+
+  it("does not hide a 500 behind the clinic stub list", async () => {
+    mockFetchOnce(500, { error: 'column "voice_agent" does not exist' });
+
+    await expect(listScenarios()).rejects.toThrow(
+      "No se pudo completar la acción. Intenta de nuevo.",
+    );
+  });
+
+  it("does not treat a history 500 as an empty inbox", async () => {
+    mockFetchOnce(500, { error: "relation \"call_history\" does not exist" });
+
+    await expect(
+      listHistory({ email: "seb@example.com" }),
+    ).rejects.toThrow("No se pudo completar la acción. Intenta de nuevo.");
+  });
+
+  it("does not silently stub a failed voice-agent persist", async () => {
+    mockFetchOnce(500, { error: 'column "voice_agent" does not exist' });
+
+    await expect(
+      saveScenarioVoiceAgent("mariana", DEFAULT_VOICE_AGENT_SETTINGS),
+    ).rejects.toThrow("No se pudo completar la acción. Intenta de nuevo.");
   });
 });

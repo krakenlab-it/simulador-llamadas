@@ -194,6 +194,36 @@ describe("billed TTS playback", () => {
     },
   );
 
+  it("retries a transient 500 once and plays billed audio when ElevenLabs is fine", async () => {
+    unlockClientPlayback();
+    play.mockClear();
+    speak.mockClear();
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(jsonResponse(500))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => "audio/mpeg" },
+        blob: async () =>
+          new Blob([new Uint8Array([1, 2, 3])], { type: "audio/mpeg" }),
+      } as unknown as Response);
+
+    const { result } = renderHook(() =>
+      useSpeechSynthesis({ sessionUsageId: "usage-1" }),
+    );
+
+    await act(async () => {
+      result.current.speak(SPANISH_LINE);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(play).toHaveBeenCalled();
+    expect(spokenTexts()).toEqual([]);
+  });
+
   it("releases the mic when the browser engine stays mute on a 502", async () => {
     vi.useFakeTimers();
     unlockClientPlayback();

@@ -6,7 +6,7 @@ import {
   ScenarioNotFoundError,
 } from "@/lib/scenarios/repository";
 import type { CreateCustomScenarioInput } from "@/lib/scenarios/types";
-import { withPgClient } from "@/lib/session";
+import { toPublicRouteError, withPgClient } from "@/lib/session";
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -26,8 +26,8 @@ export async function GET(_request: Request, context: RouteContext) {
 
     return NextResponse.json(scenario);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const mapped = toPublicRouteError(error, "No se pudo cargar el escenario.");
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }
 
@@ -53,7 +53,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (error instanceof PresetScenarioLockedError) {
       return NextResponse.json({ error: error.message }, { status: 403 });
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const mapped = toPublicRouteError(error, "No se pudo guardar el escenario.");
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }

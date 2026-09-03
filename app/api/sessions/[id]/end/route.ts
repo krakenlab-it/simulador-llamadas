@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SessionService, withPgClient } from "@/lib/session";
+import { SessionService, toPublicRouteError, withPgClient } from "@/lib/session";
 
 export async function POST(
   _request: Request,
@@ -15,8 +15,7 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    const status = message.includes("not found") ? 404 : 400;
-    return NextResponse.json({ error: message }, { status });
+    const mapped = toPublicRouteError(error, "No se pudo finalizar la llamada.");
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }

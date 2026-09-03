@@ -39,17 +39,32 @@ export async function startBilledVoiceSession(
     return { fallbackToBrowser: true, reason: "voice_auth_required" };
   }
 
-  const response = await fetch("/api/voice/session/start", {
-    method: "POST",
-    headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({ callAttemptId }),
-  });
-  return response.json() as Promise<{
-    sessionUsageId?: string;
-    verifiedUserId?: string;
-    fallbackToBrowser?: boolean;
-    reason?: string;
-  }>;
+  try {
+    const response = await fetch("/api/voice/session/start", {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      body: JSON.stringify({ callAttemptId }),
+    });
+
+    if (!response.ok) {
+      return { fallbackToBrowser: true, reason: "voice_session_start_failed" };
+    }
+
+    const data = (await response.json()) as {
+      sessionUsageId?: string;
+      verifiedUserId?: string;
+      fallbackToBrowser?: boolean;
+      reason?: string;
+    };
+
+    if (data.fallbackToBrowser || data.sessionUsageId) {
+      return data;
+    }
+
+    return { fallbackToBrowser: true, reason: "voice_session_start_failed" };
+  } catch {
+    return { fallbackToBrowser: true, reason: "voice_session_start_failed" };
+  }
 }
 
 export async function endBilledVoiceSession(sessionUsageId: string): Promise<void> {

@@ -73,7 +73,7 @@ async function fetchServerAudio(
     voiceAgent ?? DEFAULT_VOICE_AGENT_SETTINGS,
   );
 
-  const response = await fetch("/api/voice/tts", {
+  const requestInit: RequestInit = {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -84,7 +84,13 @@ async function fetchServerAudio(
       speakingRate: ttsOptions.speakingRate,
     }),
     signal,
-  });
+  };
+
+  let response = await fetch("/api/voice/tts", requestInit);
+
+  if (response.status === 500 && !signal.aborted) {
+    response = await fetch("/api/voice/tts", requestInit);
+  }
 
   const trace = readPublicTtsTrace(response.headers, response.status);
   if (FALLBACK_HTTP_STATUSES.has(response.status)) {

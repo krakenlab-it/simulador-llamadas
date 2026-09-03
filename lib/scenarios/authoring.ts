@@ -248,6 +248,18 @@ export function scoringPhaseCount(
   );
 }
 
+export function openingLineForCall(
+  config: ScenarioConfig | null | undefined,
+  isPreset: boolean,
+  presetLine?: string,
+): string {
+  if (isPreset && presetLine) return presetLine;
+  const authored =
+    config?.openingLines?.[0]?.trim() ||
+    config?.rounds?.[0]?.clientPrompt?.trim();
+  return authored || "¿Quién habla?";
+}
+
 export function phaseLabelsForCall(
   config: ScenarioConfig | null | undefined,
   isPreset: boolean,

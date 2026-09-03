@@ -13,7 +13,7 @@ export type {
   TurnSlot,
 } from "./repository";
 export { durationSecondsBetween, formatDurationLabel } from "./duration";
-export { SessionError, toSessionError } from "./errors";
+export { SessionError, toSessionError, toPublicRouteError } from "./errors";
 export type { SessionErrorCode } from "./errors";
 export {
   SessionService,

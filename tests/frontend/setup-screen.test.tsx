@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ScenarioHub } from "@/app/components/training/ScenarioHub";
+import { ToastProvider } from "@/components/ui/Toast";
 import {
   customGymScenarioFixture,
   marianaScenarioFixture,
@@ -47,12 +48,14 @@ function renderHub(
   const onEditScenario = vi.fn();
 
   render(
-    <ScenarioHub
-      onStart={onStart}
-      onCreateScenario={onCreateScenario}
-      onEditScenario={onEditScenario}
-      {...props}
-    />,
+    <ToastProvider>
+      <ScenarioHub
+        onStart={onStart}
+        onCreateScenario={onCreateScenario}
+        onEditScenario={onEditScenario}
+        {...props}
+      />
+    </ToastProvider>,
   );
 
   return { onStart, onCreateScenario, onEditScenario };
@@ -61,6 +64,7 @@ function renderHub(
 describe("ScenarioHub flow", () => {
   beforeEach(() => {
     vi.mocked(listScenarios).mockResolvedValue([marianaScenarioFixture]);
+    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(marianaScenarioFixture);
   });
 
   afterEach(() => {
@@ -82,7 +86,9 @@ describe("ScenarioHub flow", () => {
     await user.click(screen.getByRole("switch", { name: "Modo voz" }));
     await user.click(screen.getByRole("button", { name: "Iniciar llamada" }));
 
-    expect(onStart).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(onStart).toHaveBeenCalledTimes(1);
+    });
     expect(onStart).toHaveBeenCalledWith(
       expect.objectContaining({
         scenarioSlug: "mariana",
@@ -212,6 +218,82 @@ describe("ScenarioHub flow", () => {
         }),
       }),
     );
+    expect(
+      vi.mocked(saveScenarioVoiceAgent).mock.invocationCallOrder[0],
+    ).toBeLessThan(onStart.mock.invocationCallOrder[0]);
+  });
+
+  it("does not start the call until voice-agent knobs finish saving", async () => {
+    const user = userEvent.setup();
+    let resolveSave: (value: typeof marianaScenarioFixture) => void = () =>
+      undefined;
+    vi.mocked(saveScenarioVoiceAgent).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    const { onStart } = renderHub();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /Mariana Escobedo/i }),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
+    await user.click(screen.getByRole("switch", { name: "Modo voz" }));
+    await user.click(screen.getByRole("button", { name: "Iniciar llamada" }));
+
+    expect(saveScenarioVoiceAgent).toHaveBeenCalledTimes(1);
+    expect(onStart).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Iniciar llamada" })).toBeDisabled();
+
+    resolveSave(marianaScenarioFixture);
+
+    await waitFor(() => {
+      expect(onStart).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("stays on setup and shows a toast when voice-agent persist fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(saveScenarioVoiceAgent).mockRejectedValue(
+      new Error("No se pudieron guardar los ajustes de voz."),
+    );
+    const { onStart } = renderHub();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /Mariana Escobedo/i }),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
+    await user.click(screen.getByRole("switch", { name: "Modo voz" }));
+    await user.click(screen.getByRole("button", { name: "Iniciar llamada" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("No se pudieron guardar los ajustes de voz."),
+      ).toBeInTheDocument();
+    });
+    expect(onStart).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Elige un escenario y empieza" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an error empty state instead of hardcoded clinic cards when the catalog fails", async () => {
+    vi.mocked(listScenarios).mockRejectedValue(
+      new Error("No se pudo completar la acción. Intenta de nuevo."),
+    );
+    renderHub();
+
+    expect(
+      await screen.findByText("No se pudieron cargar los escenarios"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Mariana Escobedo/i })).not.toBeInTheDocument();
   });
 
   it("restores persisted knobs when the trainer picks the same scenario again", async () => {

@@ -51,7 +51,7 @@ import {
   SESSION_TTS_MAX_CHARS_PER_TURN,
 } from "@/lib/voice/brakes";
 import { gateElevenLabsCall } from "@/lib/voice/gates";
-import { getSessionUsage } from "@/lib/voice/usage";
+import { getSessionUsage, recordExtraTtsChars } from "@/lib/voice/usage";
 import { synthesizeSpeech } from "@/lib/voice/tts";
 import type { TtsAttemptLog } from "@/lib/voice/tts-trace";
 
@@ -313,6 +313,27 @@ describe("POST /api/voice/tts", () => {
         failureReason: "session_extra_tts_limit",
       }),
     );
+  });
+
+  it("still returns billed audio when metering fails after ElevenLabs succeeds", async () => {
+    vi.mocked(synthesizeSpeech).mockResolvedValue({
+      result: {
+        audio: Buffer.from([0x49, 0x44, 0x33, 0x04]),
+        mimeType: "audio/mpeg",
+        tier: "elevenlabs",
+        endpoint: "convert",
+      },
+      failures: [],
+    });
+    vi.mocked(recordExtraTtsChars).mockRejectedValueOnce(
+      new Error("voice_session_usage write failed"),
+    );
+
+    const response = await POST(ttsRequest("Buenas tardes, ¿quién habla?"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("audio/mpeg");
+    expect(synthesizeSpeech).toHaveBeenCalledTimes(1);
   });
 
   it("never writes the ElevenLabs API key into the log line", async () => {
