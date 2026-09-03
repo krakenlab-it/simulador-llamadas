@@ -35,6 +35,8 @@ export interface VoiceAgentSettings {
   personality: AgentPersonality;
   difficultyLevel: DifficultyLevel;
   bargeIn: boolean;
+  /** Trainer opened the Advanced voice knobs; persist so a call does not reset it. */
+  advancedOpen: boolean;
 }
 
 export const DEFAULT_PREMADE_VOICE_ID: PremadeVoiceId = "EXAVITQu4vr4xnSDxMaL";
@@ -46,6 +48,7 @@ export const DEFAULT_VOICE_AGENT_SETTINGS: VoiceAgentSettings = {
   personality: "neutral",
   difficultyLevel: 1,
   bargeIn: false,
+  advancedOpen: false,
 };
 
 const PREMADE_VOICE_IDS = new Set<string>(PREMADE_VOICES.map((voice) => voice.id));
@@ -158,6 +161,7 @@ export function parseVoiceAgentSettings(raw: unknown): VoiceAgentSettings {
     personality: parsePersonality(input.personality),
     difficultyLevel: parseDifficulty(input.difficultyLevel),
     bargeIn: input.bargeIn === true,
+    advancedOpen: input.advancedOpen === true,
   };
 }
 

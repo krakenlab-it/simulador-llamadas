@@ -25,6 +25,12 @@ import {
   voiceAgentToTtsOptions,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
+import {
+  pushVoiceConsoleEntry,
+  readPublicTtsTrace,
+  toPublicVoiceConsoleEntry,
+  type VoiceConsoleEntry,
+} from "@/lib/voice/console-log";
 
 export interface UseSpeechSynthesisOptions {
   sessionUsageId?: string | null;
@@ -37,6 +43,7 @@ export interface UseSpeechSynthesisResult {
   supported: boolean;
   speaking: boolean;
   ttsTier: string;
+  traces: VoiceConsoleEntry[];
   speak: (text: string) => void;
   cancel: () => void;
 }
@@ -47,6 +54,7 @@ type FetchServerAudioResult = {
   blob: Blob | null;
   fallback: boolean;
   status?: number;
+  trace?: VoiceConsoleEntry | null;
 };
 
 async function fetchServerAudio(
@@ -78,17 +86,23 @@ async function fetchServerAudio(
     signal,
   });
 
+  const trace = readPublicTtsTrace(response.headers, response.status);
   if (FALLBACK_HTTP_STATUSES.has(response.status)) {
-    return { blob: null, fallback: true, status: response.status };
+    return { blob: null, fallback: true, status: response.status, trace };
   }
   if (!response.ok) {
-    return { blob: null, fallback: true, status: response.status };
+    return { blob: null, fallback: true, status: response.status, trace };
   }
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.startsWith("audio/")) {
-    return { blob: null, fallback: true, status: response.status };
+    return { blob: null, fallback: true, status: response.status, trace };
   }
-  return { blob: await response.blob(), fallback: false, status: response.status };
+  return {
+    blob: await response.blob(),
+    fallback: false,
+    status: response.status,
+    trace,
+  };
 }
 
 export function useSpeechSynthesis(
@@ -101,6 +115,12 @@ export function useSpeechSynthesis(
   const voiceConfig = useVoiceConfig();
   const [supported, setSupported] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [traces, setTraces] = useState<VoiceConsoleEntry[]>([]);
+
+  const recordTrace = useCallback((entry: VoiceConsoleEntry | null | undefined) => {
+    if (!entry) return;
+    setTraces((prev) => pushVoiceConsoleEntry(prev, entry));
+  }, []);
   const objectUrlRef = useRef<string | null>(null);
   const generationRef = useRef(0);
   const pendingTextRef = useRef<string | null>(null);
@@ -249,8 +269,16 @@ export function useSpeechSynthesis(
         );
         blob = result.blob;
         fallback = result.fallback;
+        recordTrace(result.trace);
       } catch {
         fallback = true;
+        recordTrace(
+          toPublicVoiceConsoleEntry({
+            event: "voice.tts.attempt",
+            fallbackToBrowser: true,
+            failureReason: "network_error",
+          }),
+        );
       } finally {
         window.clearTimeout(timeoutId);
         if (fetchAbortRef.current === controller) {
@@ -303,6 +331,7 @@ export function useSpeechSynthesis(
     [
       billedTtsCacheKey,
       clearSpeaking,
+      recordTrace,
       revokeObjectUrl,
       sessionUsageId,
       speakBrowser,
@@ -362,6 +391,7 @@ export function useSpeechSynthesis(
     supported,
     speaking,
     ttsTier: voiceConfig.ttsTier,
+    traces,
     speak,
     cancel,
   };

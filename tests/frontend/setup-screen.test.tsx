@@ -96,6 +96,7 @@ describe("ScenarioHub flow", () => {
   });
 
   it("exposes trainer voice knobs on the existing config panel, not a second island", async () => {
+    const user = userEvent.setup();
     renderHub();
 
     await waitFor(() => {
@@ -113,6 +114,14 @@ describe("ScenarioHub flow", () => {
     expect(
       screen.getByRole("radiogroup", { name: "Idioma" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radiogroup", { name: "Dificultad" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Voz")).not.toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "Ritmo" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /avanzado/i }));
+
     expect(screen.getByLabelText("Voz")).toBeInTheDocument();
     expect(
       screen.getByRole("radiogroup", { name: "Ritmo" }),
@@ -121,9 +130,24 @@ describe("ScenarioHub flow", () => {
       screen.getByRole("radiogroup", { name: "Personalidad" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Interrumpir" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("radiogroup", { name: "Dificultad" }),
-    ).toBeInTheDocument();
+  });
+
+  it("hides Advanced knobs again when the trainer closes the toggle", async () => {
+    const user = userEvent.setup();
+    renderHub();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /Mariana Escobedo/i }),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /avanzado/i }));
+    expect(screen.getByLabelText("Voz")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /avanzado/i }));
+    expect(screen.queryByLabelText("Voz")).not.toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "Ritmo" })).not.toBeInTheDocument();
   });
 
   it("persists knobs on the scenario so a replay starts with the same agent", async () => {
@@ -138,6 +162,7 @@ describe("ScenarioHub flow", () => {
         personality: "esceptico",
         difficultyLevel: 2,
         bargeIn: true,
+        advancedOpen: true,
       },
     });
     const { onStart } = renderHub();
@@ -150,6 +175,7 @@ describe("ScenarioHub flow", () => {
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
     await user.click(screen.getByRole("radio", { name: "English" }));
+    await user.click(screen.getByRole("button", { name: /avanzado/i }));
     await user.selectOptions(screen.getByLabelText("Voz"), PREMADE_VOICES[1].id);
     await user.click(screen.getByRole("radio", { name: "Lento" }));
     await user.click(screen.getByRole("radio", { name: "Escéptico" }));
@@ -168,6 +194,7 @@ describe("ScenarioHub flow", () => {
           personality: "esceptico",
           difficultyLevel: 2,
           bargeIn: true,
+          advancedOpen: true,
         }),
       );
     });
@@ -181,6 +208,7 @@ describe("ScenarioHub flow", () => {
           speakingRate: "lento",
           personality: "esceptico",
           bargeIn: true,
+          advancedOpen: true,
         }),
       }),
     );
@@ -198,6 +226,7 @@ describe("ScenarioHub flow", () => {
           personality: "impaciente",
           difficultyLevel: 3,
           bargeIn: true,
+          advancedOpen: true,
         },
       },
     ]);
@@ -213,6 +242,10 @@ describe("ScenarioHub flow", () => {
 
     expect(screen.getByRole("radio", { name: "English" })).toHaveAttribute(
       "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /avanzado/i })).toHaveAttribute(
+      "aria-expanded",
       "true",
     );
     expect(screen.getByLabelText("Voz")).toHaveValue(PREMADE_VOICES[2].id);

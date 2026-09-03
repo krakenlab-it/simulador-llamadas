@@ -11,6 +11,7 @@ const stopListening = vi.fn();
 
 vi.mock("@/lib/api/client", () => ({
   submitTurn: vi.fn(),
+  saveScenarioVoiceAgent: vi.fn(),
 }));
 
 vi.mock("@/lib/hooks/useSpeechSynthesis", () => ({

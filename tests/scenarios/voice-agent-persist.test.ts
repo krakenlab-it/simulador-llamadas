@@ -24,6 +24,7 @@ describe("voice agent persistence on the scenario", () => {
       personality: "impaciente" as const,
       difficultyLevel: 2 as const,
       bargeIn: true,
+      advancedOpen: true,
     };
 
     const updated = applyVoiceAgentToRecord(marianaScenarioFixture, saved);
@@ -41,6 +42,7 @@ describe("voice agent persistence on the scenario", () => {
       personality: "paciente",
       difficultyLevel: 3,
       bargeIn: true,
+      advancedOpen: false,
     });
 
     const replay = voiceAgentFromRecord(first);

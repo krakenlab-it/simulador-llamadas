@@ -4,7 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { LiveCallScreen } from "@/app/components/call/LiveCallScreen";
 import { ToastProvider } from "@/components/ui/Toast";
 import type { TurnResponse } from "@/lib/api/stubs";
+import { TURN_FEEDBACK_AUTO_COLLAPSE_MS } from "@/lib/call/turn-feedback";
 import { AUTOSUBMIT_SILENCE_MS } from "@/lib/voice/timeouts";
+import { DEFAULT_VOICE_AGENT_SETTINGS } from "@/lib/voice/agent-settings";
 
 /** Ordered record of the voice side effects a mic click triggers. */
 const voiceCalls = vi.hoisted(() => ({ order: [] as string[] }));
@@ -34,6 +36,7 @@ const speechState = vi.hoisted(() => ({
 
 vi.mock("@/lib/api/client", () => ({
   submitTurn: vi.fn(),
+  saveScenarioVoiceAgent: vi.fn(),
 }));
 
 vi.mock("@/lib/hooks/useSpeechSynthesis", () => ({
@@ -41,6 +44,7 @@ vi.mock("@/lib/hooks/useSpeechSynthesis", () => ({
     supported: true,
     speaking: false,
     ttsTier: "elevenlabs",
+    traces: [],
     speak,
     cancel,
   }),
@@ -57,14 +61,19 @@ vi.mock("@/lib/hooks/useVoiceSession", () => ({
   }),
 }));
 
+const convaiFns = vi.hoisted(() => ({
+  disconnect: vi.fn(),
+  interrupt: vi.fn(),
+}));
+
 // ConvAI stays disconnected for every test here: the call must work anyway.
 vi.mock("@/lib/hooks/useConvaiConnection", () => ({
   useConvaiConnection: () => ({
     connected: false,
     agentSpeaking: false,
     failed: false,
-    disconnect: vi.fn(),
-    interrupt: vi.fn(),
+    disconnect: convaiFns.disconnect,
+    interrupt: convaiFns.interrupt,
   }),
 }));
 
@@ -135,7 +144,9 @@ function turnResponse(overrides: Partial<TurnResponse> = {}): TurnResponse {
   };
 }
 
-function callScreen() {
+function callScreen(
+  overrides: Partial<React.ComponentProps<typeof LiveCallScreen>> = {},
+) {
   return (
     <ToastProvider>
       <LiveCallScreen
@@ -147,6 +158,7 @@ function callScreen() {
         level={2}
         totalRounds={5}
         onHangUp={vi.fn()}
+        {...overrides}
       />
     </ToastProvider>
   );
@@ -392,5 +404,140 @@ describe("live call voice path without ConvAI", () => {
     await waitFor(() => {
       expect(speak).toHaveBeenCalledWith(CLIENT_REPLY);
     });
+  });
+
+  it("keeps Advanced closed by default and open after the next turn starts", async () => {
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <LiveCallScreen
+          callAttemptId="call-1"
+          clientName="Mariana Escobedo"
+          scenarioSlug="mariana"
+          isPreset={false}
+          mode="voz"
+          level={2}
+          totalRounds={5}
+          voiceAgent={{ ...DEFAULT_VOICE_AGENT_SETTINGS, advancedOpen: true }}
+          onHangUp={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByLabelText("Voz")).toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "Ritmo" })).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Tu respuesta"), "Hola Mariana.");
+    await user.click(screen.getByRole("button", { name: "Enviar turno" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Nombraste el problema.")).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText("Voz")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /avanzado/i })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("keeps coaching on screen after the next turn starts", async () => {
+    const user = userEvent.setup();
+    renderCall();
+
+    await user.type(
+      screen.getByLabelText("Tu respuesta"),
+      "Hola, hablo de parte de KrakenLab.",
+    );
+    await user.click(screen.getByRole("button", { name: "Enviar turno" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Nombraste el problema.")).toBeInTheDocument();
+    });
+
+    await waitFor(
+      () => {
+        expect(screen.getByRole("progressbar")).toHaveAttribute(
+          "aria-valuenow",
+          "2",
+        );
+      },
+      { timeout: 3000 },
+    );
+    expect(screen.getByText("Nombraste el problema.")).toBeInTheDocument();
+  });
+
+  it("lists prior-turn coaching in a scrollable history", async () => {
+    const user = userEvent.setup();
+    vi.mocked(submitTurn)
+      .mockResolvedValueOnce(turnResponse())
+      .mockResolvedValueOnce(
+        turnResponse({
+          turnId: "turn-2",
+          roundNumber: 2,
+          roundKey: "objecion",
+          roundType: "objecion",
+          roundLabel: "Objeción",
+          richFeedback: {
+            score: 74,
+            utterance: "¿Cómo miden las visitas?",
+            whyScore: "Pediste la métrica.",
+            strongerLine: "Ancla el dolor.",
+            missedCriteria: [],
+            roundLabel: "Objeción",
+          },
+        }),
+      );
+
+    renderCall();
+
+    await user.type(screen.getByLabelText("Tu respuesta"), "Hola Mariana.");
+    await user.click(screen.getByRole("button", { name: "Enviar turno" }));
+    await waitFor(() => {
+      expect(screen.getByText("Nombraste el problema.")).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByLabelText("Tu respuesta"), "¿Cómo miden las visitas?");
+    await user.click(screen.getByRole("button", { name: "Enviar turno" }));
+    await waitFor(() => {
+      expect(screen.getByText("Pediste la métrica.")).toBeInTheDocument();
+    });
+
+    const history = screen.getByRole("list", { name: /historial de coaching/i });
+    expect(history).toBeInTheDocument();
+    expect(history.textContent).toContain("Nombraste el problema.");
+    expect(history.textContent).toContain("Pediste la métrica.");
+  });
+
+  it("auto-collapses unread coaching without deleting history", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderCall();
+
+    await user.type(screen.getByLabelText("Tu respuesta"), "Hola Mariana.");
+    await user.click(screen.getByRole("button", { name: "Enviar turno" }));
+    await waitFor(() => {
+      expect(screen.getByText("Nombraste el problema.")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByRole("button", { name: /ocultar coaching|cerrar coaching/i }),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(TURN_FEEDBACK_AUTO_COLLAPSE_MS);
+    });
+
+    expect(screen.queryByText("Nombraste el problema.")).not.toBeInTheDocument();
+    const history = screen.getByRole("list", { name: /historial de coaching/i });
+    expect(history.textContent).toMatch(/Apertura/);
+    expect(
+      screen.getByRole("button", { name: /mostrar coaching|abrir coaching/i }),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /mostrar coaching|abrir coaching/i }),
+    );
+    expect(screen.getByText("Nombraste el problema.")).toBeInTheDocument();
+    vi.useRealTimers();
   });
 });
