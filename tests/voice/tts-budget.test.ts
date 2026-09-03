@@ -67,6 +67,7 @@ describe("truncateForBilledTts", () => {
       "que ya está saturado atendiendo pacientes en recepción y en consultorio todos los días. ";
     let long = "";
     while (long.length <= SESSION_TTS_MAX_CHARS_PER_TURN) long += chunk;
+    long = long.trim();
 
     const result = truncateForBilledTts(long);
     expect(result.requestedChars).toBe(long.length);
