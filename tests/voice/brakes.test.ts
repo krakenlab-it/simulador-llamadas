@@ -4,6 +4,7 @@ import {
   SESSION_CONVAI_MAX_SECONDS,
   SESSION_CONVAI_WARN_REMAINING_SECONDS,
   SESSION_EXTRA_TTS_MAX_CHARS,
+  SESSION_TTS_MAX_CHARS_PER_TURN,
   SESSION_MAX_ROUNDS,
   SESSION_MAX_TURN_ALLOCATIONS,
   DAILY_BILLED_SESSIONS_PER_USER,
@@ -20,13 +21,14 @@ function clearBrakeEnv(): void {
 }
 
 describe("KLM-45 spend brakes — locked constants", () => {
-  it("uses Ilya sign-off unit caps", () => {
+  it("keeps ConvAI lock and paid-plan demo TTS caps", () => {
     expect(SESSION_CONVAI_MAX_SECONDS).toBe(180);
     expect(SESSION_CONVAI_WARN_REMAINING_SECONDS).toBe(30);
     expect(SESSION_MAX_ROUNDS).toBe(5);
     expect(SESSION_MAX_TURN_ALLOCATIONS).toBeGreaterThan(SESSION_MAX_ROUNDS);
-    expect(SESSION_EXTRA_TTS_MAX_CHARS).toBe(800);
-    expect(DAILY_BILLED_SESSIONS_PER_USER).toBe(1);
+    expect(SESSION_EXTRA_TTS_MAX_CHARS).toBe(4000);
+    expect(SESSION_TTS_MAX_CHARS_PER_TURN).toBe(480);
+    expect(DAILY_BILLED_SESSIONS_PER_USER).toBe(10);
     expect(GLOBAL_MAX_CONCURRENT_CONVAI).toBe(2);
     expect(GLOBAL_MONTHLY_CONVAI_MINUTES).toBe(300);
     expect(GLOBAL_MONTHLY_CONVAI_MAX_SECONDS).toBe(18_000);

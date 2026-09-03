@@ -98,15 +98,15 @@ describe("trainer voice-agent settings", () => {
   });
 
   it("does not raise billed TTS spend brakes when agent knobs are present", () => {
-    expect(SESSION_EXTRA_TTS_MAX_CHARS).toBe(800);
-    expect(SESSION_TTS_MAX_CHARS_PER_TURN).toBe(220);
+    expect(SESSION_EXTRA_TTS_MAX_CHARS).toBe(4000);
+    expect(SESSION_TTS_MAX_CHARS_PER_TURN).toBe(480);
     const parsed = parseVoiceAgentSettings({
       ...DEFAULT_VOICE_AGENT_SETTINGS,
       speakingRate: "rapido",
       bargeIn: true,
     });
     expect(parsed.speakingRate).toBe("rapido");
-    expect(SESSION_EXTRA_TTS_MAX_CHARS).toBe(800);
-    expect(SESSION_TTS_MAX_CHARS_PER_TURN).toBe(220);
+    expect(SESSION_EXTRA_TTS_MAX_CHARS).toBe(4000);
+    expect(SESSION_TTS_MAX_CHARS_PER_TURN).toBe(480);
   });
 });
