@@ -42,9 +42,31 @@ describe.skipIf(!databaseUrl)("KLM-45 voice usage (integration)", () => {
     if (!("sessionUsageId" in first)) return;
     await recordExtraTtsChars(client, first.sessionUsageId, 12);
 
+    const afterFirst = await checkDailyUserBudget(client, userId);
+    expect(afterFirst.allowed).toBe(true);
+  });
+
+  it("blocks a new billed session after the daily paid-plan cap", async () => {
+    const userId = await getOrCreateVerifiedUser(client, "cap@example.com");
+    for (let i = 0; i < DAILY_BILLED_SESSIONS_PER_USER; i += 1) {
+      const session = await reserveBilledSession(client, userId);
+      expect("sessionUsageId" in session).toBe(true);
+      if (!("sessionUsageId" in session)) return;
+      await recordExtraTtsChars(client, session.sessionUsageId, 8);
+    }
+
     const daily = await checkDailyUserBudget(client, userId);
     expect(daily.allowed).toBe(false);
     expect(daily.reason).toBe("daily_session_limit");
+
+    const blocked = await reserveBilledSession(client, userId);
+    expect(blocked).toEqual(
+      expect.objectContaining({
+        allowed: false,
+        reason: "daily_session_limit",
+        fallbackToBrowser: true,
+      }),
+    );
   });
 
   it("does not consume the daily slot on ConvAI noise without TTS", async () => {
@@ -79,7 +101,7 @@ describe.skipIf(!databaseUrl)("KLM-45 voice usage (integration)", () => {
     expect(slotsAfter.allowed).toBe(true);
 
     expect(GLOBAL_MAX_CONCURRENT_CONVAI).toBe(2);
-    expect(DAILY_BILLED_SESSIONS_PER_USER).toBe(1);
+    expect(DAILY_BILLED_SESSIONS_PER_USER).toBe(10);
   });
 
   it("enforces session ConvAI 180s hard stop", async () => {

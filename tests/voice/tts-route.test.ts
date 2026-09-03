@@ -46,10 +46,24 @@ vi.mock("@/lib/auth/require-voice-session", () => ({
 }));
 
 import { POST } from "@/app/api/voice/tts/route";
+import {
+  SESSION_EXTRA_TTS_MAX_CHARS,
+  SESSION_TTS_MAX_CHARS_PER_TURN,
+} from "@/lib/voice/brakes";
 import { gateElevenLabsCall } from "@/lib/voice/gates";
 import { getSessionUsage } from "@/lib/voice/usage";
 import { synthesizeSpeech } from "@/lib/voice/tts";
 import type { TtsAttemptLog } from "@/lib/voice/tts-trace";
+
+function ramblingPatientLine(minChars: number): string {
+  const chunk =
+    "Mire, yo entiendo lo que dice, pero en la clínica ya tenemos muchos proveedores " +
+    "y la verdad es que no veo cómo esto me ayuda con las citas de la tarde ni con el personal " +
+    "que ya está saturado atendiendo pacientes en recepción y en consultorio todos los días. ";
+  let text = "";
+  while (text.length < minChars) text += chunk;
+  return text.trim();
+}
 
 function ttsRequest(text = "¿Quién habla?"): Request {
   return new Request("https://example.com/api/voice/tts", {
@@ -182,7 +196,7 @@ describe("POST /api/voice/tts", () => {
         charsRequested: "¿Quién habla?".length,
         charsSent: "¿Quién habla?".length,
         fallbackToBrowser: false,
-        sessionExtraTtsRemaining: 800,
+        sessionExtraTtsRemaining: SESSION_EXTRA_TTS_MAX_CHARS,
       }),
     );
   });
@@ -203,10 +217,7 @@ describe("POST /api/voice/tts", () => {
   });
 
   it("truncates long patient lines before synthesis and meters sent chars", async () => {
-    const long =
-      "Mire, yo entiendo lo que dice, pero en la clínica ya tenemos muchos proveedores " +
-      "y la verdad es que no veo cómo esto me ayuda con las citas de la tarde ni con el personal " +
-      "que ya está saturado atendiendo pacientes en recepción y en consultorio todos los días.";
+    const long = ramblingPatientLine(SESSION_TTS_MAX_CHARS_PER_TURN + 80);
     vi.mocked(synthesizeSpeech).mockResolvedValue({
       result: {
         audio: Buffer.from([0x49, 0x44, 0x33, 0x04]),
@@ -222,7 +233,7 @@ describe("POST /api/voice/tts", () => {
     expect(response.status).toBe(200);
     const spoken = vi.mocked(synthesizeSpeech).mock.calls[0]?.[0] as string;
     expect(spoken.length).toBeLessThan(long.length);
-    expect(spoken.length).toBeLessThanOrEqual(220);
+    expect(spoken.length).toBeLessThanOrEqual(SESSION_TTS_MAX_CHARS_PER_TURN);
     expect(attemptLogs(infoSpy).at(-1)).toEqual(
       expect.objectContaining({
         charsRequested: long.length,
@@ -233,10 +244,7 @@ describe("POST /api/voice/tts", () => {
   });
 
   it("still caps billed TTS when the trainer sends voice knobs", async () => {
-    const long =
-      "Mire, yo entiendo lo que dice, pero en la clínica ya tenemos muchos proveedores " +
-      "y la verdad es que no veo cómo esto me ayuda con las citas de la tarde ni con el personal " +
-      "que ya está saturado atendiendo pacientes en recepción y en consultorio todos los días.";
+    const long = ramblingPatientLine(SESSION_TTS_MAX_CHARS_PER_TURN + 80);
     vi.mocked(synthesizeSpeech).mockResolvedValue({
       result: {
         audio: Buffer.from([0x49, 0x44, 0x33, 0x04]),
@@ -266,7 +274,7 @@ describe("POST /api/voice/tts", () => {
 
     expect(response.status).toBe(200);
     const spoken = vi.mocked(synthesizeSpeech).mock.calls[0]?.[0] as string;
-    expect(spoken.length).toBeLessThanOrEqual(220);
+    expect(spoken.length).toBeLessThanOrEqual(SESSION_TTS_MAX_CHARS_PER_TURN);
     const options = vi.mocked(synthesizeSpeech).mock.calls[0]?.[2];
     expect(options).toEqual(
       expect.objectContaining({
@@ -283,7 +291,7 @@ describe("POST /api/voice/tts", () => {
       verifiedUserId: "verified-1",
       convaiSecondsUsed: 0,
       traineeAudioSecondsUsed: 0,
-      extraTtsCharsUsed: 788,
+      extraTtsCharsUsed: SESSION_EXTRA_TTS_MAX_CHARS - 12,
       convaiSlotHeld: false,
     });
     vi.mocked(gateElevenLabsCall).mockResolvedValueOnce({

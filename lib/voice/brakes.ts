@@ -1,4 +1,8 @@
-/** Locked spend-brake units (Ilya sign-off). Count seconds/chars only — no dollar meter. */
+/**
+ * Locked spend-brake units. Count seconds/chars only — no dollar meter.
+ * TTS / daily-session numbers below are paid-plan demo defaults, not unlimited.
+ * ConvAI session / month / concurrent caps stay at the original lock.
+ */
 
 /** Kill switch: when false, billed ElevenLabs path is skipped entirely. */
 export function isElevenLabsEnabled(): boolean {
@@ -23,14 +27,24 @@ export const SESSION_MAX_ROUNDS = 5;
  */
 export const SESSION_MAX_TURN_ALLOCATIONS = 10;
 
-/** Extra streaming TTS outside ConvAI, per billed session (characters). */
-export const SESSION_EXTRA_TTS_MAX_CHARS = 800;
+/**
+ * Extra streaming TTS outside ConvAI, per billed session (characters).
+ * Paid-plan demo default — not unlimited. Raised from the free-plan 800
+ * so a live call does not dump to browser speechSynthesis mid-demo.
+ */
+export const SESSION_EXTRA_TTS_MAX_CHARS = 4000;
 
-/** Max characters billed to ElevenLabs for one patient spoken turn. */
-export const SESSION_TTS_MAX_CHARS_PER_TURN = 220;
+/**
+ * Max characters billed to ElevenLabs for one patient spoken turn.
+ * Paid-plan demo default — not unlimited. Raised from the free-plan 220.
+ */
+export const SESSION_TTS_MAX_CHARS_PER_TURN = 480;
 
-/** Public URL: exactly one billed ConvAI session per user per UTC day (not 3, not 540s). */
-export const DAILY_BILLED_SESSIONS_PER_USER = 1;
+/**
+ * Public URL: billed sessions per user per UTC day (not 3, not 540s).
+ * Paid-plan demo default — not unlimited. Raised from the free-plan 1.
+ */
+export const DAILY_BILLED_SESSIONS_PER_USER = 10;
 
 /**
  * ConvAI wall-clock below this does not consume the daily billed slot (failed

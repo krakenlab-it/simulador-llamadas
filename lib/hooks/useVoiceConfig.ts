@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  DAILY_BILLED_SESSIONS_PER_USER,
+  GLOBAL_MAX_CONCURRENT_CONVAI,
+  GLOBAL_MONTHLY_CONVAI_MINUTES,
+  SESSION_CONVAI_MAX_SECONDS,
+  SESSION_CONVAI_WARN_REMAINING_SECONDS,
+  SESSION_EXTRA_TTS_MAX_CHARS,
+  SESSION_MAX_ROUNDS,
+} from "@/lib/voice/brakes";
 
 export interface VoiceConfig {
   sttTier: string;
@@ -34,13 +43,13 @@ const BROWSER_DEFAULT: VoiceConfig = {
   elevenlabsBilledAvailable: false,
   requiresVoiceAuth: false,
   brakes: {
-    sessionConvaiMaxSeconds: 180,
-    sessionConvaiWarnRemainingSeconds: 30,
-    sessionMaxRounds: 5,
-    sessionExtraTtsMaxChars: 800,
-    dailyBilledSessionsPerUser: 1,
-    globalMaxConcurrentConvai: 2,
-    globalMonthlyConvaiMinutes: 300,
+    sessionConvaiMaxSeconds: SESSION_CONVAI_MAX_SECONDS,
+    sessionConvaiWarnRemainingSeconds: SESSION_CONVAI_WARN_REMAINING_SECONDS,
+    sessionMaxRounds: SESSION_MAX_ROUNDS,
+    sessionExtraTtsMaxChars: SESSION_EXTRA_TTS_MAX_CHARS,
+    dailyBilledSessionsPerUser: DAILY_BILLED_SESSIONS_PER_USER,
+    globalMaxConcurrentConvai: GLOBAL_MAX_CONCURRENT_CONVAI,
+    globalMonthlyConvaiMinutes: GLOBAL_MONTHLY_CONVAI_MINUTES,
   },
 };
 

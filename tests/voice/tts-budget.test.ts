@@ -11,9 +11,9 @@ import {
 import { checkSessionExtraTtsBudget } from "@/lib/voice/usage";
 
 describe("billed TTS spend brakes", () => {
-  it("caps extra TTS per session at 800 chars for free-plan iteration", () => {
-    expect(SESSION_EXTRA_TTS_MAX_CHARS).toBe(800);
-    expect(SESSION_TTS_MAX_CHARS_PER_TURN).toBe(220);
+  it("caps extra TTS per session at paid-plan demo defaults, not unlimited", () => {
+    expect(SESSION_EXTRA_TTS_MAX_CHARS).toBe(4000);
+    expect(SESSION_TTS_MAX_CHARS_PER_TURN).toBe(480);
   });
 
   it("refuses session extra TTS over the cap with browser fallback", async () => {
@@ -22,7 +22,7 @@ describe("billed TTS spend brakes", () => {
       verifiedUserId: "user-1",
       convaiSecondsUsed: 0,
       traineeAudioSecondsUsed: 0,
-      extraTtsCharsUsed: 750,
+      extraTtsCharsUsed: SESSION_EXTRA_TTS_MAX_CHARS - 50,
       convaiSlotHeld: false,
     };
 
@@ -44,7 +44,9 @@ describe("billed TTS spend brakes", () => {
       extraTtsCharsUsed: 120,
       convaiSlotHeld: false,
     };
-    expect(sessionExtraTtsRemainingChars(usage)).toBe(680);
+    expect(sessionExtraTtsRemainingChars(usage)).toBe(
+      SESSION_EXTRA_TTS_MAX_CHARS - 120,
+    );
   });
 });
 
@@ -59,10 +61,12 @@ describe("truncateForBilledTts", () => {
   });
 
   it("truncates a rambling reply before ElevenLabs billing", () => {
-    const long =
+    const chunk =
       "Mire, yo entiendo lo que dice, pero en la clínica ya tenemos muchos proveedores " +
       "y la verdad es que no veo cómo esto me ayuda con las citas de la tarde ni con el personal " +
-      "que ya está saturado atendiendo pacientes en recepción y en consultorio todos los días.";
+      "que ya está saturado atendiendo pacientes en recepción y en consultorio todos los días. ";
+    let long = "";
+    while (long.length <= SESSION_TTS_MAX_CHARS_PER_TURN) long += chunk;
 
     const result = truncateForBilledTts(long);
     expect(result.requestedChars).toBe(long.length);
