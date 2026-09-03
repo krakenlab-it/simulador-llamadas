@@ -9,7 +9,7 @@ export const RELAX_THREE_SCENARIO_LIMIT_FILE =
   "20250831000003_relax_three_scenario_limit.sql";
 
 export const TRAINEE_IDENTITY_MIGRATION_FILE =
-  "20250902000000_trainee_identity.sql";
+  "20260902000001_trainee_identity.sql";
 
 function listMigrationFiles(): string[] {
   return readdirSync(MIGRATIONS_DIR)

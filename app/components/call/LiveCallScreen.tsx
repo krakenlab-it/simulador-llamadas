@@ -57,6 +57,7 @@ interface LiveCallScreenProps {
   level: number;
   totalRounds: number;
   phaseLabels?: string[];
+  openingLine?: string;
   verifiedUserId?: string;
   voiceAgent?: VoiceAgentSettings;
   ending?: boolean;
@@ -86,6 +87,7 @@ export function LiveCallScreen({
   level,
   totalRounds,
   phaseLabels,
+  openingLine: authoredOpeningLine,
   verifiedUserId,
   voiceAgent = DEFAULT_VOICE_AGENT_SETTINGS,
   ending = false,
@@ -214,10 +216,11 @@ export function LiveCallScreen({
 
   const openingLine = useMemo(
     () =>
-      isPreset && client
+      authoredOpeningLine ??
+      (isPreset && client
         ? getClientLine(client, 0)
-        : stubGetOpeningLine(scenarioSlug),
-    [client, isPreset, scenarioSlug],
+        : stubGetOpeningLine(scenarioSlug)),
+    [authoredOpeningLine, client, isPreset, scenarioSlug],
   );
 
   useEffect(() => {
@@ -240,14 +243,12 @@ export function LiveCallScreen({
     speakRef.current(openingLine);
   }, [convaiConnected, mode, openingLine, voiceOutputReady]);
 
-  useEffect(() => {
-    return () => {
-      disconnectConvai();
-    };
-  }, [disconnectConvai]);
+  const disconnectConvaiRef = useRef(disconnectConvai);
+  disconnectConvaiRef.current = disconnectConvai;
 
   useEffect(() => {
     return () => {
+      disconnectConvaiRef.current();
       if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
       if (autosubmitTimerRef.current) clearTimeout(autosubmitTimerRef.current);
     };
@@ -373,7 +374,11 @@ export function LiveCallScreen({
           if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
           advanceTimerRef.current = setTimeout(() => {
             setRound(response.roundNumber + 1);
-            setRoundLabel(response.roundLabel);
+            setRoundLabel(
+              (phaseLabels?.length ? phaseLabels : ROUND_LABELS)[
+                response.roundNumber
+              ] ?? response.roundLabel,
+            );
             textareaRef.current?.focus();
           }, ROUND_ADVANCE_DELAY_MS);
         }
@@ -395,6 +400,7 @@ export function LiveCallScreen({
       ending,
       hangingUp,
       interruptConvai,
+      phaseLabels,
       mode,
       round,
       showToast,
@@ -547,7 +553,7 @@ export function LiveCallScreen({
   }, [holdMic, micArmed, mode, synthesis.speaking]);
 
   const handleHangUp = () => {
-    if (busy) return;
+    if (hangingUp || ending) return;
     releaseCallAudio();
     setHangingUp(true);
     onHangUp([...turnHistory.current]);

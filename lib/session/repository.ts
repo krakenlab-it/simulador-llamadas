@@ -142,6 +142,8 @@ export interface SessionDetail {
   totalRounds: number;
   evaluation: SessionEvaluationSummary | null;
   turns: SessionDetailTurn[];
+  voiceAgent?: VoiceAgentSettings;
+  config?: ScenarioConfig | null;
 }
 
 interface ScenarioContext {
@@ -715,6 +717,7 @@ export class SessionRepository {
       ended_at: Date | null;
       evaluation_summary: SessionEvaluationSummary | null;
       config: ScenarioConfig;
+      voice_agent: unknown;
     }>(
       `SELECT
          ca.id,
@@ -723,6 +726,7 @@ export class SessionRepository {
          s.client_name,
          s.is_preset,
          s.config,
+         s.voice_agent,
          ca.difficulty_level,
          ca.mode,
          ca.status,
@@ -741,6 +745,10 @@ export class SessionRepository {
 
     const row = header.rows[0];
     const config = row.is_preset ? null : parseConfig(row.config);
+    const replayConfig =
+      row.config && typeof row.config === "object"
+        ? (row.config as ScenarioConfig)
+        : null;
     const turnRows = await this.client.query<{
       round_key: string | null;
       round_label: string | null;
@@ -790,6 +798,8 @@ export class SessionRepository {
       totalRounds: getScoringPhaseCount(config, row.is_preset),
       evaluation: parseEvaluationSummary(row.evaluation_summary),
       turns,
+      voiceAgent: parseVoiceAgentSettings(row.voice_agent),
+      config: replayConfig,
     };
   }
 }

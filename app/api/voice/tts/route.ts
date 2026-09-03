@@ -273,10 +273,19 @@ export async function POST(request: Request) {
   const synthesisStartedAt = Date.now();
   const synthesis = await synthesizeSpeech(spokenText, baseTrace(), speakOptions);
 
-  if (isElevenLabsTier(tier) && sessionUsageId) {
-    sessionExtraTtsRemaining = await withPgClient(async (client) => {
-      const usage = await getSessionUsage(client, sessionUsageId);
-      return usage ? sessionExtraTtsRemainingChars(usage) : 0;
+  try {
+    if (isElevenLabsTier(tier) && sessionUsageId) {
+      sessionExtraTtsRemaining = await withPgClient(async (client) => {
+        const usage = await getSessionUsage(client, sessionUsageId);
+        return usage ? sessionExtraTtsRemainingChars(usage) : 0;
+      });
+    }
+  } catch (error) {
+    console.error("voice.tts.usage_refresh_failed", {
+      requestId,
+      sessionUsageId,
+      turnId,
+      detail: error instanceof Error ? error.message : String(error),
     });
   }
 
@@ -331,11 +340,20 @@ export async function POST(request: Request) {
     auth &&
     isVoiceAuthContext(auth)
   ) {
-    sessionExtraTtsRemaining = await withPgClient(async (client) => {
-      await recordExtraTtsChars(client, sessionUsageId, sentChars);
-      const usage = await getSessionUsage(client, sessionUsageId);
-      return usage ? sessionExtraTtsRemainingChars(usage) : 0;
-    });
+    try {
+      sessionExtraTtsRemaining = await withPgClient(async (client) => {
+        await recordExtraTtsChars(client, sessionUsageId, sentChars);
+        const usage = await getSessionUsage(client, sessionUsageId);
+        return usage ? sessionExtraTtsRemainingChars(usage) : 0;
+      });
+    } catch (error) {
+      console.error("voice.tts.metering_failed", {
+        requestId,
+        sessionUsageId,
+        turnId,
+        detail: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   if (synthesis.failures.length > 0) {

@@ -31,4 +31,9 @@ describe("voice brakes migration (static)", () => {
     expect(sql).toContain("CREATE TABLE voice_global_monthly_usage");
     expect(sql).toContain("convai_seconds_used");
   });
+
+  it("documents that voice_* tables stay without RLS until service-role policies exist", () => {
+    expect(sql).toMatch(/DO NOT ENABLE ROW LEVEL SECURITY/i);
+    expect(sql).not.toMatch(/ALTER TABLE[\s\S]{0,80}ENABLE ROW LEVEL SECURITY/i);
+  });
 });

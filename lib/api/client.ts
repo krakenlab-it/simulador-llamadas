@@ -79,9 +79,12 @@ async function tryFetch<T>(
         ...init?.headers,
       },
     });
-    if (res.status === 404 || res.status === 405 || res.status >= 500) {
+    if (res.status === 404 || res.status === 405) {
       if (!stubAvailable) throw new Error(await readErrorMessage(res));
       return null;
+    }
+    if (res.status >= 500) {
+      throw new Error(await readErrorMessage(res));
     }
     if (!res.ok) {
       throw new Error(await readErrorMessage(res));

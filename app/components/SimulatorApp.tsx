@@ -39,9 +39,8 @@ import { HistoryView } from "@/app/components/history/HistoryView";
 import { AuthScreen } from "@/app/components/AuthScreen";
 import { AuthProvider, useAuth } from "@/lib/auth/context";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
-import { phaseLabelsForCall } from "@/lib/scenarios/authoring";
+import { replaySetupFromDetail } from "@/lib/frontend/replay-setup";
 import { durationSecondsBetween } from "@/lib/session/duration";
-import { DEFAULT_VOICE_AGENT_SETTINGS } from "@/lib/voice/agent-settings";
 
 interface EvaluationState {
   result: EndSessionResponse;
@@ -201,16 +200,7 @@ function SimulatorShell() {
         }
         setCallAttemptId(detail.callAttemptId);
         setTraineeId(detail.traineeId);
-        setConfig({
-          scenarioSlug: detail.scenarioSlug,
-          clientName: detail.clientName,
-          isPreset: detail.isPreset,
-          mode: detail.mode,
-          difficultyLevel: detail.difficultyLevel,
-          totalRounds: detail.totalRounds,
-          phaseLabels: phaseLabelsForCall(null, detail.isPreset),
-          voiceAgent: DEFAULT_VOICE_AGENT_SETTINGS,
-        });
+        setConfig(replaySetupFromDetail(detail));
         setEvaluation({
           result: {
             callAttemptId: detail.callAttemptId,
@@ -354,6 +344,7 @@ function SimulatorShell() {
             level={config.difficultyLevel}
             totalRounds={config.totalRounds}
             phaseLabels={config.phaseLabels}
+            openingLine={config.openingLine}
             verifiedUserId={config.verifiedUserId}
             voiceAgent={config.voiceAgent}
             ending={ending}

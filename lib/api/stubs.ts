@@ -16,6 +16,7 @@ import { buildScenarioConfig } from "@/lib/scenarios/defaults";
 import type {
   CreateCustomScenarioInput,
   RichTurnFeedback,
+  ScenarioConfig,
   ScenarioRecord,
   SessionEvaluationSummary,
   UpdateCustomScenarioInput,
@@ -136,6 +137,8 @@ export interface SessionDetail {
   totalRounds: number;
   evaluation: SessionEvaluationSummary | null;
   turns: TurnSummary[];
+  voiceAgent?: VoiceAgentSettings;
+  config?: ScenarioConfig | null;
 }
 
 interface StubScenario {
@@ -590,6 +593,8 @@ export function stubGetSessionDetail(callAttemptId: string): SessionDetail {
     ),
     evaluation: session.evaluation,
     turns: [...session.turns],
+    voiceAgent: parseVoiceAgentSettings(session.scenario.record.voiceAgent),
+    config: session.scenario.record.config,
   };
 }
 

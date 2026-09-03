@@ -3,6 +3,7 @@
 import type { EndSessionResponse, TurnSummary } from "@/lib/api/client";
 import { computeLocalTrend } from "@/lib/history/local";
 import { Button } from "@/app/components/ui/Button";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { AnalyticsChips } from "@/app/components/call/AnalyticsChips";
 
@@ -31,11 +32,33 @@ export function ResultsScreen({
   onViewHistory,
   historyActionLabel = "Ver historial",
 }: ResultsScreenProps) {
-  if (loading || !result) {
+  if (loading) {
     return (
       <div className="results-screen results-screen--loading">
         <Spinner label="Generando tu evaluación y coaching…" size="lg" />
       </div>
+    );
+  }
+
+  if (!result) {
+    return (
+      <section className="results-screen" aria-label="Evaluación no disponible">
+        <EmptyState
+          title="No se pudo generar la evaluación"
+          description="La llamada se colgó, pero el scorecard no se guardó. Puedes repetir el mismo caso o elegir otro escenario."
+        />
+        <div className="results-actions">
+          <Button variant="primary" size="lg" onClick={onRepeat}>
+            Repetir con {clientName}
+          </Button>
+          <Button variant="secondary" onClick={onNewScenario}>
+            Otro escenario
+          </Button>
+          <Button variant="ghost" onClick={onViewHistory}>
+            {historyActionLabel}
+          </Button>
+        </div>
+      </section>
     );
   }
 

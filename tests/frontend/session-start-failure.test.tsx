@@ -66,11 +66,12 @@ vi.mock("@/lib/hooks/useVoiceConfig", () => ({
   }),
 }));
 
-import { createSession, listScenarios } from "@/lib/api/client";
+import { createSession, listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
 
 describe("session start failure", () => {
   beforeEach(() => {
     vi.mocked(listScenarios).mockResolvedValue([marianaScenarioFixture]);
+    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(marianaScenarioFixture);
     vi.mocked(createSession).mockRejectedValue(
       new Error("Servicio no disponible"),
     );

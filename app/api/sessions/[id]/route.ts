@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SessionError, SessionService, withPgClient } from "@/lib/session";
+import { SessionService, toPublicRouteError, withPgClient } from "@/lib/session";
 
 export async function GET(
   _request: Request,
@@ -22,13 +22,7 @@ export async function GET(
 
     return NextResponse.json(detail);
   } catch (error) {
-    if (error instanceof SessionError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.httpStatus },
-      );
-    }
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const mapped = toPublicRouteError(error, "No se pudo abrir esta llamada.");
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }

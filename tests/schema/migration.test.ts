@@ -11,7 +11,13 @@ function readMigrations(): string {
   return files.map((f) => readFileSync(join(MIGRATIONS_DIR, f), "utf-8")).join("\n");
 }
 
+function migrationVersionPrefix(filename: string): string | null {
+  const match = filename.match(/^(\d{14})_/);
+  return match?.[1] ?? null;
+}
+
 describe("schema migration (static)", () => {
+  const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql"));
   const sql = readMigrations();
 
   it("defines core tables", () => {
@@ -71,5 +77,14 @@ describe("schema migration (static)", () => {
 
   it("limits scenario sort_order to three slots", () => {
     expect(sql).toMatch(/sort_order BETWEEN 1 AND 3/);
+  });
+
+  it("gives every migration a unique 14-digit version so supabase_migrations.schema_migrations cannot collide", () => {
+    const versions = files.map((file) => {
+      const version = migrationVersionPrefix(file);
+      expect(version).toMatch(/^\d{14}$/);
+      return version as string;
+    });
+    expect(new Set(versions).size).toBe(versions.length);
   });
 });

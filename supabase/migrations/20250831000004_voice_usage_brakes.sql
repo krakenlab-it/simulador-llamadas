@@ -1,5 +1,10 @@
 -- Voice spend brakes: server-side counters for ElevenLabs billed path.
 -- Counts seconds and characters only — no dollar meter.
+--
+-- DO NOT ENABLE ROW LEVEL SECURITY on voice_* tables until there are
+-- service-role-only or explicit insert/update policies. The live call
+-- bills through DATABASE_URL / withPgClient and would keep working, but
+-- any future browser/anon client would be locked out of usage + brakes.
 
 -- ---------------------------------------------------------------------------
 -- Verified email for billed voice (magic-link proof, not full trainee accounts)

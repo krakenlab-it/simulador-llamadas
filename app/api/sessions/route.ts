@@ -4,6 +4,7 @@ import {
   SessionService,
   createTrainee,
   findOrCreateTrainee,
+  toPublicRouteError,
   withPgClient,
 } from "@/lib/session";
 
@@ -58,7 +59,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(session, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const mapped = toPublicRouteError(error, "No se pudo iniciar la llamada.");
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }

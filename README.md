@@ -121,7 +121,7 @@ El agente ConvAI es opcional (`ELEVENLABS_CONVAI_ENABLED=true`) y solo se hace c
 Orden recomendado para no bloquear a Elon ni al equipo:
 
 1. **Este PR** — infra + esquema + CI + prototipo en docs + README.
-2. **Schema extras** — índices, RLS por trainee autenticado, triggers `updated_at`.
+2. **Schema extras** — índices, RLS por trainee autenticado, triggers `updated_at`. Do **not** enable RLS on `voice_*` tables until there are service-role or explicit insert/update policies that keep the billed call working.
 3. **API** — `POST /api/sessions`, turnos, fin de llamada, `GET /api/history`.
 4. **Backend scoring** — portar lógica de keywords del prototipo; regla de victoria día+hora.
 5. **Frontend screens** — pantallas del flujo (cliente → config → llamada → evaluación → historial).

@@ -78,3 +78,26 @@ export function toSessionError(error: unknown): SessionError {
 
   return new SessionError("turn_failed");
 }
+
+export function toPublicRouteError(
+  error: unknown,
+  fallbackMessage: string,
+): { status: number; body: { error: string; code?: SessionErrorCode } } {
+  if (error instanceof SessionError) {
+    return {
+      status: error.httpStatus,
+      body: { error: error.message, code: error.code },
+    };
+  }
+
+  const code = pgErrorCode(error);
+  if (code && PG_MISSING_SCHEMA.includes(code)) {
+    const mapped = new SessionError("schema_outdated");
+    return {
+      status: mapped.httpStatus,
+      body: { error: mapped.message, code: mapped.code },
+    };
+  }
+
+  return { status: 500, body: { error: fallbackMessage } };
+}

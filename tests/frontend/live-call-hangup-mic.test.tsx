@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LiveCallScreen } from "@/app/components/call/LiveCallScreen";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -13,6 +13,9 @@ vi.mock("@/lib/api/client", () => ({
   submitTurn: vi.fn(),
   saveScenarioVoiceAgent: vi.fn(),
 }));
+
+import { submitTurn } from "@/lib/api/client";
+import type { TurnResponse } from "@/lib/api/stubs";
 
 vi.mock("@/lib/hooks/useSpeechSynthesis", () => ({
   useSpeechSynthesis: () => ({
@@ -113,6 +116,7 @@ describe("live call hang-up mic release", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.clearAllMocks();
   });
 
@@ -133,5 +137,54 @@ describe("live call hang-up mic release", () => {
     const hangUpOrder = onHangUp.mock.invocationCallOrder[0];
     expect(stopListening.mock.invocationCallOrder[0]).toBeLessThan(hangUpOrder);
     expect(releaseMic.mock.invocationCallOrder[0]).toBeLessThan(hangUpOrder);
+  });
+
+  it("lets Colgar end the call while a turn is still scoring", async () => {
+    let resolveTurn: (value: TurnResponse) => void = () => undefined;
+    vi.mocked(submitTurn).mockImplementation(
+      () =>
+        new Promise<TurnResponse>((resolve) => {
+          resolveTurn = resolve;
+        }),
+    );
+    const onHangUp = vi.fn();
+    const user = userEvent.setup();
+    renderCall(onHangUp);
+
+    await user.type(screen.getByLabelText("Tu respuesta"), "Hola Mariana");
+    await user.click(screen.getByRole("button", { name: "Enviar turno" }));
+
+    await waitFor(() => {
+      expect(submitTurn).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(screen.getByRole("button", { name: "Colgar" }));
+
+    await waitFor(() => {
+      expect(onHangUp).toHaveBeenCalledTimes(1);
+    });
+    resolveTurn({
+      turnId: "turn-1",
+      roundNumber: 1,
+      roundType: "apertura",
+      roundKey: "apertura",
+      roundLabel: "Apertura",
+      traineeUtterance: "Hola Mariana",
+      roundScore: 70,
+      keywordHits: {},
+      clientReaction: "bien",
+      clientReply: "Cuéntame más.",
+      feedback: "ok",
+      richFeedback: {
+        score: 70,
+        utterance: "Hola Mariana",
+        whyScore: "ok",
+        strongerLine: "ok",
+        missedCriteria: [],
+        roundLabel: "Apertura",
+      },
+      hasConcreteDayAndTime: false,
+      won: false,
+    });
   });
 });

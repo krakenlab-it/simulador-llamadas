@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const MIGRATION = join(
   process.cwd(),
-  "supabase/migrations/20250902000000_trainee_identity.sql",
+  "supabase/migrations/20260902000001_trainee_identity.sql",
 );
 
 describe("trainee identity migration (static)", () => {

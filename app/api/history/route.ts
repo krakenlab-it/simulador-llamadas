@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   SessionService,
   findTraineeId,
+  toPublicRouteError,
   withPgClient,
 } from "@/lib/session";
 
@@ -47,7 +48,10 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ history, trend });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const mapped = toPublicRouteError(
+      error,
+      "No se pudo cargar tu historial.",
+    );
+    return NextResponse.json(mapped.body, { status: mapped.status });
   }
 }

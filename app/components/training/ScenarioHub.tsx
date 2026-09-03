@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
+import { useToast } from "@/components/ui/Toast";
 import type { ClientPersona } from "@/lib/clients";
 import { CLIENTS } from "@/lib/clients";
 import { listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
@@ -31,9 +32,11 @@ import { EmptyState } from "@/app/components/ui/EmptyState";
 import { SegmentedControl, Switch } from "@/app/components/ui/Switch";
 import { unlockClientPlayback } from "@/lib/voice/client-playback";
 import {
+  openingLineForCall,
   phaseLabelsForCall,
   scoringPhaseCount,
 } from "@/lib/scenarios/authoring";
+import { getClientLine } from "@/lib/simulation/rounds";
 
 export interface SetupConfig {
   scenarioSlug: string;
@@ -43,6 +46,7 @@ export interface SetupConfig {
   difficultyLevel: DifficultyLevel;
   totalRounds: number;
   phaseLabels: string[];
+  openingLine?: string;
   verifiedUserId?: string;
   verifiedEmail?: string;
   client?: ClientPersona;
@@ -72,6 +76,9 @@ export function ScenarioHub({
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
   const [loadingScenarios, setLoadingScenarios] = useState(true);
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  const [savingVoiceAgent, setSavingVoiceAgent] = useState(false);
+  const { showToast } = useToast();
   const [mode, setMode] = useState<PracticeMode>("voz");
   const [level, setLevel] = useState<DifficultyLevel>(1);
   const [voiceAgent, setVoiceAgent] = useState<VoiceAgentSettings>(
@@ -103,8 +110,16 @@ export function ScenarioHub({
 
   useEffect(() => {
     setLoadingScenarios(true);
+    setCatalogFailed(false);
     void listScenarios()
-      .then(setScenarios)
+      .then((rows) => {
+        setScenarios(rows);
+        setCatalogFailed(false);
+      })
+      .catch(() => {
+        setScenarios([]);
+        setCatalogFailed(true);
+      })
       .finally(() => setLoadingScenarios(false));
   }, [refreshKey]);
 
@@ -118,7 +133,9 @@ export function ScenarioHub({
   const presets = scenarios.filter((s) => s.isPreset);
   const custom = scenarios.filter((s) => !s.isPreset);
   const displayPresets =
-    presets.length > 0
+    catalogFailed
+      ? []
+      : presets.length > 0
       ? presets
       : CLIENTS.map(
           (c) =>
@@ -163,7 +180,7 @@ export function ScenarioHub({
     mode,
     speechSupported: speech.supported,
     micVerified,
-    isStarting,
+    isStarting: isStarting || savingVoiceAgent,
     needsVoiceAuth,
     voiceAuthVerified: Boolean(verifiedUserId),
   };
@@ -178,16 +195,30 @@ export function ScenarioHub({
     setMicVerified(true);
   };
 
-  const handleStart = () => {
-    if (!selected || !canStart) return;
+  const handleStart = async () => {
+    if (!selected || !canStart || savingVoiceAgent) return;
     unlockClientPlayback();
     const settings = parseVoiceAgentSettings({
       ...voiceAgent,
       difficultyLevel: level,
     });
-    void Promise.resolve(saveScenarioVoiceAgent(selected.slug, settings)).catch(
-      () => undefined,
-    );
+    setSavingVoiceAgent(true);
+    try {
+      await saveScenarioVoiceAgent(selected.slug, settings);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "No se pudieron guardar los ajustes de voz.";
+      showToast(message, "error");
+      setSavingVoiceAgent(false);
+      return;
+    }
+    setSavingVoiceAgent(false);
+    const presetLine =
+      selected.isPreset && selectedClient
+        ? getClientLine(selectedClient, 0)
+        : undefined;
     onStart({
       scenarioSlug: selected.slug,
       clientName: selected.clientName,
@@ -196,6 +227,11 @@ export function ScenarioHub({
       difficultyLevel: level,
       totalRounds: scoringPhaseCount(selected.config, selected.isPreset),
       phaseLabels: phaseLabelsForCall(selected.config, selected.isPreset),
+      openingLine: openingLineForCall(
+        selected.config,
+        selected.isPreset,
+        presetLine,
+      ),
       client: selectedClient ?? undefined,
       verifiedUserId: verifiedUserId ?? undefined,
       verifiedEmail: verifiedEmail ?? undefined,
@@ -294,6 +330,11 @@ export function ScenarioHub({
         <div className="train-hub__loading">
           <Spinner label="Cargando escenarios…" />
         </div>
+      ) : catalogFailed ? (
+        <EmptyState
+          title="No se pudieron cargar los escenarios"
+          description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo — no arrancamos la clínica de respaldo para no ensayar un caso distinto al de producción."
+        />
       ) : tab === "custom" && custom.length === 0 ? (
         <EmptyState
           title="Aún no tienes escenarios propios"
@@ -434,8 +475,8 @@ export function ScenarioHub({
           variant="primary"
           size="lg"
           disabled={!canStart}
-          loading={isStarting}
-          onClick={handleStart}
+          loading={isStarting || savingVoiceAgent}
+          onClick={() => void handleStart()}
         >
           Iniciar llamada
         </Button>
