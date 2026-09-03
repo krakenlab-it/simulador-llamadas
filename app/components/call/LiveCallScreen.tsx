@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClientPersona } from "@/lib/clients";
 import type { PracticeMode } from "@/lib/db/types";
-import { submitTurn } from "@/lib/api/client";
-import type { RichTurnFeedback, TurnSummary } from "@/lib/api/client";
+import { saveScenarioVoiceAgent, submitTurn } from "@/lib/api/client";
+import type { TurnSummary } from "@/lib/api/client";
 import { stubGetOpeningLine } from "@/lib/api/stubs";
 import { newClientTurnId } from "@/lib/frontend/ids";
 import { unlockClientPlayback } from "@/lib/voice/client-playback";
-import { AnalyticsChips } from "@/app/components/call/AnalyticsChips";
+import { TurnFeedbackRail } from "@/app/components/call/TurnFeedbackRail";
+import { VoiceConsoleLog } from "@/app/components/call/VoiceConsoleLog";
+import { VoiceAgentControls } from "@/app/components/training/VoiceAgentControls";
 import type { CallAnalytics } from "@/lib/scoring/types";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 import { useSpeechSynthesis } from "@/lib/hooks/useSpeechSynthesis";
@@ -19,6 +21,13 @@ import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
 import { getClientLine, ROUNDS } from "@/lib/simulation/rounds";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
+import {
+  TURN_FEEDBACK_AUTO_COLLAPSE_MS,
+  appendTurnFeedback,
+  autoCollapseIfUntouched,
+  toggleTurnFeedback,
+  type TurnFeedbackEntry,
+} from "@/lib/call/turn-feedback";
 import { AUTOSUBMIT_SILENCE_MS } from "@/lib/voice/timeouts";
 import { isAutosubmitReady } from "@/lib/voice/autosubmit";
 import { resolveSpeechLocale } from "@/lib/scenarios/language";
@@ -26,6 +35,12 @@ import {
   DEFAULT_VOICE_AGENT_SETTINGS,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
+import {
+  pushVoiceConsoleEntry,
+  publicTurnSubmitTrace,
+  toPublicVoiceConsoleEntry,
+  type VoiceConsoleEntry,
+} from "@/lib/voice/console-log";
 
 interface DialogueEntry {
   role: "client" | "you";
@@ -50,8 +65,16 @@ interface LiveCallScreenProps {
 
 const ROUND_LABELS = ["Apertura", "Objeción", "Claridad", "Correo", "Cierre"];
 
-/** Time the round feedback stays on screen before the next round opens. */
+/** Time before the next round accepts a new reply. Coaching stays on screen. */
 const ROUND_ADVANCE_DELAY_MS = 1800;
+
+const EMPTY_ANALYTICS: CallAnalytics = {
+  talkPercent: 0,
+  longestMonologueSeconds: 0,
+  questionTypes: { open: 0, closed: 0, clarifying: 0 },
+  patienceAfterBuyerTurnSeconds: null,
+  hasNextStep: false,
+};
 
 export function LiveCallScreen({
   callAttemptId,
@@ -90,10 +113,11 @@ export function LiveCallScreen({
   const [roundLabel, setRoundLabel] = useState("Apertura");
   const [dialogue, setDialogue] = useState<DialogueEntry[]>([]);
   const [utterance, setUtterance] = useState("");
-  const [turnEval, setTurnEval] = useState<{
-    richFeedback: RichTurnFeedback;
-    analytics: CallAnalytics;
-  } | null>(null);
+  const [agentSettings, setAgentSettings] = useState(voiceAgent);
+  const [feedbackHistory, setFeedbackHistory] = useState<TurnFeedbackEntry[]>(
+    [],
+  );
+  const [consoleLogs, setConsoleLogs] = useState<VoiceConsoleEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [hangingUp, setHangingUp] = useState(false);
   const turnHistory = useRef<TurnSummary[]>([]);
@@ -144,11 +168,17 @@ export function LiveCallScreen({
 
   const synthesis = useSpeechSynthesis({
     sessionUsageId,
-    locale: resolveSpeechLocale({ language: voiceAgent.language }),
-    voiceAgent,
+    locale: resolveSpeechLocale({ language: agentSettings.language }),
+    voiceAgent: agentSettings,
   });
   const busy = submitting || hangingUp || ending;
-  const holdMic = busy || (synthesis.speaking && !voiceAgent.bargeIn);
+  const holdMic = busy || (synthesis.speaking && !agentSettings.bargeIn);
+  const billedTtsActive =
+    Boolean(sessionUsageId) &&
+    voiceConfig.serverTts &&
+    !voiceSession.fallbackToBrowser;
+  const billedTtsActiveRef = useRef(billedTtsActive);
+  billedTtsActiveRef.current = billedTtsActive;
   const callDevices = useCallAudioDevices(
     mode === "voz" && useBrowserMic && !hangingUp && !ending,
     voiceConfig.sttTier === "browser" || !voiceConfig.serverStt,
@@ -213,10 +243,15 @@ export function LiveCallScreen({
   useEffect(() => {
     return () => {
       disconnectConvai();
+    };
+  }, [disconnectConvai]);
+
+  useEffect(() => {
+    return () => {
       if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
       if (autosubmitTimerRef.current) clearTimeout(autosubmitTimerRef.current);
     };
-  }, [disconnectConvai]);
+  }, []);
 
   const clearAutosubmitTimer = useCallback(() => {
     if (autosubmitTimerRef.current) {
@@ -233,7 +268,7 @@ export function LiveCallScreen({
     } else {
       el.scrollTop = el.scrollHeight;
     }
-  }, [dialogue, turnEval]);
+  }, [dialogue, feedbackHistory]);
 
   const handleMic = () => {
     if (mode !== "voz" || !useBrowserMic || !speech.supported || hangingUp || ending)
@@ -291,16 +326,27 @@ export function LiveCallScreen({
 
         setUtterance("");
         setDialogue((prev) => [...prev, { role: "you", text }]);
-        setTurnEval({
-          richFeedback: response.richFeedback,
-          analytics: response.richFeedback.analytics ?? {
-            talkPercent: 0,
-            longestMonologueSeconds: 0,
-            questionTypes: { open: 0, closed: 0, clarifying: 0 },
-            patienceAfterBuyerTurnSeconds: null,
-            hasNextStep: false,
-          },
-        });
+        setFeedbackHistory((prev) =>
+          appendTurnFeedback(prev, {
+            id: response.turnId,
+            turnIndex: response.roundNumber,
+            roundLabel: response.roundLabel,
+            whyScore: response.richFeedback.whyScore,
+            strongerLine: response.richFeedback.strongerLine,
+            score: response.roundScore,
+            analytics: response.richFeedback.analytics ?? EMPTY_ANALYTICS,
+          }),
+        );
+        setConsoleLogs((prev) =>
+          pushVoiceConsoleEntry(
+            prev,
+            publicTurnSubmitTrace({
+              httpStatus: 200,
+              roundNumber: response.roundNumber,
+              turnId: response.turnId,
+            }),
+          ),
+        );
 
         if (response.clientReply) {
           setDialogue((prev) => [
@@ -311,13 +357,21 @@ export function LiveCallScreen({
             interruptConvai();
           } else if (mode === "voz") {
             speakRef.current(response.clientReply);
+            const ttsLog = toPublicVoiceConsoleEntry({
+              event: "voice.tts.attempt",
+              languageCode: agentSettings.language,
+              fallbackToBrowser: !billedTtsActiveRef.current,
+              httpStatus: billedTtsActiveRef.current ? 200 : undefined,
+            });
+            if (ttsLog) {
+              setConsoleLogs((prev) => pushVoiceConsoleEntry(prev, ttsLog));
+            }
           }
         }
 
         if (response.roundNumber < totalRounds) {
           if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
           advanceTimerRef.current = setTimeout(() => {
-            setTurnEval(null);
             setRound(response.roundNumber + 1);
             setRoundLabel(response.roundLabel);
             textareaRef.current?.focus();
@@ -335,6 +389,7 @@ export function LiveCallScreen({
       }
     },
     [
+      agentSettings.language,
       callAttemptId,
       clientVoiceIsConvai,
       ending,
@@ -442,10 +497,49 @@ export function LiveCallScreen({
   }, [clearAutosubmitTimer, holdMic]);
 
   useEffect(() => {
-    if (!voiceAgent.bargeIn || !synthesis.speaking) return;
+    if (!agentSettings.bargeIn || !synthesis.speaking) return;
     if (!speech.transcript.trim()) return;
     synthesis.cancel();
-  }, [speech.transcript, synthesis, voiceAgent.bargeIn]);
+  }, [speech.transcript, synthesis, agentSettings.bargeIn]);
+
+  const latestFeedback = feedbackHistory[feedbackHistory.length - 1];
+  const latestFeedbackId = latestFeedback?.id;
+  const latestFeedbackLocked = Boolean(
+    latestFeedback?.collapsed || latestFeedback?.touched,
+  );
+
+  useEffect(() => {
+    const incoming = synthesis.traces?.at(-1);
+    if (!incoming) return;
+    setConsoleLogs((prev) => {
+      const already = prev.some(
+        (item) => item.at === incoming.at && item.event === incoming.event,
+      );
+      return already ? prev : pushVoiceConsoleEntry(prev, incoming);
+    });
+  }, [synthesis.traces]);
+
+  useEffect(() => {
+    if (!latestFeedbackId || latestFeedbackLocked) return;
+    const timer = window.setTimeout(() => {
+      setFeedbackHistory((prev) =>
+        autoCollapseIfUntouched(prev, latestFeedbackId),
+      );
+    }, TURN_FEEDBACK_AUTO_COLLAPSE_MS);
+    return () => window.clearTimeout(timer);
+  }, [latestFeedbackId, latestFeedbackLocked]);
+
+  const handleAgentChange = useCallback(
+    (next: VoiceAgentSettings) => {
+      setAgentSettings(next);
+      void saveScenarioVoiceAgent(scenarioSlug, next).catch(() => undefined);
+    },
+    [scenarioSlug],
+  );
+
+  const handleToggleFeedback = useCallback((id: string) => {
+    setFeedbackHistory((prev) => toggleTurnFeedback(prev, id));
+  }, []);
 
   useEffect(() => {
     if (!micArmed || mode !== "voz" || holdMic) return;
@@ -461,10 +555,6 @@ export function LiveCallScreen({
 
   const displayRoundLabel = roundMeta?.label ?? roundLabel;
   const progressPct = Math.round(((round - 1) / totalRounds) * 100);
-  const billedTtsActive =
-    Boolean(sessionUsageId) &&
-    voiceConfig.serverTts &&
-    !voiceSession.fallbackToBrowser;
   const showBrowserVoiceNote =
     !convaiConnected &&
     !billedTtsActive &&
@@ -474,7 +564,7 @@ export function LiveCallScreen({
       voiceConfig.ttsTier === "browser");
 
   return (
-    <section className="call-screen" aria-label="Llamada en vivo">
+    <section className="call-screen call-console" aria-label="Llamada en vivo">
       <header className="call-screen__header">
         <div>
           <p className="call-screen__status">
@@ -483,7 +573,8 @@ export function LiveCallScreen({
           </p>
           <h1 className="call-screen__client">{clientName}</h1>
           <p className="call-screen__meta">
-            Nivel {level} · Modo {mode}
+            Nivel {level} · {mode} ·{" "}
+            {agentSettings.language === "en" ? "EN" : "ES"}
           </p>
         </div>
         <Button variant="danger" onClick={handleHangUp} loading={hangingUp || ending}>
@@ -532,7 +623,9 @@ export function LiveCallScreen({
         </p>
       </div>
 
-      <div className="call-screen__panel">
+      <div className="call-console__body">
+        <VoiceConsoleLog entries={consoleLogs} />
+
         <div className="dialogue" ref={dialogueRef} aria-live="polite">
           {dialogue.map((entry, i) => (
             <div
@@ -548,7 +641,13 @@ export function LiveCallScreen({
         </div>
 
         <div className="call-screen__composer">
-          {useBrowserMic && callDevices.ready ? (
+          <VoiceAgentControls
+            value={agentSettings}
+            onChange={handleAgentChange}
+            showBargeIn={mode === "voz"}
+          />
+
+          {agentSettings.advancedOpen && useBrowserMic && callDevices.ready ? (
             <div className="call-devices" aria-label="Dispositivos de audio">
               <label className="call-devices__field">
                 <span className="call-devices__label">Micrófono</span>
@@ -657,12 +756,10 @@ export function LiveCallScreen({
           <p className="call-screen__note call-screen__note--warn">{speech.error}</p>
         ) : null}
 
-        {turnEval ? (
-          <div className="coaching-card" role="status">
-            <p className="coaching-card__why">{turnEval.richFeedback.whyScore}</p>
-            <AnalyticsChips analytics={turnEval.analytics} />
-          </div>
-        ) : null}
+        <TurnFeedbackRail
+          entries={feedbackHistory}
+          onToggle={handleToggleFeedback}
+        />
       </div>
     </section>
   );

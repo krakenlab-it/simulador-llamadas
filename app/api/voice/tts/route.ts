@@ -19,6 +19,7 @@ import {
   parseElevenLabsErrorCode,
   type TtsTraceContext,
 } from "@/lib/voice/tts-trace";
+import { encodePublicTtsTraceHeader } from "@/lib/voice/console-log";
 import {
   assertSessionOwnership,
   isVoiceAuthContext,
@@ -30,6 +31,33 @@ import {
   resolvePremadeVoiceId,
 } from "@/lib/voice/agent-settings";
 import type { TtsSpeakOptions } from "@/lib/voice/types";
+
+function publicTraceHeader(payload: {
+  requestId: string;
+  httpStatus: number;
+  fallbackToBrowser: boolean;
+  languageCode?: string;
+  endpoint?: string;
+  failureReason?: string;
+  recovered?: boolean;
+  durationMs?: number;
+  charsSent?: number;
+}): Record<string, string> {
+  return {
+    "X-Voice-Trace": encodePublicTtsTraceHeader({
+      event: "voice.tts.attempt",
+      requestId: payload.requestId,
+      httpStatus: payload.httpStatus,
+      fallbackToBrowser: payload.fallbackToBrowser,
+      languageCode: payload.languageCode,
+      endpoint: payload.endpoint,
+      failureReason: payload.failureReason,
+      recovered: payload.recovered,
+      durationMs: payload.durationMs,
+      charsSent: payload.charsSent,
+    }),
+  };
+}
 
 function logRouteTtsOutcome(
   trace: TtsTraceContext,
@@ -156,7 +184,16 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(
       { error: "not_speakable", fallbackToBrowser: true },
-      { status: 400 },
+      {
+        status: 400,
+        headers: publicTraceHeader({
+          requestId,
+          httpStatus: 400,
+          fallbackToBrowser: true,
+          languageCode: speakOptions?.language ?? "es",
+          failureReason: "not_speakable",
+        }),
+      },
     );
   }
 
@@ -219,7 +256,16 @@ export async function POST(request: Request) {
       });
       return NextResponse.json(
         { error: gate.reason, fallbackToBrowser: true },
-        { status: 429 },
+        {
+          status: 429,
+          headers: publicTraceHeader({
+            requestId,
+            httpStatus: 429,
+            fallbackToBrowser: true,
+            languageCode: speakOptions?.language ?? "es",
+            failureReason: gate.reason,
+          }),
+        },
       );
     }
   }
@@ -262,7 +308,18 @@ export async function POST(request: Request) {
         fallbackToBrowser: true,
         attempts: synthesis.failures,
       },
-      { status: 502 },
+      {
+        status: 502,
+        headers: publicTraceHeader({
+          requestId,
+          httpStatus: 502,
+          fallbackToBrowser: true,
+          languageCode: speakOptions?.language ?? "es",
+          endpoint: lastFailure?.endpoint,
+          failureReason: lastFailure?.reason ?? "synthesis_failed",
+          durationMs: synthesisDurationMs,
+        }),
+      },
     );
   }
 
@@ -307,6 +364,16 @@ export async function POST(request: Request) {
       "X-Voice-Tier": result.tier,
       "X-Voice-Request-Id": requestId,
       ...(result.endpoint ? { "X-Voice-Endpoint": result.endpoint } : {}),
+      ...publicTraceHeader({
+        requestId,
+        httpStatus: 200,
+        fallbackToBrowser: false,
+        languageCode: speakOptions?.language ?? "es",
+        endpoint: result.endpoint,
+        recovered: synthesis.failures.length > 0,
+        durationMs: synthesisDurationMs,
+        charsSent: sentChars,
+      }),
     },
   });
 }

@@ -24,6 +24,7 @@ describe("trainer voice-agent settings", () => {
       personality: "neutral",
       difficultyLevel: 1,
       bargeIn: false,
+      advancedOpen: false,
     });
   });
 
@@ -63,6 +64,7 @@ describe("trainer voice-agent settings", () => {
       personality: "esceptico",
       difficultyLevel: 3,
       bargeIn: true,
+      advancedOpen: false,
     });
   });
 
