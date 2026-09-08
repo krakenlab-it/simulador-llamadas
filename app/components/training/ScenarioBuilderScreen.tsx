@@ -27,6 +27,7 @@ import { SegmentedControl } from "@/app/components/ui/Switch";
 
 export interface ScenarioBuilderResult {
   scenario: ScenarioRecord;
+  usedLocalFallback?: boolean;
 }
 
 interface ScenarioBuilderScreenProps {
@@ -139,11 +140,14 @@ export function ScenarioBuilderScreen({
     setError(null);
     try {
       const payload = draftToCreateInput(draft);
-      const scenario =
+      const result =
         editing && initialScenario
           ? await updateScenario({ ...payload, slug: initialScenario.slug })
           : await createScenario(payload);
-      onSave({ scenario });
+      onSave({
+        scenario: result.scenario,
+        usedLocalFallback: result.usedLocalFallback,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar");
     } finally {

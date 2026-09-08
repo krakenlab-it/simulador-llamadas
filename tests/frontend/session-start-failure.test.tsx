@@ -74,7 +74,10 @@ describe("session start failure", () => {
       scenarios: [marianaScenarioFixture],
       usedLocalFallback: false,
     });
-    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(marianaScenarioFixture);
+    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue({
+      scenario: marianaScenarioFixture,
+      usedLocalFallback: false,
+    });
     vi.mocked(createSession).mockRejectedValue(
       new Error("Servicio no disponible"),
     );

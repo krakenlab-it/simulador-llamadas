@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createSession,
+  createScenario,
   listHistory,
   loadHistory,
   listScenarios,
@@ -10,7 +11,21 @@ import {
 } from "@/lib/api/client";
 import { resetStubSessions } from "@/lib/api/stubs";
 import { appendLocalHistory, clearLocalHistory } from "@/lib/history/local";
+import { clearLocalCustomScenarios } from "@/lib/scenarios/local";
 import { DEFAULT_VOICE_AGENT_SETTINGS } from "@/lib/voice/agent-settings";
+
+const sampleCreateInput = {
+  industry: "gimnasio",
+  productSold: "membresía anual",
+  clientName: "Laura Méndez",
+  clientTitle: "Gerente",
+  companyContext: "Cadena de gimnasios",
+  temperament: "Impaciente",
+  difficultyLabel: "Media",
+  clientProblem: "baja retención de socios",
+  objections: ["Muy caro"],
+  winCriteria: "SPIN Advance: visita con acción concreta",
+};
 
 function mockFetchOnce(status: number, body: unknown): void {
   vi.stubGlobal(
@@ -38,6 +53,7 @@ describe("api client error messages", () => {
     vi.unstubAllGlobals();
     resetStubSessions();
     clearLocalHistory();
+    clearLocalCustomScenarios();
   });
 
   it("surfaces the server message instead of the raw JSON envelope", async () => {
@@ -153,11 +169,38 @@ describe("api client error messages", () => {
     expect(await listHistory({ email: "seb@example.com" })).toHaveLength(0);
   });
 
-  it("does not silently stub a failed voice-agent persist", async () => {
+  it("falls back to stub when POST /api/scenarios returns 500", async () => {
+    mockFetchOnce(500, { error: "No se pudo crear el escenario." });
+
+    const result = await createScenario({ ...sampleCreateInput });
+
+    expect(result.usedLocalFallback).toBe(true);
+    expect(result.scenario.clientName).toBe("Laura Méndez");
+    expect(result.scenario.isPreset).toBe(false);
+    expect(
+      (await loadScenarioCatalog()).scenarios.some(
+        (scenario) => scenario.slug === result.scenario.slug,
+      ),
+    ).toBe(true);
+  });
+
+  it("surfaces validation errors when POST /api/scenarios returns 400", async () => {
+    mockFetchOnce(400, { error: "Falta el nombre del cliente." });
+
+    await expect(createScenario({ ...sampleCreateInput })).rejects.toThrow(
+      "Falta el nombre del cliente.",
+    );
+  });
+
+  it("falls back to stub voice-agent settings when PATCH returns 500", async () => {
     mockFetchOnce(500, { error: 'column "voice_agent" does not exist' });
 
-    await expect(
-      saveScenarioVoiceAgent("mariana", DEFAULT_VOICE_AGENT_SETTINGS),
-    ).rejects.toThrow("No se pudo completar la acción. Intenta de nuevo.");
+    const result = await saveScenarioVoiceAgent(
+      "mariana",
+      DEFAULT_VOICE_AGENT_SETTINGS,
+    );
+
+    expect(result.usedLocalFallback).toBe(true);
+    expect(result.scenario.slug).toBe("mariana");
   });
 });

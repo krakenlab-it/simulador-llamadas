@@ -13,6 +13,7 @@ import {
   mergeHistoryEntries,
 } from "@/lib/history/merge";
 import { loadLocalHistorySafe } from "@/lib/history/local";
+import { loadLocalCustomScenarios } from "@/lib/scenarios/local";
 import {
   stubCreateSession,
   stubCreateScenario,
@@ -143,6 +144,8 @@ export async function endSession(
 /**
  * Read-only catalog bootstrap (scenario list). Falls back to the in-memory stub
  * on 404/405/5xx or network failure so preview/demo stays usable without DB.
+ *
+ * Also used for authoring writes that have a usable local stub fallback.
  */
 async function tryFetchCatalog<T>(
   url: string,
@@ -171,18 +174,34 @@ export interface ScenarioCatalogResult {
   usedLocalFallback: boolean;
 }
 
+function mergeLocalCustomIntoCatalog(
+  scenarios: ScenarioRecord[],
+): ScenarioRecord[] {
+  const slugs = new Set(scenarios.map((scenario) => scenario.slug));
+  const localOnly = loadLocalCustomScenarios().filter(
+    (scenario) => !scenario.isPreset && !slugs.has(scenario.slug),
+  );
+  return localOnly.length > 0 ? [...scenarios, ...localOnly] : scenarios;
+}
+
 export async function loadScenarioCatalog(): Promise<ScenarioCatalogResult> {
   try {
     const remote = await tryFetchCatalog<{ scenarios: ScenarioRecord[] }>(
       "/api/scenarios",
     );
     if (remote?.scenarios) {
-      return { scenarios: remote.scenarios, usedLocalFallback: false };
+      return {
+        scenarios: mergeLocalCustomIntoCatalog(remote.scenarios),
+        usedLocalFallback: false,
+      };
     }
   } catch {
     // Unexpected 4xx — still serve the local clinic presets for training.
   }
-  return { scenarios: stubListScenarios(), usedLocalFallback: true };
+  return {
+    scenarios: stubListScenarios(),
+    usedLocalFallback: true,
+  };
 }
 
 export async function listScenarios(): Promise<ScenarioRecord[]> {
@@ -193,35 +212,64 @@ export async function listScenarios(): Promise<ScenarioRecord[]> {
 export type CreateScenarioRequest = CreateCustomScenarioInput;
 export type UpdateScenarioRequest = UpdateCustomScenarioInput;
 
+export interface ScenarioWriteResult {
+  scenario: ScenarioRecord;
+  usedLocalFallback: boolean;
+}
+
 export async function createScenario(
   body: CreateScenarioRequest,
-): Promise<ScenarioRecord> {
-  const remote = await tryFetch<ScenarioRecord>("/api/scenarios", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
-  return remote ?? stubCreateScenario(body);
+): Promise<ScenarioWriteResult> {
+  try {
+    const remote = await tryFetchCatalog<ScenarioRecord>("/api/scenarios", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    if (remote) {
+      return { scenario: remote, usedLocalFallback: false };
+    }
+  } catch (error) {
+    throw error;
+  }
+  return { scenario: stubCreateScenario(body), usedLocalFallback: true };
 }
 
 export async function saveScenarioVoiceAgent(
   slug: string,
   voiceAgent: VoiceAgentSettings,
-): Promise<ScenarioRecord> {
-  const remote = await tryFetch<ScenarioRecord>("/api/scenarios/voice-agent", {
-    method: "PATCH",
-    body: JSON.stringify({ slug, voiceAgent }),
-  });
-  return remote ?? stubSaveVoiceAgent(slug, voiceAgent);
+): Promise<ScenarioWriteResult> {
+  try {
+    const remote = await tryFetchCatalog<ScenarioRecord>("/api/scenarios/voice-agent", {
+      method: "PATCH",
+      body: JSON.stringify({ slug, voiceAgent }),
+    });
+    if (remote) {
+      return { scenario: remote, usedLocalFallback: false };
+    }
+  } catch (error) {
+    throw error;
+  }
+  return {
+    scenario: stubSaveVoiceAgent(slug, voiceAgent),
+    usedLocalFallback: true,
+  };
 }
 
 export async function updateScenario(
   body: UpdateScenarioRequest,
-): Promise<ScenarioRecord> {
-  const remote = await tryFetch<ScenarioRecord>(`/api/scenarios/${body.slug}`, {
-    method: "PATCH",
-    body: JSON.stringify(body),
-  });
-  return remote ?? stubUpdateScenario(body);
+): Promise<ScenarioWriteResult> {
+  try {
+    const remote = await tryFetchCatalog<ScenarioRecord>(`/api/scenarios/${body.slug}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+    if (remote) {
+      return { scenario: remote, usedLocalFallback: false };
+    }
+  } catch (error) {
+    throw error;
+  }
+  return { scenario: stubUpdateScenario(body), usedLocalFallback: true };
 }
 
 /**
