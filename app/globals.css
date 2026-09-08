@@ -650,6 +650,7 @@ body {
   gap: 0.5rem;
 }
 
+/* kraken-wizard-step-pills v2 — explicit contrast (2026-09-08) */
 .kraken-wizard .wizard-steps {
   display: flex;
   flex-wrap: wrap;
@@ -657,26 +658,27 @@ body {
   margin-bottom: 1.25rem;
 }
 
-.wizard-steps__item {
+.kraken-wizard .wizard-steps .wizard-steps__item {
   font-size: 0.72rem;
-  color: var(--muted);
   padding: 0.25rem 0.55rem;
   border-radius: var(--radius-pill);
-  background: var(--surface-raised);
-  border: 1px solid color-mix(in srgb, var(--muted) 22%, transparent);
+  opacity: 1;
+  color: #e8edf5;
+  background: #1a222c;
+  border: 1px solid #3a4553;
 }
 
-.wizard-steps__item--active {
-  color: var(--ink);
-  background: var(--accent);
-  border-color: transparent;
+.kraken-wizard .wizard-steps .wizard-steps__item--done {
+  color: #e8f07a;
+  background: #1a222c;
+  border-color: #3a4553;
+}
+
+.kraken-wizard .wizard-steps .wizard-steps__item--active {
+  color: #0b0f14;
+  background: #e8f07a;
+  border-color: #e8f07a;
   font-weight: 600;
-}
-
-.wizard-steps__item--done {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .wizard-body {
