@@ -259,11 +259,16 @@ function SimulatorShell() {
   }, []);
 
   const handleScenarioSaved = useCallback(
-    (slug: string) => {
+    (slug: string, usedLocalFallback = false) => {
       setScenarioRefresh((k) => k + 1);
       setSelectedSlugOnLoad(slug);
       setFlow((prev) => closeBuilder(prev));
-      showToast("Escenario guardado. Selecciónalo e inicia la llamada.", "success");
+      showToast(
+        usedLocalFallback
+          ? "Escenario guardado en modo local (preview sin DB). Selecciónalo e inicia la llamada."
+          : "Escenario guardado. Selecciónalo e inicia la llamada.",
+        usedLocalFallback ? "info" : "success",
+      );
     },
     [showToast],
   );
@@ -359,7 +364,9 @@ function SimulatorShell() {
               setBuilderScenario(null);
               setFlow((prev) => closeBuilder(prev));
             }}
-            onSave={({ scenario }) => handleScenarioSaved(scenario.slug)}
+            onSave={({ scenario, usedLocalFallback }) =>
+              handleScenarioSaved(scenario.slug, usedLocalFallback)
+            }
           />
         )}
 

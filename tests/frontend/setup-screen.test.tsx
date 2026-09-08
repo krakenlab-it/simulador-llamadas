@@ -69,7 +69,10 @@ describe("ScenarioHub flow", () => {
       scenarios: [marianaScenarioFixture],
       usedLocalFallback: false,
     });
-    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(marianaScenarioFixture);
+    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue({
+      scenario: marianaScenarioFixture,
+      usedLocalFallback: false,
+    });
   });
 
   afterEach(() => {
@@ -164,17 +167,20 @@ describe("ScenarioHub flow", () => {
   it("persists knobs on the scenario so a replay starts with the same agent", async () => {
     const user = userEvent.setup();
     vi.mocked(saveScenarioVoiceAgent).mockResolvedValue({
-      ...marianaScenarioFixture,
-      voiceAgent: {
-        ...DEFAULT_VOICE_AGENT_SETTINGS,
-        language: "en",
-        voiceId: PREMADE_VOICES[1].id,
-        speakingRate: "lento",
-        personality: "esceptico",
-        difficultyLevel: 2,
-        bargeIn: true,
-        advancedOpen: true,
+      scenario: {
+        ...marianaScenarioFixture,
+        voiceAgent: {
+          ...DEFAULT_VOICE_AGENT_SETTINGS,
+          language: "en",
+          voiceId: PREMADE_VOICES[1].id,
+          speakingRate: "lento",
+          personality: "esceptico",
+          difficultyLevel: 2,
+          bargeIn: true,
+          advancedOpen: true,
+        },
       },
+      usedLocalFallback: false,
     });
     const { onStart } = renderHub();
 
@@ -230,8 +236,10 @@ describe("ScenarioHub flow", () => {
 
   it("does not start the call until voice-agent knobs finish saving", async () => {
     const user = userEvent.setup();
-    let resolveSave: (value: typeof marianaScenarioFixture) => void = () =>
-      undefined;
+    let resolveSave: (value: {
+      scenario: typeof marianaScenarioFixture;
+      usedLocalFallback: boolean;
+    }) => void = () => undefined;
     vi.mocked(saveScenarioVoiceAgent).mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -254,7 +262,10 @@ describe("ScenarioHub flow", () => {
     expect(onStart).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Iniciar llamada" })).toBeDisabled();
 
-    resolveSave(marianaScenarioFixture);
+    resolveSave({
+      scenario: marianaScenarioFixture,
+      usedLocalFallback: false,
+    });
 
     await waitFor(() => {
       expect(onStart).toHaveBeenCalledTimes(1);

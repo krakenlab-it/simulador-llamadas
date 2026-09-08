@@ -36,6 +36,10 @@ import {
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
 import {
+  loadLocalCustomScenarios,
+  upsertLocalCustomScenario,
+} from "@/lib/scenarios/local";
+import {
   buildKrakenScenario,
   enrichCohortWithPersonas,
 } from "@/lib/kraken-lab/generator";
@@ -232,12 +236,16 @@ export function stubListScenarios(): ScenarioRecord[] {
     .map((slug) => buildPresetScenario(slug)?.record)
     .filter((s): s is ScenarioRecord => s !== undefined)
     .map(withSavedVoiceAgent);
-  return [
-    ...presets,
-    ...Array.from(customScenarios.values()).map((s) =>
-      withSavedVoiceAgent(s.record),
-    ),
-  ];
+
+  const customBySlug = new Map<string, ScenarioRecord>();
+  for (const record of loadLocalCustomScenarios()) {
+    customBySlug.set(record.slug, withSavedVoiceAgent(record));
+  }
+  for (const scenario of customScenarios.values()) {
+    customBySlug.set(scenario.record.slug, withSavedVoiceAgent(scenario.record));
+  }
+
+  return [...presets, ...customBySlug.values()];
 }
 
 export function stubSaveVoiceAgent(
@@ -253,6 +261,7 @@ export function stubSaveVoiceAgent(
   const record = applyVoiceAgentToRecord(scenario.record, parsed);
   if (!record.isPreset) {
     customScenarios.set(slug, { record });
+    upsertLocalCustomScenario(record);
   }
   return record;
 }
@@ -297,6 +306,7 @@ export function stubCreateScenario(
     generateId("scenario"),
   );
   customScenarios.set(record.slug, { record });
+  upsertLocalCustomScenario(record);
   return record;
 }
 
@@ -314,6 +324,7 @@ export function stubUpdateScenario(
     recordFromInput(input, existing.record.slug, existing.record.id),
   );
   customScenarios.set(record.slug, { record });
+  upsertLocalCustomScenario(record);
   return record;
 }
 

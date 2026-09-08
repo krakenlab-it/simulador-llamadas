@@ -56,7 +56,10 @@ describe("ScenarioBuilderScreen", () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     const created = savedRecord();
-    vi.mocked(createScenario).mockResolvedValue(created);
+    vi.mocked(createScenario).mockResolvedValue({
+      scenario: created,
+      usedLocalFallback: false,
+    });
 
     render(<ScenarioBuilderScreen onSave={onSave} onCancel={vi.fn()} />);
 
@@ -99,7 +102,10 @@ describe("ScenarioBuilderScreen", () => {
     expect(payload.language).toBe("es");
     expect(payload.rounds?.length).toBeGreaterThanOrEqual(3);
     expect(payload.dimensionGuides?.cierre_siguiente_paso).toBeTruthy();
-    expect(onSave).toHaveBeenCalledWith({ scenario: created });
+    expect(onSave).toHaveBeenCalledWith({
+      scenario: created,
+      usedLocalFallback: false,
+    });
   });
 
   it("edits an existing scenario and round-trips success criteria", async () => {
@@ -114,7 +120,10 @@ describe("ScenarioBuilderScreen", () => {
         winCriteria: "SPIN Advance: demo en piso el jueves a las 9",
       },
     };
-    vi.mocked(updateScenario).mockResolvedValue(updated);
+    vi.mocked(updateScenario).mockResolvedValue({
+      scenario: updated,
+      usedLocalFallback: false,
+    });
 
     render(
       <ScenarioBuilderScreen
@@ -141,6 +150,9 @@ describe("ScenarioBuilderScreen", () => {
     expect(payload.winCriteria).toBe(
       "SPIN Advance: demo en piso el jueves a las 9",
     );
-    expect(onSave).toHaveBeenCalledWith({ scenario: updated });
+    expect(onSave).toHaveBeenCalledWith({
+      scenario: updated,
+      usedLocalFallback: false,
+    });
   });
 });
