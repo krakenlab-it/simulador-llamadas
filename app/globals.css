@@ -661,17 +661,22 @@ body {
   font-size: 0.72rem;
   color: var(--muted);
   padding: 0.25rem 0.55rem;
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  border: 1px solid color-mix(in srgb, var(--muted) 22%, transparent);
 }
 
 .wizard-steps__item--active {
-  color: var(--paper);
-  background: var(--accent-soft);
+  color: var(--ink);
+  background: var(--accent);
+  border-color: transparent;
+  font-weight: 600;
 }
 
 .wizard-steps__item--done {
-  color: color-mix(in srgb, var(--accent) 70%, var(--muted));
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .wizard-body {
