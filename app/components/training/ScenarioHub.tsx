@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 import type { ClientPersona } from "@/lib/clients";
 import { CLIENTS } from "@/lib/clients";
-import { listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
+import { loadScenarioCatalog, saveScenarioVoiceAgent } from "@/lib/api/client";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import {
@@ -78,7 +78,6 @@ export function ScenarioHub({
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
   const [loadingScenarios, setLoadingScenarios] = useState(true);
-  const [catalogFailed, setCatalogFailed] = useState(false);
   const [savingVoiceAgent, setSavingVoiceAgent] = useState(false);
   const { showToast } = useToast();
   const [mode, setMode] = useState<PracticeMode>("voz");
@@ -112,18 +111,18 @@ export function ScenarioHub({
 
   useEffect(() => {
     setLoadingScenarios(true);
-    setCatalogFailed(false);
-    void listScenarios()
-      .then((rows) => {
-        setScenarios(rows);
-        setCatalogFailed(false);
-      })
-      .catch(() => {
-        setScenarios([]);
-        setCatalogFailed(true);
+    void loadScenarioCatalog()
+      .then(({ scenarios, usedLocalFallback }) => {
+        setScenarios(scenarios);
+        if (usedLocalFallback) {
+          showToast(
+            "Catálogo en modo demo local. Los presets de clínica siguen disponibles.",
+            "info",
+          );
+        }
       })
       .finally(() => setLoadingScenarios(false));
-  }, [refreshKey]);
+  }, [refreshKey, showToast]);
 
   useEffect(() => {
     if (selectedSlugOnLoad) {
@@ -135,9 +134,7 @@ export function ScenarioHub({
   const presets = scenarios.filter((s) => s.isPreset);
   const custom = scenarios.filter((s) => !s.isPreset);
   const displayPresets =
-    catalogFailed
-      ? []
-      : presets.length > 0
+    presets.length > 0
       ? presets
       : CLIENTS.map(
           (c) =>
@@ -341,11 +338,6 @@ export function ScenarioHub({
         <div className="train-hub__loading">
           <Spinner label="Cargando escenarios…" />
         </div>
-      ) : catalogFailed ? (
-        <EmptyState
-          title="No se pudieron cargar los escenarios"
-          description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo — no arrancamos la clínica de respaldo para no ensayar un caso distinto al de producción."
-        />
       ) : tab === "custom" && custom.length === 0 ? (
         <EmptyState
           title="Aún no tienes escenarios propios"

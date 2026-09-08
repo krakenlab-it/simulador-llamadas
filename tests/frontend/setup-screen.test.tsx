@@ -10,7 +10,7 @@ import {
 } from "@/tests/frontend/fixtures";
 
 vi.mock("@/lib/api/client", () => ({
-  listScenarios: vi.fn(),
+  loadScenarioCatalog: vi.fn(),
   saveScenarioVoiceAgent: vi.fn(),
 }));
 
@@ -34,7 +34,7 @@ vi.mock("@/lib/hooks/useVoiceConfig", () => ({
   }),
 }));
 
-import { listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
+import { loadScenarioCatalog, saveScenarioVoiceAgent } from "@/lib/api/client";
 import {
   DEFAULT_VOICE_AGENT_SETTINGS,
   PREMADE_VOICES,
@@ -65,7 +65,10 @@ function renderHub(
 
 describe("ScenarioHub flow", () => {
   beforeEach(() => {
-    vi.mocked(listScenarios).mockResolvedValue([marianaScenarioFixture]);
+    vi.mocked(loadScenarioCatalog).mockResolvedValue({
+      scenarios: [marianaScenarioFixture],
+      usedLocalFallback: false,
+    });
     vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(marianaScenarioFixture);
   });
 
@@ -286,34 +289,40 @@ describe("ScenarioHub flow", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows an error empty state instead of hardcoded clinic cards when the catalog fails", async () => {
-    vi.mocked(listScenarios).mockRejectedValue(
-      new Error("No se pudo completar la acción. Intenta de nuevo."),
-    );
+  it("shows clinic presets when the catalog uses the local fallback", async () => {
+    vi.mocked(loadScenarioCatalog).mockResolvedValue({
+      scenarios: [marianaScenarioFixture],
+      usedLocalFallback: true,
+    });
     renderHub();
 
     expect(
-      await screen.findByText("No se pudieron cargar los escenarios"),
+      await screen.findByRole("button", { name: /Mariana Escobedo/i }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Mariana Escobedo/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("No se pudieron cargar los escenarios"),
+    ).not.toBeInTheDocument();
   });
 
   it("restores persisted knobs when the trainer picks the same scenario again", async () => {
     const user = userEvent.setup();
-    vi.mocked(listScenarios).mockResolvedValue([
-      {
-        ...marianaScenarioFixture,
-        voiceAgent: {
-          language: "en",
-          voiceId: PREMADE_VOICES[2].id,
-          speakingRate: "rapido",
-          personality: "impaciente",
-          difficultyLevel: 3,
-          bargeIn: true,
-          advancedOpen: true,
+    vi.mocked(loadScenarioCatalog).mockResolvedValue({
+      scenarios: [
+        {
+          ...marianaScenarioFixture,
+          voiceAgent: {
+            language: "en",
+            voiceId: PREMADE_VOICES[2].id,
+            speakingRate: "rapido",
+            personality: "impaciente",
+            difficultyLevel: 3,
+            bargeIn: true,
+            advancedOpen: true,
+          },
         },
-      },
-    ]);
+      ],
+      usedLocalFallback: false,
+    });
 
     renderHub();
 
@@ -357,7 +366,7 @@ describe("ScenarioHub flow", () => {
   });
 
   it("shows a loading state while scenarios load", () => {
-    vi.mocked(listScenarios).mockImplementation(
+    vi.mocked(loadScenarioCatalog).mockImplementation(
       () => new Promise(() => undefined),
     );
 
@@ -367,10 +376,10 @@ describe("ScenarioHub flow", () => {
   });
 
   it("offers edit on custom scenarios and never on clinic presets", async () => {
-    vi.mocked(listScenarios).mockResolvedValue([
-      marianaScenarioFixture,
-      customGymScenarioFixture,
-    ]);
+    vi.mocked(loadScenarioCatalog).mockResolvedValue({
+      scenarios: [marianaScenarioFixture, customGymScenarioFixture],
+      usedLocalFallback: false,
+    });
     const user = userEvent.setup();
     const { onEditScenario } = renderHub();
 
