@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listHistory, type HistoryEntry } from "@/lib/api/client";
+import { loadHistory } from "@/lib/api/client";
 import { formatHistoryEntries } from "@/lib/frontend/format-history";
-import { loadLocalHistory } from "@/lib/history/local";
+import { completedHistoryEntries } from "@/lib/history/merge";
+import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/app/components/ui/Button";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { Spinner } from "@/app/components/ui/Spinner";
@@ -16,10 +17,6 @@ interface HistoryViewProps {
   onOpenCall?: (callAttemptId: string) => void;
 }
 
-function completedOnly(entries: HistoryEntry[]): HistoryEntry[] {
-  return entries.filter((entry) => entry.status === "completed");
-}
-
 export function HistoryView({
   refreshKey = 0,
   traineeId = null,
@@ -30,8 +27,7 @@ export function HistoryView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<ReturnType<typeof formatHistoryEntries>>([]);
-
-  const hasServerIdentity = Boolean(traineeId || traineeEmail);
+  const { showToast } = useToast();
 
   useEffect(() => {
     let cancelled = false;
@@ -40,22 +36,22 @@ export function HistoryView({
       setLoading(true);
       setError(null);
 
-      if (!hasServerIdentity) {
-        const local = loadLocalHistory();
-        if (!cancelled) {
-          setRows(formatHistoryEntries(local));
-          setLoading(false);
-        }
-        return;
-      }
-
       try {
-        const history = await listHistory({
+        const result = await loadHistory({
           traineeId,
           email: traineeEmail,
         });
-        if (!cancelled) {
-          setRows(formatHistoryEntries(completedOnly(history)));
+
+        if (cancelled) return;
+
+        setRows(formatHistoryEntries(completedHistoryEntries(result.entries)));
+
+        if (result.usedLocalFallback && (traineeId || traineeEmail)) {
+          showToast("Historial en modo local (preview sin DB).", "info");
+        }
+
+        if (result.localReadError && result.entries.length === 0) {
+          setError(result.localReadError);
         }
       } catch {
         if (!cancelled) {
@@ -71,7 +67,7 @@ export function HistoryView({
     return () => {
       cancelled = true;
     };
-  }, [refreshKey, traineeId, traineeEmail, hasServerIdentity]);
+  }, [refreshKey, traineeId, traineeEmail, showToast]);
 
   if (loading) {
     return (

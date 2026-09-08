@@ -8,6 +8,12 @@ import type {
 } from "@/lib/scenarios/types";
 import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
 import {
+  completedHistoryEntries,
+  localEntryToHistoryEntry,
+  mergeHistoryEntries,
+} from "@/lib/history/merge";
+import { loadLocalHistorySafe } from "@/lib/history/local";
+import {
   stubCreateSession,
   stubCreateScenario,
   stubSaveVoiceAgent,
@@ -218,21 +224,91 @@ export async function updateScenario(
   return remote ?? stubUpdateScenario(body);
 }
 
-export async function listHistory(query: {
+/**
+ * Read-only history bootstrap. Falls back to device-local history (and stub
+ * history when available) on 404/405/5xx or network failure.
+ */
+async function tryFetchHistory<T>(url: string): Promise<T | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "Content-Type": "application/json" },
+    });
+    if (res.status === 404 || res.status === 405) return null;
+    if (res.status >= 500) return null;
+    if (!res.ok) throw new Error(await readErrorMessage(res));
+    return (await res.json()) as T;
+  } catch (error) {
+    if (error instanceof TypeError) return null;
+    throw error;
+  }
+}
+
+export interface HistoryLoadResult {
+  entries: HistoryEntry[];
+  usedLocalFallback: boolean;
+  localReadError: string | null;
+}
+
+export async function loadHistory(query: {
   traineeId?: string | null;
   email?: string | null;
   scenarioSlug?: string;
-}): Promise<HistoryEntry[]> {
+}): Promise<HistoryLoadResult> {
+  const localLoad = loadLocalHistorySafe();
+  const localEntries = localLoad.entries.map(localEntryToHistoryEntry);
+  const hasServerIdentity = Boolean(query.traineeId || query.email?.trim());
+
+  if (!hasServerIdentity) {
+    return {
+      entries: localEntries,
+      usedLocalFallback: true,
+      localReadError: localLoad.error,
+    };
+  }
+
   const params = new URLSearchParams();
   if (query.traineeId) params.set("traineeId", query.traineeId);
   if (query.email) params.set("email", query.email);
   if (query.scenarioSlug) params.set("scenarioSlug", query.scenarioSlug);
 
-  const remote = await tryFetch<{ history: HistoryEntry[] }>(
-    `/api/history?${params.toString()}`,
+  try {
+    const remote = await tryFetchHistory<{ history: HistoryEntry[] }>(
+      `/api/history?${params.toString()}`,
+    );
+
+    if (remote) {
+      return {
+        entries: mergeHistoryEntries(
+          completedHistoryEntries(remote.history),
+          localEntries,
+        ),
+        usedLocalFallback: false,
+        localReadError: localLoad.error,
+      };
+    }
+  } catch {
+    // Unexpected 4xx — fall through to local/stub fallback.
+  }
+
+  const stubEntries = stubListHistory(
+    query.traineeId ?? undefined,
+    query.email ?? undefined,
   );
-  if (remote) return remote.history;
-  return stubListHistory(query.traineeId ?? undefined, query.email ?? undefined);
+
+  return {
+    entries: mergeHistoryEntries(localEntries, completedHistoryEntries(stubEntries)),
+    usedLocalFallback: true,
+    localReadError: localLoad.error,
+  };
+}
+
+export async function listHistory(query: {
+  traineeId?: string | null;
+  email?: string | null;
+  scenarioSlug?: string;
+}): Promise<HistoryEntry[]> {
+  const { entries } = await loadHistory(query);
+  return entries;
 }
 
 export async function getSessionDetail(
