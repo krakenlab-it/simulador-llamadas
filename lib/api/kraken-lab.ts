@@ -36,6 +36,35 @@ async function tryFetch<T>(url: string, init?: RequestInit): Promise<T | null> {
   }
 }
 
+/**
+ * Kraken Lab session start: fall back to the in-memory stub when the API is
+ * missing or the preview DB is not migrated (5xx). Validation errors (4xx)
+ * still surface to the wizard.
+ */
+async function fetchKrakenSessionStart(
+  body: StartKrakenSessionRequest,
+): Promise<StartKrakenSessionResult | null> {
+  try {
+    const res = await fetch("/api/kraken-lab/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (res.status === 404 || res.status === 405) return null;
+    if (res.status >= 500) return null;
+
+    if (!res.ok) {
+      throw new Error(await readErrorMessage(res));
+    }
+
+    return (await res.json()) as StartKrakenSessionResult;
+  } catch (error) {
+    if (error instanceof TypeError) return null;
+    throw error;
+  }
+}
+
 export async function saveKrakenCohort(
   config: KrakenLabCohortConfig,
 ): Promise<SaveCohortResult | null> {
@@ -63,9 +92,6 @@ export interface StartKrakenSessionRequest {
 export async function startKrakenSession(
   body: StartKrakenSessionRequest,
 ): Promise<StartKrakenSessionResult> {
-  const remote = await tryFetch<StartKrakenSessionResult>("/api/kraken-lab/sessions", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  const remote = await fetchKrakenSessionStart(body);
   return remote ?? stubStartKrakenSession(body);
 }
