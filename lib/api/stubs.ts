@@ -35,6 +35,15 @@ import {
   parseVoiceAgentSettings,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
+import {
+  buildKrakenScenario,
+  enrichCohortWithPersonas,
+} from "@/lib/kraken-lab/generator";
+import { isValidCohort } from "@/lib/kraken-lab/validation";
+import type {
+  KrakenLabCohortConfig,
+  StartKrakenSessionResult,
+} from "@/lib/kraken-lab/types";
 
 export interface CreateSessionRequest {
   scenarioSlug: string;
@@ -610,6 +619,71 @@ export function stubGetOpeningLine(scenarioSlug: string): string {
 
 export function stubGetTurnSummaries(callAttemptId: string): TurnSummary[] {
   return [...(sessions.get(callAttemptId)?.turns ?? [])];
+}
+
+export function stubStartKrakenSession(input: {
+  cohort: KrakenLabCohortConfig;
+  mode: PracticeMode;
+  traineeId?: string;
+  traineeEmail?: string;
+  traineeDisplayName?: string;
+}): StartKrakenSessionResult {
+  const enriched = enrichCohortWithPersonas(input.cohort);
+  if (!isValidCohort(enriched)) {
+    throw new Error("Configuración de cohorte incompleta o inválida");
+  }
+
+  const generated = buildKrakenScenario(enriched);
+  const record = recordFromInput(
+    {
+      industry: generated.config.industry,
+      productSold: generated.config.productSold,
+      clientName: generated.clientName,
+      clientTitle: generated.clientTitle,
+      companyContext: generated.companyContext,
+      temperament: generated.config.temperament,
+      difficultyLabel: generated.difficultyLabel,
+      clientProblem: generated.config.clientProblem,
+      objections: generated.config.objections,
+      winCriteria: generated.config.winCriteria,
+      language: "es",
+      callType: generated.config.callType,
+      rounds: generated.config.rounds,
+    },
+    generated.slug,
+    generateId("scenario"),
+  );
+  customScenarios.set(record.slug, {
+    record: {
+      ...record,
+      config: {
+        ...record.config,
+        krakenLab: generated.config.krakenLab,
+      },
+    },
+  });
+
+  const session = stubCreateSession({
+    scenarioSlug: record.slug,
+    mode: input.mode,
+    difficultyLevel: enriched.difficultyLevel,
+    traineeId: input.traineeId,
+    traineeEmail: input.traineeEmail,
+    traineeDisplayName: input.traineeDisplayName,
+  });
+
+  return {
+    cohortId: enriched.id ?? "stub-cohort",
+    callAttemptId: session.callAttemptId,
+    traineeId: session.traineeId,
+    scenarioSlug: session.scenarioSlug,
+    clientName: session.clientName,
+    totalRounds: session.totalRounds,
+    config: {
+      ...generated.config,
+      krakenLab: generated.config.krakenLab,
+    },
+  };
 }
 
 export function resetStubSessions(): void {

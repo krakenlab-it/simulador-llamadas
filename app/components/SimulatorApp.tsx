@@ -13,12 +13,14 @@ import { sessionToShellUser } from "@/lib/frontend/auth-shell";
 import {
   beginStarting,
   closeBuilder,
+  closeKrakenWizard,
   enterCall,
   enterDetail,
   enterResults,
   initialFlowState,
   navigate,
   openBuilder,
+  openKrakenWizard,
   resetToHome,
   resetToTrain,
   type AppView,
@@ -36,6 +38,7 @@ import { ScenarioBuilderScreen } from "@/app/components/training/ScenarioBuilder
 import { LiveCallScreen } from "@/app/components/call/LiveCallScreen";
 import { ResultsScreen } from "@/app/components/results/ResultsScreen";
 import { HistoryView } from "@/app/components/history/HistoryView";
+import { KrakenLabWizard } from "@/app/components/kraken-lab/KrakenLabWizard";
 import { AuthScreen } from "@/app/components/AuthScreen";
 import { AuthProvider, useAuth } from "@/lib/auth/context";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
@@ -56,6 +59,7 @@ function shellTabFromView(view: AppView): ShellTab {
       return "home";
     case "train":
     case "builder":
+    case "kraken-wizard":
     case "call":
       return "train";
     default: {
@@ -118,9 +122,22 @@ function SimulatorShell() {
   }, []);
 
   const handleStart = useCallback(
-    async (setup: SetupConfig) => {
+    async (
+      setup: SetupConfig,
+      meta?: { callAttemptId?: string; traineeId?: string },
+    ) => {
       setFlow((prev) => beginStarting(prev));
       try {
+        if (meta?.callAttemptId) {
+          setTraineeId(meta.traineeId ?? traineeId);
+          setCallAttemptId(meta.callAttemptId);
+          setCallStartedAt(new Date().toISOString());
+          setConfig(setup);
+          setEvaluation(null);
+          setFlow(() => enterCall());
+          return;
+        }
+
         const created = await createSession({
           scenarioSlug: setup.scenarioSlug,
           mode: setup.mode,
@@ -311,6 +328,7 @@ function SimulatorShell() {
             selectedSlugOnLoad={selectedSlugOnLoad}
             isStarting={isStarting}
             onStart={(c) => void handleStart(c)}
+            onOpenKrakenWizard={() => setFlow((prev) => openKrakenWizard(prev))}
             onCreateScenario={() => {
               setBuilderScenario(null);
               setFlow((prev) => openBuilder(prev));
@@ -319,6 +337,18 @@ function SimulatorShell() {
               setBuilderScenario(scenario);
               setFlow((prev) => openBuilder(prev));
             }}
+          />
+        )}
+
+        {flow.view === "kraken-wizard" && (
+          <KrakenLabWizard
+            isStarting={isStarting}
+            traineeId={traineeId}
+            traineeEmail={traineeEmail}
+            traineeAuthUserId={session?.user.id}
+            traineeDisplayName={shellUser?.displayName}
+            onCancel={() => setFlow((prev) => closeKrakenWizard(prev))}
+            onStart={(setup, meta) => void handleStart(setup, meta)}
           />
         )}
 
