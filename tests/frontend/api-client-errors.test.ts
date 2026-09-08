@@ -3,9 +3,11 @@ import {
   createSession,
   listHistory,
   listScenarios,
+  loadScenarioCatalog,
   saveScenarioVoiceAgent,
   submitTurn,
 } from "@/lib/api/client";
+import { resetStubSessions } from "@/lib/api/stubs";
 import { DEFAULT_VOICE_AGENT_SETTINGS } from "@/lib/voice/agent-settings";
 
 function mockFetchOnce(status: number, body: unknown): void {
@@ -32,6 +34,7 @@ async function messageFromFailedTurn(): Promise<string> {
 describe("api client error messages", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    resetStubSessions();
   });
 
   it("surfaces the server message instead of the raw JSON envelope", async () => {
@@ -96,12 +99,22 @@ describe("api client error messages", () => {
     );
   });
 
-  it("does not hide a 500 behind the clinic stub list", async () => {
+  it("falls back to clinic stub presets when GET /api/scenarios returns 500", async () => {
     mockFetchOnce(500, { error: 'column "voice_agent" does not exist' });
 
-    await expect(listScenarios()).rejects.toThrow(
-      "No se pudo completar la acción. Intenta de nuevo.",
-    );
+    const scenarios = await listScenarios();
+
+    expect(scenarios.some((s) => s.slug === "mariana")).toBe(true);
+    expect(scenarios.filter((s) => s.isPreset)).toHaveLength(3);
+  });
+
+  it("marks loadScenarioCatalog as local fallback when the API returns 500", async () => {
+    mockFetchOnce(500, { error: "relation \"scenarios\" does not exist" });
+
+    const catalog = await loadScenarioCatalog();
+
+    expect(catalog.usedLocalFallback).toBe(true);
+    expect(catalog.scenarios.filter((s) => s.isPreset)).toHaveLength(3);
   });
 
   it("does not treat a history 500 as an empty inbox", async () => {

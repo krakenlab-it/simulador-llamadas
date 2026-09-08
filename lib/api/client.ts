@@ -134,9 +134,54 @@ export async function endSession(
   return remote ?? (await stubEndSession(callAttemptId));
 }
 
+/**
+ * Read-only catalog bootstrap (scenario list). Falls back to the in-memory stub
+ * on 404/405/5xx or network failure so preview/demo stays usable without DB.
+ */
+async function tryFetchCatalog<T>(
+  url: string,
+  init?: RequestInit,
+): Promise<T | null> {
+  try {
+    const res = await fetch(url, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...init?.headers,
+      },
+    });
+    if (res.status === 404 || res.status === 405) return null;
+    if (res.status >= 500) return null;
+    if (!res.ok) throw new Error(await readErrorMessage(res));
+    return (await res.json()) as T;
+  } catch (error) {
+    if (error instanceof TypeError) return null;
+    throw error;
+  }
+}
+
+export interface ScenarioCatalogResult {
+  scenarios: ScenarioRecord[];
+  usedLocalFallback: boolean;
+}
+
+export async function loadScenarioCatalog(): Promise<ScenarioCatalogResult> {
+  try {
+    const remote = await tryFetchCatalog<{ scenarios: ScenarioRecord[] }>(
+      "/api/scenarios",
+    );
+    if (remote?.scenarios) {
+      return { scenarios: remote.scenarios, usedLocalFallback: false };
+    }
+  } catch {
+    // Unexpected 4xx — still serve the local clinic presets for training.
+  }
+  return { scenarios: stubListScenarios(), usedLocalFallback: true };
+}
+
 export async function listScenarios(): Promise<ScenarioRecord[]> {
-  const remote = await tryFetch<{ scenarios: ScenarioRecord[] }>("/api/scenarios");
-  return remote?.scenarios ?? stubListScenarios();
+  const { scenarios } = await loadScenarioCatalog();
+  return scenarios;
 }
 
 export type CreateScenarioRequest = CreateCustomScenarioInput;
