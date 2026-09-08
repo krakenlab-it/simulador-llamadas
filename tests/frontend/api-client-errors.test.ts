@@ -2,12 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createSession,
   listHistory,
+  loadHistory,
   listScenarios,
   loadScenarioCatalog,
   saveScenarioVoiceAgent,
   submitTurn,
 } from "@/lib/api/client";
 import { resetStubSessions } from "@/lib/api/stubs";
+import { appendLocalHistory, clearLocalHistory } from "@/lib/history/local";
 import { DEFAULT_VOICE_AGENT_SETTINGS } from "@/lib/voice/agent-settings";
 
 function mockFetchOnce(status: number, body: unknown): void {
@@ -35,6 +37,7 @@ describe("api client error messages", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     resetStubSessions();
+    clearLocalHistory();
   });
 
   it("surfaces the server message instead of the raw JSON envelope", async () => {
@@ -117,12 +120,37 @@ describe("api client error messages", () => {
     expect(catalog.scenarios.filter((s) => s.isPreset)).toHaveLength(3);
   });
 
-  it("does not treat a history 500 as an empty inbox", async () => {
+  it("falls back to local history when GET /api/history returns 500", async () => {
+    appendLocalHistory({
+      callAttemptId: "ca-local-1",
+      scenarioSlug: "mariana",
+      clientName: "Mariana Escobedo",
+      difficultyLevel: 1,
+      mode: "texto",
+      won: true,
+      totalScore: 71,
+      turnsCompleted: 5,
+      startedAt: "2026-09-01T10:00:00.000Z",
+      durationSeconds: 90,
+    });
+
     mockFetchOnce(500, { error: "relation \"call_history\" does not exist" });
 
-    await expect(
-      listHistory({ email: "seb@example.com" }),
-    ).rejects.toThrow("No se pudo completar la acción. Intenta de nuevo.");
+    const result = await loadHistory({ email: "seb@example.com" });
+
+    expect(result.usedLocalFallback).toBe(true);
+    expect(result.entries.some((e) => e.callAttemptId === "ca-local-1")).toBe(true);
+    expect(result.entries[0].clientName).toBe("Mariana Escobedo");
+  });
+
+  it("returns empty history without throwing when GET /api/history returns 500 and local is empty", async () => {
+    mockFetchOnce(500, { error: "relation \"call_history\" does not exist" });
+
+    const result = await loadHistory({ email: "seb@example.com" });
+
+    expect(result.usedLocalFallback).toBe(true);
+    expect(result.entries).toHaveLength(0);
+    expect(await listHistory({ email: "seb@example.com" })).toHaveLength(0);
   });
 
   it("does not silently stub a failed voice-agent persist", async () => {
