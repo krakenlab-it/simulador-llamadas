@@ -63,6 +63,18 @@ export interface ScenarioConfig {
   language?: string;
   callType?: ScenarioCallType;
   dimensionGuides?: DimensionGuides;
+  /** Kraken Lab pasantes session metadata when generated from the wizard. */
+  krakenLab?: {
+    cohortId: string;
+    sessionSeed: string;
+    project: string;
+    simulatorRole: string;
+    roleObjective: string;
+    simulationFocuses: string[];
+    selectedPersonaId: string;
+    attentionBattery: string[];
+    difficultyLevel: number;
+  };
 }
 
 export interface ScenarioRecord {

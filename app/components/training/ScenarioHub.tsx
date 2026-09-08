@@ -55,6 +55,7 @@ export interface SetupConfig {
 
 interface ScenarioHubProps {
   onStart: (config: SetupConfig) => void;
+  onOpenKrakenWizard: () => void;
   onCreateScenario: () => void;
   onEditScenario: (scenario: ScenarioRecord) => void;
   refreshKey?: number;
@@ -66,6 +67,7 @@ type ScenarioTab = "library" | "custom";
 
 export function ScenarioHub({
   onStart,
+  onOpenKrakenWizard,
   onCreateScenario,
   onEditScenario,
   refreshKey = 0,
@@ -303,6 +305,15 @@ export function ScenarioHub({
           Cinco rondas por llamada: apertura, objeción, claridad, seguimiento y
           cierre. Gana con día y hora concretos — o tu propio criterio de éxito.
         </p>
+        <div className="train-hub__kraken-entry">
+          <Button variant="primary" onClick={onOpenKrakenWizard}>
+            Nueva simulación Kraken Lab (pasantes)
+          </Button>
+          <p className="config-panel__hint">
+            Asistente en español para cohortes de negocios internacionales: proyecto,
+            perfiles, diálogos y persona receptora generada por sesión.
+          </p>
+        </div>
       </header>
 
       <div className="train-hub__tabs" role="tablist" aria-label="Tipo de escenario">

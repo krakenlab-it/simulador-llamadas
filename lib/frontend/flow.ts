@@ -8,6 +8,7 @@ export type AppView =
   | "train"
   | "history"
   | "builder"
+  | "kraken-wizard"
   | "call"
   | "results"
   | "detail";
@@ -97,6 +98,16 @@ export function resetToTrain(): FlowState {
     phase: "idle",
     hasActiveSession: false,
   };
+}
+
+export function openKrakenWizard(state: FlowState): FlowState {
+  if (state.phase !== "idle" || state.view === "call") return state;
+  return { ...state, view: "kraken-wizard" };
+}
+
+export function closeKrakenWizard(state: FlowState): FlowState {
+  if (state.view !== "kraken-wizard") return state;
+  return { ...state, view: "train" };
 }
 
 export function openBuilder(state: FlowState): FlowState {
