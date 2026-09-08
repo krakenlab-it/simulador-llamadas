@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { HappyFaceIcon } from "@/components/brand/HappyFaceIcon";
+import { APP_BRAND_NAME } from "@/lib/brand/content";
 import { APP_ENTRY_PATH } from "@/lib/landing/cta";
 import { landingContent } from "@/lib/landing/content";
 import styles from "./landing.module.css";
@@ -34,9 +36,9 @@ export function LandingPage() {
         <header className={`${styles.nav} ${styles.reveal}`}>
           <div className={styles.logo}>
             <span className={styles.logoMark} aria-hidden="true">
-              ☎
+              <HappyFaceIcon size={28} />
             </span>
-            <span>Simulador de Llamadas</span>
+            <span>{APP_BRAND_NAME}</span>
           </div>
         </header>
 

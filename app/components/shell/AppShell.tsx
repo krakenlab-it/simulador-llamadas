@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { HappyFaceIcon } from "@/components/brand/HappyFaceIcon";
+import { APP_BRAND_NAME, APP_TAGLINE } from "@/lib/brand/content";
 import type { ShellUser } from "@/lib/frontend/auth-shell";
 
 export type ShellTab = "home" | "train";
@@ -26,17 +28,11 @@ export function AppShell({
       <header className="app-header">
         <div className="app-header__brand">
           <span className="app-header__logo" aria-hidden="true">
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <rect width="28" height="28" rx="8" fill="currentColor" opacity="0.12" />
-              <path
-                d="M8 11.5c0-1.1.9-2 2-2h8c1.1 0 2 .9 2 2v5c0 1.1-.9 2-2 2h-3.2l-2.3 2.3c-.4.4-1 .1-1-.4V18.5H10c-1.1 0-2-.9-2-2v-5z"
-                fill="currentColor"
-              />
-            </svg>
+            <HappyFaceIcon size={28} />
           </span>
           <div>
-            <p className="app-header__title">Simulador de Llamadas</p>
-            <p className="app-header__tagline">Entrenamiento comercial con IA</p>
+            <p className="app-header__title">{APP_BRAND_NAME}</p>
+            <p className="app-header__tagline">{APP_TAGLINE}</p>
           </div>
         </div>
 

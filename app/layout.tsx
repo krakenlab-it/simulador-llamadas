@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { APP_BRAND_NAME } from "@/lib/brand/content";
 import {
   Fraunces,
   IBM_Plex_Mono,
@@ -42,9 +43,9 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Simulador de Llamadas · Entrenamiento comercial con IA",
+  title: `${APP_BRAND_NAME} · Entrenamiento con IA`,
   description:
-    "Practica llamadas de venta con clientes simulados, recibe feedback al instante y mejora tu cierre antes de marcar de verdad.",
+    "Practica tus skills en conversaciones simuladas, recibe feedback al instante y comunícalos con confianza antes de la conversación real.",
 };
 
 export default function RootLayout({

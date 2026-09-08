@@ -1,9 +1,9 @@
 export const landingContent = {
-  eyebrow: "Entrenamiento comercial con IA",
-  headlineHighlight: "Practica llamadas de venta",
-  headlineRest: "antes de marcar de verdad.",
+  eyebrow: "Entrenamiento con IA",
+  headlineHighlight: "Practica tus skills",
+  headlineRest: "antes de comunicarlos.",
   subheadline:
-    "Simula conversaciones reales con clientes difíciles, recibe feedback al instante y mejora tu cierre sin arriesgar una oportunidad.",
+    "Simula conversaciones reales, recibe feedback al instante y gana confianza antes de hablar con clientes, equipos o socios.",
   ctaLabel: "Entrar",
   features: [
     {
