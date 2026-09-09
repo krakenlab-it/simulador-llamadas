@@ -304,7 +304,7 @@ export function ScenarioHub({
         </p>
         <div className="train-hub__kraken-entry">
           <Button variant="primary" onClick={onOpenKrakenWizard}>
-            Nueva simulación Kraken Lab (pasantes)
+            Nueva simulación Kraken Lab
           </Button>
           <p className="config-panel__hint">
             Asistente en español para cohortes de negocios internacionales: proyecto,
