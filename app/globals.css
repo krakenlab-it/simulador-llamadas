@@ -264,6 +264,128 @@ body {
   margin-top: 1rem;
 }
 
+.kraken-wizard .wizard-choice-card.card--interactive {
+  min-height: 4.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.kraken-wizard .wizard-choice-card.card--interactive h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--paper);
+}
+
+.kraken-wizard .card.card--interactive.card--selected,
+.kraken-wizard .scenario-card-wrap .card.card--interactive.card--selected {
+  background: color-mix(in srgb, #e8f07a 16%, var(--surface));
+  border-color: #e8f07a;
+  box-shadow:
+    0 0 0 1px #e8f07a,
+    0 8px 24px color-mix(in srgb, #e8f07a 12%, transparent);
+}
+
+.kraken-wizard .card.card--interactive.card--selected h3,
+.kraken-wizard .scenario-card-wrap .card.card--interactive.card--selected .scenario-card__name {
+  color: #e8f07a;
+}
+
+.scenario-context-upload {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.scenario-context-upload__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.scenario-context-upload__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.scenario-context-upload__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.scenario-context-upload__plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.scenario-context-upload__hint {
+  margin: 0;
+}
+
+.scenario-context-upload__files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.scenario-context-upload__file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface) 88%, var(--paper));
+}
+
+.scenario-context-upload__file-name {
+  font-size: 0.88rem;
+  color: var(--paper);
+}
+
+.scenario-context-upload__file-status {
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+.scenario-context-upload__file-status--muted {
+  color: var(--muted);
+}
+
+.scenario-context-upload__remove {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.scenario-context-upload__remove:hover {
+  color: var(--paper);
+}
+
 .page-hero__eyebrow {
   margin: 0 0 0.35rem;
   font-size: 0.72rem;

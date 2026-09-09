@@ -14,10 +14,45 @@ export function mergeScenarioContextText(
   const next = addition.trim();
   if (!next) return current ?? emptyScenarioContext();
   return {
+    ...(current ?? emptyScenarioContext()),
     text: base ? `${base}\n\n${next}` : next,
-    fileName: current?.fileName,
     uploadedAt: current?.uploadedAt ?? new Date().toISOString(),
   };
+}
+
+export function appendScenarioContextFile(
+  current: ScenarioContextUpload | undefined,
+  file: { id: string; name: string; text: string },
+): ScenarioContextUpload {
+  const base = current ?? emptyScenarioContext();
+  const files = [...(base.files ?? []).filter((entry) => entry.id !== file.id), file];
+  return {
+    ...base,
+    files,
+    fileName: file.name,
+    uploadedAt: new Date().toISOString(),
+  };
+}
+
+export function removeScenarioContextFile(
+  current: ScenarioContextUpload | undefined,
+  fileId: string,
+): ScenarioContextUpload {
+  const base = current ?? emptyScenarioContext();
+  return {
+    ...base,
+    files: (base.files ?? []).filter((entry) => entry.id !== fileId),
+  };
+}
+
+export function fullScenarioContextText(
+  context: ScenarioContextUpload | undefined,
+): string {
+  const parts = [
+    context?.text?.trim() ?? "",
+    ...(context?.files ?? []).map((file) => file.text.trim()).filter(Boolean),
+  ].filter(Boolean);
+  return parts.join("\n\n");
 }
 
 export async function extractTextFromScenarioFile(
@@ -40,7 +75,7 @@ export function scenarioContextSnippet(
   context: ScenarioContextUpload | undefined,
   maxLength = 240,
 ): string {
-  const text = context?.text?.trim() ?? "";
+  const text = fullScenarioContextText(context);
   if (!text) return "";
   return text.length <= maxLength ? text : `${text.slice(0, maxLength)}…`;
 }

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendScenarioContextFile,
   emptyScenarioContext,
   extractTextFromScenarioFile,
+  fullScenarioContextText,
   mergeScenarioContextText,
+  removeScenarioContextFile,
 } from "@/lib/kraken-lab/scenario-context";
 
 describe("Kraken Lab scenario context", () => {
@@ -10,6 +13,29 @@ describe("Kraken Lab scenario context", () => {
     const merged = mergeScenarioContextText(emptyScenarioContext(), "Brief inicial");
     expect(merged.text).toBe("Brief inicial");
     expect(merged.uploadedAt).toBeTruthy();
+  });
+
+  it("combines pasted text and uploaded file text", () => {
+    const context = appendScenarioContextFile(
+      { text: "Texto pegado" },
+      { id: "f1", name: "brief.txt", text: "Contenido del archivo" },
+    );
+    expect(fullScenarioContextText(context)).toBe(
+      "Texto pegado\n\nContenido del archivo",
+    );
+  });
+
+  it("removes an uploaded file from context", () => {
+    const context = removeScenarioContextFile(
+      appendScenarioContextFile(emptyScenarioContext(), {
+        id: "f1",
+        name: "brief.txt",
+        text: "Contenido",
+      }),
+      "f1",
+    );
+    expect(context.files).toHaveLength(0);
+    expect(fullScenarioContextText(context)).toBe("");
   });
 
   it("extracts plain text from txt uploads", async () => {

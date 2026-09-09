@@ -62,6 +62,11 @@ export interface ScenarioContextUpload {
   text: string;
   fileName?: string;
   uploadedAt?: string;
+  files?: Array<{
+    id: string;
+    name: string;
+    text: string;
+  }>;
 }
 
 export interface ReceiverPersona {

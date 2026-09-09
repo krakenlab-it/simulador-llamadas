@@ -7,6 +7,7 @@ import {
   type KrakenLabCohortConfig,
   type PasanteProfile,
 } from "./types";
+import { fullScenarioContextText } from "./scenario-context";
 import { WIZARD_STEPS, type WizardStep } from "./constants";
 
 export interface ValidationIssue {
@@ -58,7 +59,7 @@ export function validateWizardStep(
       if (cohort.project === "otro" && !cohort.projectOther?.trim()) {
         issues.push({ field: "projectOther", message: "Describe el proyecto" });
       }
-      const contextText = cohort.scenarioContext?.text?.trim() ?? "";
+      const contextText = fullScenarioContextText(cohort.scenarioContext);
       if (contextText.length < 30) {
         issues.push({
           field: "scenarioContext.text",
