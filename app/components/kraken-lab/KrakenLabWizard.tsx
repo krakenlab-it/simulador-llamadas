@@ -26,6 +26,7 @@ import type {
 } from "@/lib/kraken-lab/types";
 import { ReceiverPersonaCard } from "@/app/components/kraken-lab/ReceiverPersonaCard";
 import { ScenarioContextUploadPanel } from "@/app/components/kraken-lab/ScenarioContextUploadPanel";
+import { ParticipantCvUpload } from "@/app/components/kraken-lab/ParticipantCvUpload";
 import { useToast } from "@/components/ui/Toast";
 import {
   canAdvanceWizardStep,
@@ -248,7 +249,18 @@ export function KrakenLabWizard({
     <div className="wizard-stack">
       {(draft.participants ?? []).map((profile, index) => (
         <Card key={index} className="wizard-profile-card">
-          <h3>Pasante {index + 1}</h3>
+          <div className="wizard-profile-card__header">
+            <h3>Participante {index + 1}</h3>
+            <ParticipantCvUpload
+              profile={profile}
+              onProfileChange={(next) => {
+                const participants = [...(draft.participants ?? [])];
+                participants[index] = next;
+                updateDraft({ participants });
+              }}
+              onToast={showToast}
+            />
+          </div>
           <div className="wizard-form-grid">
             <label className="field">
               <span>Nombre completo</span>

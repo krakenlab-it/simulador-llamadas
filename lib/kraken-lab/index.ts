@@ -4,3 +4,4 @@ export * from "./seed";
 export * from "./generator";
 export * from "./validation";
 export * from "./repository";
+export * from "./cv-parse";
