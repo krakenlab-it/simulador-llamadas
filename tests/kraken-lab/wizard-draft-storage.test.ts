@@ -121,4 +121,24 @@ describe("wizard draft storage", () => {
     expect(wizardDraftHasSavedContent(SAMPLE_DRAFT)).toBe(true);
     expect(wizardDraftHasSavedContent({ project: "simulador-llamadas" })).toBe(false);
   });
+
+  it("does not overwrite stored scenarioContext when saving an empty incoming draft", () => {
+    saveWizardDraftToStorage({
+      step: "proyecto",
+      mode: "texto",
+      draft: SAMPLE_DRAFT,
+    });
+
+    saveWizardDraftToStorage({
+      step: "proyecto",
+      mode: "texto",
+      draft: {
+        project: "otro",
+        scenarioContext: { text: "" },
+      },
+    });
+
+    const loaded = loadWizardDraftFromStorage();
+    expect(loaded?.draft.scenarioContext?.text).toContain("Software de inventarios");
+  });
 });
