@@ -1,11 +1,20 @@
 import type { DifficultyLevel } from "@/lib/db/types";
 import type { ScenarioRoundDef } from "@/lib/scenarios/types";
+import { DEFAULT_MOODS } from "./constants";
 import {
-  DEFAULT_MOODS,
+  DIFFICULTY_LABELS,
+  FEMALE_FIRST_NAMES,
+  isBlockedPersonaName,
+  KPI_TEMPLATES,
+  LAST_NAMES,
+  MALE_FIRST_NAMES,
+  PAIN_TEMPLATES,
   RECEIVER_INDUSTRIES,
   RECEIVER_ROLES,
-} from "./constants";
-import { SeededRng, buildSessionSeed } from "./seed";
+  TEMPERAMENT_BY_DIFFICULTY,
+} from "./persona-pools";
+import { scenarioContextSnippet } from "./scenario-context";
+import { SeededRng, buildSessionSeed, mintFreshSessionSeed } from "./seed";
 import type {
   AttentionState,
   DialogueTypeConfig,
@@ -15,41 +24,9 @@ import type {
   KrakenLabScenarioMeta,
   ReceiverGender,
   ReceiverPersona,
+  ScenarioContextUpload,
   SimulationFocus,
 } from "./types";
-
-const FEMALE_NAMES = [
-  "Mariana",
-  "Lucía",
-  "Valentina",
-  "Camila",
-  "Daniela",
-  "Sofía",
-  "Andrea",
-  "Paola",
-];
-
-const MALE_NAMES = [
-  "Rodrigo",
-  "Carlos",
-  "Eduardo",
-  "Fernando",
-  "Héctor",
-  "Javier",
-  "Miguel",
-  "Raúl",
-];
-
-const LAST_NAMES = [
-  "Escobedo",
-  "Nava",
-  "Loera",
-  "Mendoza",
-  "Vargas",
-  "Herrera",
-  "Castillo",
-  "Ríos",
-];
 
 const ATTENTION_BY_DIFFICULTY: Record<DifficultyLevel, AttentionState[]> = {
   1: ["escuchando", "interesado", "ocupado", "escuchando", "interesado"],
@@ -74,6 +51,8 @@ const OBJECTION_TEMPLATES: Record<DifficultyLevel, string[]> = {
     "Mi jefe decide eso, yo no.",
   ],
 };
+
+const PERSONA_COUNT = 3;
 
 function focusLabel(focus: SimulationFocus | "otro", other?: string): string {
   if (focus === "otro") return other?.trim() || "Práctica personalizada";
@@ -130,10 +109,113 @@ function roundKeys(): string[] {
   return ["apertura", "objecion", "claridad", "correo", "cierre"];
 }
 
+function difficultyLabelForLevel(level: DifficultyLevel, rng: SeededRng): string {
+  if (level === 1) return rng.pick(["Baja", "Accesible", "Media"]);
+  if (level === 3) return rng.pick(["Difícil", "Muy difícil", "Intermedia-alta"]);
+  return rng.pick(DIFFICULTY_LABELS);
+}
+
+function contextKeywords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length > 4)
+    .slice(0, 10);
+}
+
+function buildPainPoints(
+  rng: SeededRng,
+  context: ScenarioContextUpload | undefined,
+  count: number,
+): string[] {
+  const used = new Set<string>();
+  const pains: string[] = [];
+  const keywords = contextKeywords(context?.text ?? "");
+
+  while (pains.length < count) {
+    let candidate: string;
+    if (keywords.length > 0 && rng.int(0, 1) === 1) {
+      const keyword = rng.pick(keywords);
+      candidate = `Reto operativo ligado a ${keyword}`;
+    } else {
+      candidate = rng.pick(PAIN_TEMPLATES);
+    }
+    if (!used.has(candidate)) {
+      used.add(candidate);
+      pains.push(candidate);
+    }
+  }
+
+  return pains;
+}
+
+function buildIndicator(
+  rng: SeededRng,
+  context: ScenarioContextUpload | undefined,
+  industry: string,
+): string {
+  const snippet = scenarioContextSnippet(context, 60);
+  if (snippet) {
+    return snippet.startsWith("Indicador:")
+      ? snippet
+      : `Indicador: ${snippet.replace(/^Indicador:\s*/i, "").slice(0, 72)}`;
+  }
+
+  const industryHint = industry.toLowerCase().slice(0, 4);
+  const matches = KPI_TEMPLATES.filter((item) =>
+    item.toLowerCase().includes(industryHint),
+  );
+  return rng.pick(matches.length > 0 ? matches : KPI_TEMPLATES);
+}
+
+function deriveAttentionBattery(
+  persona: Pick<ReceiverPersona, "temperament" | "moods">,
+  difficulty: DifficultyLevel,
+  rng: SeededRng,
+): AttentionState[] {
+  const base = [...ATTENTION_BY_DIFFICULTY[difficulty]];
+  const temperament = persona.temperament.toLowerCase();
+
+  if (temperament.includes("gatekeeper")) base[0] = "gatekeeper";
+  if (temperament.includes("impaciente")) base[1] = "impaciente";
+  if (temperament.includes("escéptico") || temperament.includes("esceptico")) {
+    base[2] = "esceptico";
+  }
+  if (persona.moods.some((mood) => mood.includes("ocupado"))) base[3] = "ocupado";
+
+  return rng.shuffle(base);
+}
+
+function pickUniqueName(
+  rng: SeededRng,
+  gender: ReceiverGender,
+  usedNames: Set<string>,
+): string {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const firstName =
+      gender === "femenino"
+        ? rng.pick(FEMALE_FIRST_NAMES)
+        : gender === "masculino"
+          ? rng.pick(MALE_FIRST_NAMES)
+          : rng.pick([...FEMALE_FIRST_NAMES, ...MALE_FIRST_NAMES]);
+    const lastName = rng.pick(LAST_NAMES);
+    const fullName = `${firstName} ${lastName}`;
+    if (!isBlockedPersonaName(fullName) && !usedNames.has(fullName.toLowerCase())) {
+      usedNames.add(fullName.toLowerCase());
+      return fullName;
+    }
+  }
+
+  return `Persona ${rng.int(100, 999)}`;
+}
+
 function attentionPrompt(
   state: AttentionState,
   persona: ReceiverPersona,
   difficulty: DifficultyLevel,
+  contextSnippet: string,
 ): string {
   const stress =
     persona.workStress >= 7
@@ -155,7 +237,8 @@ function attentionPrompt(
         : `No tengo mucho tiempo. ${stress}`,
   };
 
-  return prompts[state].trim();
+  const base = prompts[state].trim();
+  return contextSnippet ? `${contextSnippet}. ${base}` : base;
 }
 
 function buildRoundGoal(
@@ -192,29 +275,29 @@ function buildRoundGoal(
 export function generateReceiverPersonas(
   cohort: Pick<
     KrakenLabCohortConfig,
-    "sessionSeed" | "participants" | "dialogueTypes" | "difficultyLevel"
+    | "sessionSeed"
+    | "participants"
+    | "dialogueTypes"
+    | "difficultyLevel"
+    | "scenarioContext"
+    | "project"
   >,
-  count = 1,
+  count = PERSONA_COUNT,
 ): ReceiverPersona[] {
   const rng = new SeededRng(`${cohort.sessionSeed}:personas`);
   const cities =
-    cohort.participants.flatMap((p) => p.simulationCities).filter(Boolean) ||
-    cohort.participants.map((p) => p.city);
+    cohort.participants.flatMap((participant) => participant.simulationCities).filter(Boolean) ||
+    cohort.participants.map((participant) => participant.city);
 
   const personas: ReceiverPersona[] = [];
+  const usedNames = new Set<string>();
 
-  for (let i = 0; i < count; i += 1) {
+  for (let index = 0; index < count; index += 1) {
     const gender: ReceiverGender = rng.pick(["masculino", "femenino", "otro"]);
-    const firstName =
-      gender === "femenino"
-        ? rng.pick(FEMALE_NAMES)
-        : gender === "masculino"
-          ? rng.pick(MALE_NAMES)
-          : rng.pick([...FEMALE_NAMES, ...MALE_NAMES]);
-    const lastName = rng.pick(LAST_NAMES);
+    const name = pickUniqueName(rng, gender, usedNames);
     const industry = rng.pick(RECEIVER_INDUSTRIES);
     const role = rng.pick(RECEIVER_ROLES);
-    const city = rng.pick(cities.length > 0 ? cities : ["Ciudad de México"]);
+    const city = rng.pick(cities.length > 0 ? cities : ["Ciudad de México", "Monterrey", "Guadalajara"]);
     const homeStress = rng.int(
       0,
       cohort.difficultyLevel === 3 ? 8 : cohort.difficultyLevel === 2 ? 6 : 4,
@@ -224,11 +307,19 @@ export function generateReceiverPersonas(
       cohort.difficultyLevel === 3 ? 10 : cohort.difficultyLevel === 2 ? 8 : 6,
     );
     const moods = rng.pickMany(DEFAULT_MOODS, rng.int(2, 3));
-    const attentionStates = ATTENTION_BY_DIFFICULTY[cohort.difficultyLevel];
+    const temperament = rng.pick(TEMPERAMENT_BY_DIFFICULTY[cohort.difficultyLevel]);
+    const difficultyLabel = difficultyLabelForLevel(cohort.difficultyLevel, rng);
+    const painPoints = buildPainPoints(rng, cohort.scenarioContext, rng.int(1, 3));
+    const indicator = buildIndicator(rng, cohort.scenarioContext, industry);
+    const attentionStates = deriveAttentionBattery(
+      { temperament, moods },
+      cohort.difficultyLevel,
+      rng,
+    );
 
     personas.push({
-      id: `persona-${i + 1}-${rng.int(1000, 9999)}`,
-      name: `${firstName} ${lastName}`,
+      id: `persona-${index + 1}-${rng.int(1000, 9999)}`,
+      name,
       age: rng.int(32, 58),
       gender,
       role,
@@ -238,6 +329,10 @@ export function generateReceiverPersonas(
       homeStress,
       workStress,
       attentionStates,
+      difficultyLabel,
+      indicator,
+      painPoints,
+      temperament,
       extras: {
         industry,
         objectionStyle:
@@ -273,14 +368,22 @@ export function buildDialogueBattery(
   const keys = roundKeys();
   const objections = OBJECTION_TEMPLATES[cohort.difficultyLevel];
   const rng = new SeededRng(`${cohort.sessionSeed}:battery:${persona.id}`);
+  const contextSnippet = scenarioContextSnippet(cohort.scenarioContext, 100);
 
   return keys.map((key, index) => {
     const attention =
       persona.attentionStates[index] ??
       ATTENTION_BY_DIFFICULTY[cohort.difficultyLevel][index];
-    const basePrompt = attentionPrompt(attention, persona, cohort.difficultyLevel);
-    const product = primaryDialogue.productServiceExplanation.trim();
-    const context = primaryDialogue.simulationContext.trim();
+    const basePrompt = attentionPrompt(
+      attention,
+      persona,
+      cohort.difficultyLevel,
+      contextSnippet,
+    );
+    const product =
+      primaryDialogue.productServiceExplanation.trim() ||
+      scenarioContextSnippet(cohort.scenarioContext, 80);
+    const context = primaryDialogue.simulationContext.trim() || contextSnippet;
 
     let clientPrompt = basePrompt;
     if (index === 1) {
@@ -311,12 +414,24 @@ export function buildDialogueBattery(
   });
 }
 
+function resolveSelectedPersona(cohort: KrakenLabCohortConfig): ReceiverPersona {
+  const selected =
+    cohort.receiverPersonas.find((persona) => persona.id === cohort.selectedPersonaId) ??
+    cohort.receiverPersonas[0];
+  if (!selected) {
+    throw new Error("Se requiere al menos una persona receptora");
+  }
+  return selected;
+}
+
 export function buildKrakenScenario(
   cohort: KrakenLabCohortConfig,
-  personaIndex = 0,
+  personaIndex?: number,
 ): GeneratedKrakenScenario {
   const persona =
-    cohort.receiverPersonas[personaIndex] ?? cohort.receiverPersonas[0];
+    personaIndex !== undefined
+      ? cohort.receiverPersonas[personaIndex]
+      : resolveSelectedPersona(cohort);
   if (!persona) {
     throw new Error("Se requiere al menos una persona receptora");
   }
@@ -325,6 +440,7 @@ export function buildKrakenScenario(
   const focus = primaryDialogue?.focus ?? "ventas";
   const rounds = buildDialogueBattery(cohort, persona);
   const rng = new SeededRng(`${cohort.sessionSeed}:scenario:${persona.id}`);
+  const contextSnippet = scenarioContextSnippet(cohort.scenarioContext, 120);
 
   const meta: KrakenLabScenarioMeta = {
     cohortId: cohort.id ?? "local",
@@ -338,25 +454,32 @@ export function buildKrakenScenario(
     difficultyLevel: cohort.difficultyLevel,
   };
 
-  const product = primaryDialogue?.productServiceExplanation.trim() ?? "servicio";
+  const product =
+    primaryDialogue?.productServiceExplanation.trim() ||
+    contextSnippet ||
+    "servicio";
   const problem =
     primaryDialogue?.simulationContext.trim() ||
     primaryDialogue?.realObjective.trim() ||
+    persona.painPoints[0] ||
+    contextSnippet ||
     "operaciones diarias";
 
   const config: KrakenLabScenarioConfig = {
     industry: persona.extras.industry,
     productSold: product,
     clientProblem: problem,
-    objections: OBJECTION_TEMPLATES[cohort.difficultyLevel],
+    objections: [...OBJECTION_TEMPLATES[cohort.difficultyLevel], ...persona.painPoints.slice(0, 2)],
     winCriteria: winCriteriaForFocus(focus, cohort.roleObjective),
-    temperament: `${persona.moods.join(", ")}; estrés trabajo ${persona.workStress}/10`,
+    temperament: persona.temperament,
     rounds,
     criteria: [],
     globalPositiveCriteria: ["problema", "reconocimiento", "reunion", "dia_hora"],
     openingLines: [
-      `¿Quién habla? Soy ${persona.name}, ${persona.role}. Estoy ${persona.moods[0] ?? "ocupado"}.`,
-      `Si es otra llamada de ${product.slice(0, 40)}, tengo poco tiempo.`,
+      `¿Quién habla? Soy ${persona.name}, ${persona.role}. ${persona.temperament}.`,
+      contextSnippet
+        ? `Si es por ${product.slice(0, 40)}, tengo poco tiempo. ${contextSnippet.slice(0, 60)}`
+        : `Si es otra llamada de ${product.slice(0, 40)}, tengo poco tiempo.`,
     ],
     language: "es",
     callType: focus === "ventas" ? "fria" : "discovery",
@@ -376,13 +499,8 @@ export function buildKrakenScenario(
     clientName: persona.name,
     clientTitle: persona.role,
     companyContext: `${persona.company} · ${persona.city}`,
-    difficultyLabel:
-      cohort.difficultyLevel === 3
-        ? "Difícil"
-        : cohort.difficultyLevel === 2
-          ? "Exigente"
-          : "Accesible",
-    indicator: focusLabel(focus, primaryDialogue?.focusOther),
+    difficultyLabel: persona.difficultyLabel,
+    indicator: persona.indicator,
     config,
   };
 }
@@ -399,9 +517,15 @@ export function createDefaultSessionSeed(cohort: Partial<KrakenLabCohortConfig>)
 export function enrichCohortWithPersonas(
   cohort: KrakenLabCohortConfig,
 ): KrakenLabCohortConfig {
-  if (cohort.receiverPersonas.length > 0) return cohort;
+  if (cohort.receiverPersonas.length >= PERSONA_COUNT) {
+    return cohort;
+  }
+  const personas = generateReceiverPersonas(cohort, PERSONA_COUNT);
   return {
     ...cohort,
-    receiverPersonas: generateReceiverPersonas(cohort, 1),
+    receiverPersonas: personas,
+    selectedPersonaId: cohort.selectedPersonaId ?? personas[0]?.id,
   };
 }
+
+export { mintFreshSessionSeed };

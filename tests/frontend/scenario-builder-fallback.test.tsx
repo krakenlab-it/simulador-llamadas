@@ -43,10 +43,12 @@ describe("ScenarioBuilderScreen preview fallback", () => {
       screen.getByPlaceholderText(/Cadena nacional de gimnasios/i),
       "Taller Norte",
     );
+    await user.selectOptions(screen.getByLabelText("Industria / negocio"), "Otro");
     await user.type(
-      screen.getByPlaceholderText(/sucursal bancaria/i),
+      screen.getByPlaceholderText(/taller de llantas/i),
       "taller de llantas",
     );
+    await user.selectOptions(screen.getByLabelText("¿Qué se vende?"), "Otro");
     await user.type(
       screen.getByPlaceholderText(/membresía premium/i),
       "llantas premium",

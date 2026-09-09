@@ -4,6 +4,16 @@ import { useId, useMemo, useState } from "react";
 import { createScenario, updateScenario } from "@/lib/api/client";
 import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
 import {
+  authoringDraftHasContent,
+  buildExampleAuthoringDraft,
+} from "@/lib/scenarios/example-draft";
+import {
+  DIFFICULTY_LABEL_OPTIONS,
+  INDUSTRY_OPTIONS,
+  PRODUCT_SERVICE_OPTIONS,
+  TEMPERAMENT_OPTIONS,
+} from "@/lib/scenarios/select-options";
+import {
   AUTHORING_STEPS,
   MAX_AUTHORED_BEATS,
   MIN_AUTHORED_BEATS,
@@ -23,7 +33,9 @@ import {
 import type { ScenarioLanguage, ScenarioRecord, ScenarioRoundDef } from "@/lib/scenarios/types";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
 import { Button } from "@/app/components/ui/Button";
+import { SelectWithOther } from "@/app/components/ui/SelectWithOther";
 import { SegmentedControl } from "@/app/components/ui/Switch";
+import { useToast } from "@/components/ui/Toast";
 
 export interface ScenarioBuilderResult {
   scenario: ScenarioRecord;
@@ -92,6 +104,7 @@ export function ScenarioBuilderScreen({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const stepIndex = AUTHORING_STEPS.indexOf(step);
   const validationError = useMemo(() => validateAuthoringDraft(draft), [draft]);
@@ -131,6 +144,18 @@ export function ScenarioBuilderScreen({
     });
   };
 
+  const handleAutofillExample = () => {
+    if (authoringDraftHasContent(draft)) {
+      const confirmed = window.confirm(
+        "¿Reemplazar los datos actuales con el ejemplo de Valeria Soto / Importadora del Norte?",
+      );
+      if (!confirmed) return;
+    }
+    setDraft(buildExampleAuthoringDraft());
+    setStep("persona");
+    showToast("Ejemplo cargado. Revisa cliente, fases y éxito antes de guardar.", "success");
+  };
+
   const handleSave = async () => {
     if (!canSave) {
       setError(validationError);
@@ -161,16 +186,27 @@ export function ScenarioBuilderScreen({
       aria-label={editing ? "Editar escenario" : "Crear escenario"}
     >
       <header className="page-hero page-hero--compact">
-        <p className="page-hero__eyebrow">
-          {editing ? "Editar escenario" : "Escenario personalizado"}
-        </p>
-        <h1 className="page-hero__title">
-          {editing ? "Afinar el caso de venta" : "Diseña tu caso de venta"}
-        </h1>
-        <p className="page-hero__subtitle">
-          Tres pasos: persona del cliente, fases de la llamada y cómo se gana.
-          Clínica de Citas sigue siendo un preset; esto no lo cambia.
-        </p>
+        <div className="builder-screen__hero-copy">
+          <p className="page-hero__eyebrow">
+            {editing ? "Editar escenario" : "Escenario personalizado"}
+          </p>
+          <h1 className="page-hero__title">
+            {editing ? "Afinar el caso de venta" : "Diseña tu caso de venta"}
+          </h1>
+          <p className="page-hero__subtitle">
+            Tres pasos: persona del cliente, fases de la llamada y cómo se gana.
+            Clínica de Citas sigue siendo un preset; esto no lo cambia.
+          </p>
+        </div>
+        {!editing ? (
+          <Button
+            variant="secondary"
+            className="builder-screen__example-btn"
+            onClick={handleAutofillExample}
+          >
+            Completar datos para una simulación ejemplo
+          </Button>
+        ) : null}
       </header>
 
       <ol className="builder-steps" aria-label="Pasos del diseñador">
@@ -244,38 +280,34 @@ export function ScenarioBuilderScreen({
                   placeholder="Ej. Cadena nacional de gimnasios"
                 />
               </label>
-              <label className="field">
-                <span className="field__label">Industria / negocio</span>
-                <input
-                  value={draft.industry}
-                  onChange={(e) => setField("industry", e.target.value)}
-                  placeholder="Ej. sucursal bancaria, taller de llantas"
-                />
-              </label>
-              <label className="field">
-                <span className="field__label">¿Qué se vende?</span>
-                <input
-                  value={draft.productSold}
-                  onChange={(e) => setField("productSold", e.target.value)}
-                  placeholder="Ej. membresía premium, póliza de auto"
-                />
-              </label>
-              <label className="field">
-                <span className="field__label">Temperamento</span>
-                <input
-                  value={draft.temperament}
-                  onChange={(e) => setField("temperament", e.target.value)}
-                  placeholder="Ej. Escéptico, directo"
-                />
-              </label>
-              <label className="field">
-                <span className="field__label">Dificultad (etiqueta)</span>
-                <input
-                  value={draft.difficultyLabel}
-                  onChange={(e) => setField("difficultyLabel", e.target.value)}
-                  placeholder="Media"
-                />
-              </label>
+              <SelectWithOther
+                label="Industria / negocio"
+                value={draft.industry}
+                options={INDUSTRY_OPTIONS}
+                onChange={(value) => setField("industry", value)}
+                otherPlaceholder="Ej. taller de llantas, sucursal bancaria"
+              />
+              <SelectWithOther
+                label="¿Qué se vende?"
+                value={draft.productSold}
+                options={PRODUCT_SERVICE_OPTIONS}
+                onChange={(value) => setField("productSold", value)}
+                otherPlaceholder="Ej. membresía premium, póliza de auto"
+              />
+              <SelectWithOther
+                label="Temperamento"
+                value={draft.temperament}
+                options={TEMPERAMENT_OPTIONS}
+                onChange={(value) => setField("temperament", value)}
+                otherPlaceholder="Ej. Escéptico, directo"
+              />
+              <SelectWithOther
+                label="Dificultad (etiqueta)"
+                value={draft.difficultyLabel}
+                options={DIFFICULTY_LABEL_OPTIONS}
+                onChange={(value) => setField("difficultyLabel", value)}
+                otherPlaceholder="Ej. Media"
+              />
               <label className="field field--full">
                 <span className="field__label">Problema real del cliente</span>
                 <textarea

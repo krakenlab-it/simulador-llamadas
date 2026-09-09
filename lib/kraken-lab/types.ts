@@ -58,6 +58,12 @@ export interface DialogueTypeConfig {
   productServiceExplanation: string;
 }
 
+export interface ScenarioContextUpload {
+  text: string;
+  fileName?: string;
+  uploadedAt?: string;
+}
+
 export interface ReceiverPersona {
   id: string;
   name: string;
@@ -70,6 +76,10 @@ export interface ReceiverPersona {
   homeStress: number;
   workStress: number;
   attentionStates: AttentionState[];
+  difficultyLabel: string;
+  indicator: string;
+  painPoints: string[];
+  temperament: string;
   extras: {
     industry: string;
     objectionStyle: string;
@@ -81,6 +91,7 @@ export interface KrakenLabCohortConfig {
   id?: string;
   project: KrakenLabProject;
   projectOther?: string;
+  scenarioContext?: ScenarioContextUpload;
   participantCount: number;
   participants: PasanteProfile[];
   simulationFocuses: SimulationFocus[];
@@ -89,6 +100,7 @@ export interface KrakenLabCohortConfig {
   roleObjective: string;
   dialogueTypes: DialogueTypeConfig[];
   receiverPersonas: ReceiverPersona[];
+  selectedPersonaId?: string;
   difficultyLevel: DifficultyLevel;
   /** Deterministic seed for dialogue battery generation. */
   sessionSeed: string;

@@ -60,3 +60,13 @@ export class SeededRng {
 export function buildSessionSeed(parts: string[]): string {
   return parts.filter(Boolean).join("|");
 }
+
+/** Fresh entropy for a new wizard run or persona regeneration. */
+export function mintFreshSessionSeed(): string {
+  const randomPart =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2, 12);
+
+  return buildSessionSeed([String(Date.now()), randomPart]);
+}
