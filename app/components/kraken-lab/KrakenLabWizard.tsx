@@ -56,11 +56,14 @@ import {
   shouldOfferPriorPracticeContextSeed,
 } from "@/lib/kraken-lab/practice-context-seed";
 import {
+  getProjectContextPack,
+  getProjectIndustry,
   migrateLegacyProjectContextPacks,
   prepareWizardDraftForSessionStart,
+  resolveActiveProject,
   switchProjectContextPack,
   updateActiveProjectIndustryPack,
-  updateActiveProjectScenarioContext,
+  updateProjectScenarioContext,
 } from "@/lib/kraken-lab/project-context-packs";
 import { DIFFICULTY_LABELS, MODE_LABELS } from "@/lib/frontend/training-readiness";
 import {
@@ -191,6 +194,15 @@ export function KrakenLabWizard({
 
   const issues = useMemo(() => validateWizardStep(step, draft), [step, draft]);
   const canAdvance = issues.length === 0;
+  const activeProject = resolveActiveProject(draft);
+  const activeScenarioContext = useMemo(
+    () => getProjectContextPack(draft, activeProject),
+    [draft, activeProject],
+  );
+  const activeIndustry = useMemo(
+    () => getProjectIndustry(draft, activeProject),
+    [draft, activeProject],
+  );
 
   const updateDraft = useCallback(
     (patch: Partial<KrakenLabCohortConfig>) => {
@@ -207,8 +219,14 @@ export function KrakenLabWizard({
   );
 
   const handleScenarioContextChange = useCallback(
-    (scenarioContext: NonNullable<KrakenLabCohortConfig["scenarioContext"]>) => {
-      setDraft((prev) => updateActiveProjectScenarioContext(prev, scenarioContext));
+    (
+      scenarioContext: NonNullable<KrakenLabCohortConfig["scenarioContext"]>,
+      forProject?: KrakenLabProject,
+    ) => {
+      setDraft((prev) => {
+        const targetProject = forProject ?? resolveActiveProject(prev);
+        return updateProjectScenarioContext(prev, targetProject, scenarioContext);
+      });
     },
     [],
   );
@@ -256,14 +274,14 @@ export function KrakenLabWizard({
           updateActiveProjectIndustryPack(
             prev,
             "",
-            prev.scenarioContext ?? { text: "" },
+            getProjectContextPack(prev, resolveActiveProject(prev)),
           ),
         );
         return;
       }
 
-      const previousIndustry = draft.contextIndustry?.trim() ?? "";
-      const existingText = draft.scenarioContext?.text ?? "";
+      const previousIndustry = activeIndustry;
+      const existingText = activeScenarioContext.text ?? "";
       if (
         previousIndustry &&
         previousIndustry !== trimmed &&
@@ -272,11 +290,17 @@ export function KrakenLabWizard({
           "¿Actualizar el problema al contexto de la nueva industria? Se conservan Cliente y Producto.",
         )
       ) {
-        setDraft((prev) => updateActiveProjectIndustryPack(prev, trimmed, prev.scenarioContext ?? { text: "" }));
+        setDraft((prev) =>
+          updateActiveProjectIndustryPack(
+            prev,
+            trimmed,
+            getProjectContextPack(prev, resolveActiveProject(prev)),
+          ),
+        );
         return;
       }
 
-      const fileTexts = (draft.scenarioContext?.files ?? [])
+      const fileTexts = (activeScenarioContext.files ?? [])
         .map((file) => file.text)
         .filter(Boolean);
       const nextText = buildIndustryAwareBrief({
@@ -287,7 +311,7 @@ export function KrakenLabWizard({
 
       setDraft((prev) =>
         updateActiveProjectIndustryPack(prev, trimmed, {
-          ...(prev.scenarioContext ?? { text: "" }),
+          ...getProjectContextPack(prev, resolveActiveProject(prev)),
           text: nextText,
         }),
       );
@@ -296,7 +320,7 @@ export function KrakenLabWizard({
         showToast(`Actualizamos el problema al contexto de ${trimmed}.`, "info");
       }
     },
-    [draft.contextIndustry, draft.scenarioContext, showToast],
+    [activeIndustry, activeScenarioContext, showToast],
   );
 
   const handleGeneratePersonas = (regenerate = false) => {
@@ -411,14 +435,16 @@ export function KrakenLabWizard({
           </p>
           <SelectWithOther
             label="Industria"
-            value={draft.contextIndustry ?? ""}
+            value={activeIndustry}
             options={INDUSTRY_OPTIONS}
             onChange={handleContextIndustryChange}
             placeholder="Selecciona la industria del escenario"
             otherPlaceholder="Ej. taller de llantas, cooperativa agrícola"
           />
           <ScenarioContextUploadPanel
-            value={draft.scenarioContext}
+            key={activeProject}
+            activeProject={activeProject}
+            value={activeScenarioContext}
             onChange={handleScenarioContextChange}
             onToast={(message, tone) => showToast(message, tone)}
           />
