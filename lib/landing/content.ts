@@ -27,5 +27,5 @@ export const landingContent = {
     { value: "3", label: "perfiles de cliente" },
     { value: "∞", label: "repeticiones sin presión" },
   ],
-  footer: "Demo interna · Kraken Lab",
+  footer: "Demo interna · Kraken Simulación",
 } as const;

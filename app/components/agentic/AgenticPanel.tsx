@@ -15,6 +15,7 @@ import {
   setAgenticEnabledForSimulations,
   setAgenticTonePreview,
 } from "@/lib/agentic/settings";
+import { KRAKEN_SIMULACION_PRODUCT_NAME } from "@/lib/kraken-lab/constants";
 
 interface AgenticPanelProps {
   onClose: () => void;
@@ -73,10 +74,10 @@ export function AgenticPanel({ onClose }: AgenticPanelProps) {
     <div className="agentic-panel">
       <header className="agentic-panel__header">
         <div>
-          <p className="page-hero__eyebrow">Kraken Lab · avanzado</p>
+          <p className="page-hero__eyebrow">{KRAKEN_SIMULACION_PRODUCT_NAME} · avanzado</p>
           <h1 className="page-hero__title">Capa agentica</h1>
           <p className="page-hero__subtitle">
-            Cuatro motores coordinados para simulaciones Kraken y escenarios
+            Cuatro motores coordinados para {KRAKEN_SIMULACION_PRODUCT_NAME} y escenarios
             personalizados. Los presets de Clínica no cambian.
           </p>
         </div>
@@ -98,7 +99,7 @@ export function AgenticPanel({ onClose }: AgenticPanelProps) {
         <Switch
           checked={enabled}
           onCheckedChange={handleToggle}
-          label="Usar capa agentica en simulaciones Kraken/custom"
+          label={`Usar capa agentica en ${KRAKEN_SIMULACION_PRODUCT_NAME} y escenarios personalizados`}
         />
 
         <div className="agentic-panel__tones">

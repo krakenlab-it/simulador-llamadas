@@ -54,7 +54,7 @@ export function validateWizardStep(
     case "proyecto": {
       const issues: ValidationIssue[] = [];
       if (!cohort.project || !KRAKEN_LAB_PROJECTS.includes(cohort.project)) {
-        issues.push({ field: "project", message: "Selecciona un proyecto Kraken Lab" });
+        issues.push({ field: "project", message: "Selecciona un proyecto Kraken Simulación" });
       }
       if (cohort.project === "otro" && !cohort.projectOther?.trim()) {
         issues.push({ field: "projectOther", message: "Describe el proyecto" });

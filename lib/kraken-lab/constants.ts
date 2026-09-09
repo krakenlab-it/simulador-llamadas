@@ -1,5 +1,11 @@
 import type { KrakenLabProject, SimulationFocus } from "./types";
 
+/** User-facing name for the Kraken simulation product line. */
+export const KRAKEN_SIMULACION_PRODUCT_NAME = "Kraken Simulación";
+
+/** Primary CTA / wizard title for starting a new Kraken simulation. */
+export const NUEVA_SIMULACION_CTA_LABEL = "Nueva simulación · Kraken Simulación";
+
 export const KRAKEN_PROJECT_LABELS: Record<KrakenLabProject, string> = {
   "me-we": "Me We",
   "global-green": "Global Green",
@@ -55,7 +61,7 @@ export const WIZARD_STEPS = [
 export type WizardStep = (typeof WIZARD_STEPS)[number];
 
 export const WIZARD_STEP_LABELS: Record<WizardStep, string> = {
-  proyecto: "Proyecto Kraken Lab",
+  proyecto: "Proyecto Kraken Simulación",
   participantes: "Tamaño del grupo",
   perfiles: "Perfiles de participantes",
   simulacion: "Qué simular",
