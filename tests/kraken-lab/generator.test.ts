@@ -4,6 +4,7 @@ import {
   buildKrakenScenario,
   createDefaultSessionSeed,
   generateReceiverPersonas,
+  mintFreshSessionSeed,
 } from "@/lib/kraken-lab/generator";
 import type { KrakenLabCohortConfig } from "@/lib/kraken-lab/types";
 import {
@@ -12,10 +13,14 @@ import {
   validateFullCohort,
 } from "@/lib/kraken-lab/validation";
 
+const SAMPLE_CONTEXT =
+  "Vendemos software de inventarios a directoras de compras. Objeciones: ya tenemos proveedor y no hay presupuesto.";
+
 function sampleCohort(overrides: Partial<KrakenLabCohortConfig> = {}): KrakenLabCohortConfig {
-  const seed = "test-seed-123";
+  const seed = overrides.sessionSeed ?? "test-seed-123";
   const base: KrakenLabCohortConfig = {
     project: "simulador-llamadas",
+    scenarioContext: { text: SAMPLE_CONTEXT },
     participantCount: 1,
     participants: [
       {
@@ -39,28 +44,38 @@ function sampleCohort(overrides: Partial<KrakenLabCohortConfig> = {}): KrakenLab
       },
     ],
     receiverPersonas: [],
+    selectedPersonaId: undefined,
     difficultyLevel: 2,
     sessionSeed: seed,
     ...overrides,
   };
-  base.receiverPersonas = generateReceiverPersonas(base, 1);
+  base.receiverPersonas = generateReceiverPersonas(base, 3);
+  base.selectedPersonaId = base.receiverPersonas[0]?.id;
   return base;
 }
 
 describe("Kraken Lab generator", () => {
   it("generates deterministic personas for the same seed", () => {
     const cohort = sampleCohort();
-    const a = generateReceiverPersonas(cohort, 1);
-    const b = generateReceiverPersonas(cohort, 1);
-    expect(a[0].name).toBe(b[0].name);
+    const a = generateReceiverPersonas(cohort, 3);
+    const b = generateReceiverPersonas(cohort, 3);
+    expect(a.map((persona) => persona.name)).toEqual(b.map((persona) => persona.name));
     expect(a[0].attentionStates).toEqual(b[0].attentionStates);
   });
 
+  it("changes personas when the session seed is refreshed", () => {
+    const first = generateReceiverPersonas(sampleCohort({ sessionSeed: mintFreshSessionSeed() }), 3);
+    const second = generateReceiverPersonas(sampleCohort({ sessionSeed: mintFreshSessionSeed() }), 3);
+    expect(first.map((persona) => persona.name).join("|")).not.toBe(
+      second.map((persona) => persona.name).join("|"),
+    );
+  });
+
   it("changes personas when difficulty changes", () => {
-    const easy = sampleCohort({ difficultyLevel: 1, sessionSeed: "diff-test" });
-    const hard = sampleCohort({ difficultyLevel: 3, sessionSeed: "diff-test" });
-    const easyPersona = generateReceiverPersonas(easy, 1)[0];
-    const hardPersona = generateReceiverPersonas(hard, 1)[0];
+    const easy = sampleCohort({ difficultyLevel: 1, sessionSeed: "diff-test-easy" });
+    const hard = sampleCohort({ difficultyLevel: 3, sessionSeed: "diff-test-hard" });
+    const easyPersona = generateReceiverPersonas(easy, 3)[0];
+    const hardPersona = generateReceiverPersonas(hard, 3)[0];
     expect(easyPersona.extras.patienceLevel).not.toBe(hardPersona.extras.patienceLevel);
   });
 
@@ -109,6 +124,13 @@ describe("Kraken Lab wizard validation", () => {
     const cohort = sampleCohort();
     expect(validateFullCohort(cohort)).toHaveLength(0);
     expect(canAdvanceWizardStep("dificultad", cohort)).toBe(true);
+  });
+
+  it("requires scenario context on the project step", () => {
+    const issues = validateFullCohort(
+      sampleCohort({ scenarioContext: { text: "corto" } }),
+    );
+    expect(issues.some((issue) => issue.field === "scenarioContext.text")).toBe(true);
   });
 
   it("requires project other text when project is otro", () => {

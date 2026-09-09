@@ -3,7 +3,6 @@
 import { useCallback, useId, useMemo, useState } from "react";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import {
-  ATTENTION_STATE_LABELS,
   DIFFICULTY_DESCRIPTIONS,
   KRAKEN_PROJECT_LABELS,
   SIMULATION_FOCUS_LABELS,
@@ -13,16 +12,22 @@ import {
   type WizardStep,
 } from "@/lib/kraken-lab/constants";
 import {
-  createDefaultSessionSeed,
   enrichCohortWithPersonas,
   generateReceiverPersonas,
+  mintFreshSessionSeed,
 } from "@/lib/kraken-lab/generator";
+import {
+  extractTextFromScenarioFile,
+  mergeScenarioContextText,
+} from "@/lib/kraken-lab/scenario-context";
 import type {
   KrakenLabCohortConfig,
   KrakenLabProject,
   SimulationFocus,
   SimulatorRole,
 } from "@/lib/kraken-lab/types";
+import { ReceiverPersonaCard } from "@/app/components/kraken-lab/ReceiverPersonaCard";
+import { useToast } from "@/components/ui/Toast";
 import {
   canAdvanceWizardStep,
   defaultCohortDraft,
@@ -83,7 +88,10 @@ export function KrakenLabWizard({
   const [mode, setMode] = useState<PracticeMode>("texto");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingContext, setUploadingContext] = useState(false);
   const difficultyGroupId = useId();
+  const contextFileInputId = useId();
+  const { showToast } = useToast();
 
   const issues = useMemo(() => validateWizardStep(step, draft), [step, draft]);
   const canAdvance = issues.length === 0;
@@ -95,15 +103,49 @@ export function KrakenLabWizard({
     [],
   );
 
-  const handleGeneratePersonas = () => {
-    const seed = draft.sessionSeed?.trim() || createDefaultSessionSeed(draft);
+  const handleGeneratePersonas = (regenerate = false) => {
+    const seed = regenerate ? mintFreshSessionSeed() : draft.sessionSeed?.trim() || mintFreshSessionSeed();
     const base: KrakenLabCohortConfig = {
       ...(draft as KrakenLabCohortConfig),
       sessionSeed: seed,
       receiverPersonas: [],
     };
-    const personas = generateReceiverPersonas(base, 1);
-    updateDraft({ sessionSeed: seed, receiverPersonas: personas });
+    const personas = generateReceiverPersonas(base, 3);
+    updateDraft({
+      sessionSeed: seed,
+      receiverPersonas: personas,
+      selectedPersonaId: personas[0]?.id,
+    });
+  };
+
+  const handleContextFile = async (file: File | null) => {
+    if (!file) return;
+    setUploadingContext(true);
+    try {
+      const result = await extractTextFromScenarioFile(file);
+      if (result.unsupportedFormat) {
+        showToast(
+          "Por ahora pega el texto o sube .txt / .md. PDF y DOCX llegarán después.",
+          "info",
+        );
+        return;
+      }
+      if (!result.text) {
+        showToast("No se encontró texto en el archivo.", "error");
+        return;
+      }
+      updateDraft({
+        scenarioContext: mergeScenarioContextText(draft.scenarioContext, result.text),
+      });
+      showToast(`Contexto agregado desde ${file.name}.`, "success");
+    } catch (err) {
+      showToast(
+        err instanceof Error ? err.message : "No se pudo leer el archivo.",
+        "error",
+      );
+    } finally {
+      setUploadingContext(false);
+    }
   };
 
   const handleStart = async () => {
@@ -111,7 +153,7 @@ export function KrakenLabWizard({
     setSubmitting(true);
     setError(null);
 
-    const seed = draft.sessionSeed?.trim() || createDefaultSessionSeed(draft);
+    const seed = draft.sessionSeed?.trim() || mintFreshSessionSeed();
     const cohort = enrichCohortWithPersonas({
       ...(draft as KrakenLabCohortConfig),
       sessionSeed: seed,
@@ -188,6 +230,46 @@ export function KrakenLabWizard({
             placeholder="Ej. Proyecto piloto Q3"
           />
         </label>
+      ) : null}
+
+      {draft.project ? (
+        <div className="wizard-panel wizard-panel--context">
+          <h3>Contexto del escenario</h3>
+          <p className="config-panel__hint">
+            Pega o sube material del producto/servicio, objeciones típicas o guiones de
+            referencia. Lo usamos para generar personas y diálogos más humanos.
+          </p>
+          <label className="field">
+            <span>Brief / producto / objeciones / guion</span>
+            <textarea
+              rows={6}
+              value={draft.scenarioContext?.text ?? ""}
+              onChange={(e) =>
+                updateDraft({
+                  scenarioContext: {
+                    ...(draft.scenarioContext ?? { text: "" }),
+                    text: e.target.value,
+                  },
+                })
+              }
+              placeholder="Ej. Vendemos Kraken Flow a importadoras: pedidos urgentes se atascan entre ventas y almacén. Objeciones: ya tenemos ERP, no queremos otra captura…"
+            />
+          </label>
+          <label className="field" htmlFor={contextFileInputId}>
+            <span>Archivo opcional (.txt, .md; PDF/DOCX: pega el texto por ahora)</span>
+            <input
+              id={contextFileInputId}
+              type="file"
+              accept=".txt,.md,.pdf,.docx,text/plain,text/markdown"
+              disabled={uploadingContext}
+              onChange={(e) => {
+                const file = e.target.files?.[0] ?? null;
+                void handleContextFile(file);
+                e.currentTarget.value = "";
+              }}
+            />
+          </label>
+        </div>
       ) : null}
     </div>
   );
@@ -430,30 +512,29 @@ export function KrakenLabWizard({
   const renderPersonasStep = () => (
     <div className="wizard-panel">
       <p className="config-panel__hint">
-        Generamos una persona receptora determinista según tu cohorte, dificultad y ciudades.
+        Generamos tres personas receptoras distintas a partir del contexto del escenario,
+        la dificultad y las ciudades. Elige con cuál practicarás.
       </p>
-      <Button variant="secondary" onClick={handleGeneratePersonas}>
-        Generar persona receptora
-      </Button>
-      {(draft.receiverPersonas ?? []).map((persona) => (
-        <Card key={persona.id} className="wizard-profile-card">
-          <h3>{persona.name}</h3>
-          <p>
-            {persona.role} · {persona.company} · {persona.city}
-          </p>
-          <p>
-            {persona.age} años · {persona.gender} · Estrés casa {persona.homeStress}/10 ·
-            trabajo {persona.workStress}/10
-          </p>
-          <p>Estados: {persona.moods.join(", ")}</p>
-          <p>
-            Batería de atención:{" "}
-            {persona.attentionStates
-              .map((s) => ATTENTION_STATE_LABELS[s])
-              .join(" → ")}
-          </p>
-        </Card>
-      ))}
+      <div className="wizard-actions-row">
+        <Button variant="secondary" onClick={() => handleGeneratePersonas(false)}>
+          Generar personas
+        </Button>
+        {(draft.receiverPersonas ?? []).length > 0 ? (
+          <Button variant="ghost" onClick={() => handleGeneratePersonas(true)}>
+            Regenerar personas
+          </Button>
+        ) : null}
+      </div>
+      <div className="wizard-persona-grid">
+        {(draft.receiverPersonas ?? []).map((persona) => (
+          <ReceiverPersonaCard
+            key={persona.id}
+            persona={persona}
+            selected={draft.selectedPersonaId === persona.id}
+            onSelect={() => updateDraft({ selectedPersonaId: persona.id })}
+          />
+        ))}
+      </div>
     </div>
   );
 

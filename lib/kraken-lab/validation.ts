@@ -58,6 +58,14 @@ export function validateWizardStep(
       if (cohort.project === "otro" && !cohort.projectOther?.trim()) {
         issues.push({ field: "projectOther", message: "Describe el proyecto" });
       }
+      const contextText = cohort.scenarioContext?.text?.trim() ?? "";
+      if (contextText.length < 30) {
+        issues.push({
+          field: "scenarioContext.text",
+          message:
+            "Agrega contexto del escenario (mínimo 30 caracteres): producto, objeciones o guion de referencia",
+        });
+      }
       return issues;
     }
     case "participantes": {
@@ -153,8 +161,17 @@ export function validateWizardStep(
       return issues;
     }
     case "personas": {
-      if ((cohort.receiverPersonas ?? []).length === 0) {
-        return [{ field: "receiverPersonas", message: "Genera al menos una persona receptora" }];
+      const personas = cohort.receiverPersonas ?? [];
+      if (personas.length < 3) {
+        return [
+          {
+            field: "receiverPersonas",
+            message: "Genera las 3 personas receptoras para esta cohorte",
+          },
+        ];
+      }
+      if (!cohort.selectedPersonaId || !personas.some((p) => p.id === cohort.selectedPersonaId)) {
+        return [{ field: "selectedPersonaId", message: "Selecciona una persona receptora" }];
       }
       return [];
     }
@@ -207,9 +224,12 @@ export function defaultDialogueType(focus: DialogueTypeConfig["focus"]): Dialogu
   };
 }
 
+import { mintFreshSessionSeed } from "./seed";
+
 export function defaultCohortDraft(): Partial<KrakenLabCohortConfig> {
   return {
     project: "simulador-llamadas",
+    scenarioContext: { text: "" },
     participantCount: 1,
     participants: [defaultPasanteProfile()],
     simulationFocuses: ["ventas"],
@@ -217,8 +237,9 @@ export function defaultCohortDraft(): Partial<KrakenLabCohortConfig> {
     roleObjective: "",
     dialogueTypes: [defaultDialogueType("ventas")],
     receiverPersonas: [],
+    selectedPersonaId: undefined,
     difficultyLevel: 2 as DifficultyLevel,
-    sessionSeed: "",
+    sessionSeed: mintFreshSessionSeed(),
   };
 }
 

@@ -7,6 +7,9 @@ import { resetStubSessions } from "@/lib/api/stubs";
 function sampleCohort(): KrakenLabCohortConfig {
   const cohort: KrakenLabCohortConfig = {
     project: "simulador-llamadas",
+    scenarioContext: {
+      text: "Software de inventarios para directoras de compras. Objeciones: ya tenemos proveedor y falta presupuesto este trimestre.",
+    },
     participantCount: 1,
     participants: [
       {
@@ -30,10 +33,12 @@ function sampleCohort(): KrakenLabCohortConfig {
       },
     ],
     receiverPersonas: [],
+    selectedPersonaId: undefined,
     difficultyLevel: 2,
     sessionSeed: "kraken-api-test-seed",
   };
-  cohort.receiverPersonas = generateReceiverPersonas(cohort, 1);
+  cohort.receiverPersonas = generateReceiverPersonas(cohort, 3);
+  cohort.selectedPersonaId = cohort.receiverPersonas[0]?.id;
   return cohort;
 }
 
