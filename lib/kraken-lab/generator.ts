@@ -13,7 +13,7 @@ import {
   RECEIVER_ROLES,
   TEMPERAMENT_BY_DIFFICULTY,
 } from "./persona-pools";
-import { scenarioContextSnippet } from "./scenario-context";
+import { scenarioContextSnippet, fullScenarioContextText } from "./scenario-context";
 import { SeededRng, buildSessionSeed, mintFreshSessionSeed } from "./seed";
 import type {
   AttentionState,
@@ -115,8 +115,8 @@ function difficultyLabelForLevel(level: DifficultyLevel, rng: SeededRng): string
   return rng.pick(DIFFICULTY_LABELS);
 }
 
-function contextKeywords(text: string): string[] {
-  return text
+function contextKeywords(context: ScenarioContextUpload | undefined): string[] {
+  return fullScenarioContextText(context)
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -132,7 +132,7 @@ function buildPainPoints(
 ): string[] {
   const used = new Set<string>();
   const pains: string[] = [];
-  const keywords = contextKeywords(context?.text ?? "");
+  const keywords = contextKeywords(context);
 
   while (pains.length < count) {
     let candidate: string;

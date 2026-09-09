@@ -16,10 +16,6 @@ import {
   generateReceiverPersonas,
   mintFreshSessionSeed,
 } from "@/lib/kraken-lab/generator";
-import {
-  extractTextFromScenarioFile,
-  mergeScenarioContextText,
-} from "@/lib/kraken-lab/scenario-context";
 import type {
   KrakenLabCohortConfig,
   KrakenLabProject,
@@ -27,6 +23,7 @@ import type {
   SimulatorRole,
 } from "@/lib/kraken-lab/types";
 import { ReceiverPersonaCard } from "@/app/components/kraken-lab/ReceiverPersonaCard";
+import { ScenarioContextUploadPanel } from "@/app/components/kraken-lab/ScenarioContextUploadPanel";
 import { useToast } from "@/components/ui/Toast";
 import {
   canAdvanceWizardStep,
@@ -88,9 +85,7 @@ export function KrakenLabWizard({
   const [mode, setMode] = useState<PracticeMode>("texto");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploadingContext, setUploadingContext] = useState(false);
   const difficultyGroupId = useId();
-  const contextFileInputId = useId();
   const { showToast } = useToast();
 
   const issues = useMemo(() => validateWizardStep(step, draft), [step, draft]);
@@ -116,36 +111,6 @@ export function KrakenLabWizard({
       receiverPersonas: personas,
       selectedPersonaId: personas[0]?.id,
     });
-  };
-
-  const handleContextFile = async (file: File | null) => {
-    if (!file) return;
-    setUploadingContext(true);
-    try {
-      const result = await extractTextFromScenarioFile(file);
-      if (result.unsupportedFormat) {
-        showToast(
-          "Por ahora pega el texto o sube .txt / .md. PDF y DOCX llegarán después.",
-          "info",
-        );
-        return;
-      }
-      if (!result.text) {
-        showToast("No se encontró texto en el archivo.", "error");
-        return;
-      }
-      updateDraft({
-        scenarioContext: mergeScenarioContextText(draft.scenarioContext, result.text),
-      });
-      showToast(`Contexto agregado desde ${file.name}.`, "success");
-    } catch (err) {
-      showToast(
-        err instanceof Error ? err.message : "No se pudo leer el archivo.",
-        "error",
-      );
-    } finally {
-      setUploadingContext(false);
-    }
   };
 
   const handleStart = async () => {
@@ -208,8 +173,10 @@ export function KrakenLabWizard({
           key={project}
           interactive
           selected={draft.project === project}
+          className="wizard-choice-card"
           role="button"
           tabIndex={0}
+          aria-pressed={draft.project === project}
           onClick={() => updateDraft({ project })}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -239,36 +206,11 @@ export function KrakenLabWizard({
             Pega o sube material del producto/servicio, objeciones típicas o guiones de
             referencia. Lo usamos para generar personas y diálogos más humanos.
           </p>
-          <label className="field">
-            <span>Brief / producto / objeciones / guion</span>
-            <textarea
-              rows={6}
-              value={draft.scenarioContext?.text ?? ""}
-              onChange={(e) =>
-                updateDraft({
-                  scenarioContext: {
-                    ...(draft.scenarioContext ?? { text: "" }),
-                    text: e.target.value,
-                  },
-                })
-              }
-              placeholder="Ej. Vendemos Kraken Flow a importadoras: pedidos urgentes se atascan entre ventas y almacén. Objeciones: ya tenemos ERP, no queremos otra captura…"
-            />
-          </label>
-          <label className="field" htmlFor={contextFileInputId}>
-            <span>Archivo opcional (.txt, .md; PDF/DOCX: pega el texto por ahora)</span>
-            <input
-              id={contextFileInputId}
-              type="file"
-              accept=".txt,.md,.pdf,.docx,text/plain,text/markdown"
-              disabled={uploadingContext}
-              onChange={(e) => {
-                const file = e.target.files?.[0] ?? null;
-                void handleContextFile(file);
-                e.currentTarget.value = "";
-              }}
-            />
-          </label>
+          <ScenarioContextUploadPanel
+            value={draft.scenarioContext}
+            onChange={(scenarioContext) => updateDraft({ scenarioContext })}
+            onToast={(message, tone) => showToast(message, tone)}
+          />
         </div>
       ) : null}
     </div>
@@ -437,8 +379,10 @@ export function KrakenLabWizard({
             key={role}
             interactive
             selected={draft.simulatorRole === role}
+            className="wizard-choice-card"
             role="button"
             tabIndex={0}
+            aria-pressed={draft.simulatorRole === role}
             onClick={() => updateDraft({ simulatorRole: role })}
           >
             <h3>{SIMULATOR_ROLE_LABELS[role]}</h3>
