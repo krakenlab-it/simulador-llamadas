@@ -78,9 +78,25 @@ function normalizeParticipant(value: unknown): PasanteProfile | null {
 export function wizardDraftHasSavedContent(
   draft: Partial<KrakenLabCohortConfig>,
 ): boolean {
+  if (wizardDraftHasScenarioContextContent(draft)) return true;
+  if (wizardDraftHasParticipantsContent(draft)) return true;
+  if (draft.roleObjective?.trim()) return true;
+  if ((draft.receiverPersonas?.length ?? 0) > 0) return true;
+  if (draft.projectOther?.trim()) return true;
+  return false;
+}
+
+export function wizardDraftHasScenarioContextContent(
+  draft: Partial<KrakenLabCohortConfig>,
+): boolean {
   if (fullScenarioContextText(draft.scenarioContext).trim().length > 0) return true;
-  if ((draft.scenarioContext?.files?.length ?? 0) > 0) return true;
-  if (
+  return (draft.scenarioContext?.files?.length ?? 0) > 0;
+}
+
+export function wizardDraftHasParticipantsContent(
+  draft: Partial<KrakenLabCohortConfig>,
+): boolean {
+  return (
     draft.participants?.some(
       (profile) =>
         profile.fullName.trim() ||
@@ -88,14 +104,35 @@ export function wizardDraftHasSavedContent(
         profile.phone.trim() ||
         profile.city.trim() ||
         profile.cvFileName,
-    )
+    ) ?? false
+  );
+}
+
+export function mergeWizardDraftPreservingRicherFields(
+  incoming: Partial<KrakenLabCohortConfig>,
+  stored: Partial<KrakenLabCohortConfig>,
+): Partial<KrakenLabCohortConfig> {
+  const merged: Partial<KrakenLabCohortConfig> = { ...incoming };
+
+  const incomingContextLength = fullScenarioContextText(incoming.scenarioContext).trim().length;
+  const storedContextLength = fullScenarioContextText(stored.scenarioContext).trim().length;
+  if (
+    incomingContextLength < 30 &&
+    storedContextLength >= incomingContextLength &&
+    wizardDraftHasScenarioContextContent(stored)
   ) {
-    return true;
+    merged.scenarioContext = stored.scenarioContext;
   }
-  if (draft.roleObjective?.trim()) return true;
-  if ((draft.receiverPersonas?.length ?? 0) > 0) return true;
-  if (draft.projectOther?.trim()) return true;
-  return false;
+
+  if (
+    !wizardDraftHasParticipantsContent(incoming) &&
+    wizardDraftHasParticipantsContent(stored)
+  ) {
+    merged.participants = stored.participants;
+    merged.participantCount = stored.participantCount ?? merged.participantCount;
+  }
+
+  return merged;
 }
 
 export function mergeWizardDraftWithDefaults(
@@ -192,10 +229,16 @@ export function saveWizardDraftToStorage(input: {
     return { ok: false, error: "storage_unavailable" };
   }
 
+  const stored = loadWizardDraftFromStorage();
+  const draftToSave =
+    stored && wizardDraftHasSavedContent(stored.draft)
+      ? mergeWizardDraftPreservingRicherFields(input.draft, stored.draft)
+      : input.draft;
+
   const payload = serializeWizardDraft({
     step: input.step,
     mode: input.mode,
-    draft: input.draft,
+    draft: draftToSave,
   });
 
   try {
@@ -212,7 +255,7 @@ export function saveWizardDraftToStorage(input: {
   }
 
   try {
-    const trimmedDraft = trimScenarioFileBodies(input.draft);
+    const trimmedDraft = trimScenarioFileBodies(draftToSave);
     writeDraft(
       serializeWizardDraft({
         step: input.step,

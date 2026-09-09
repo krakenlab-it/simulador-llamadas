@@ -44,6 +44,10 @@ import {
   saveWizardDraftToStorage,
   wizardDraftHasSavedContent,
 } from "@/lib/kraken-lab/wizard-draft-storage";
+import {
+  seedWizardScenarioContextFromPriorPractice,
+  shouldOfferPriorPracticeContextSeed,
+} from "@/lib/kraken-lab/practice-context-seed";
 import { DIFFICULTY_LABELS, MODE_LABELS } from "@/lib/frontend/training-readiness";
 import {
   openingLineForCall,
@@ -82,6 +86,31 @@ function prevStep(step: WizardStep): WizardStep {
   return WIZARD_STEPS[Math.max(idx - 1, 0)];
 }
 
+function readInitialWizardState(): {
+  draft: Partial<KrakenLabCohortConfig>;
+  step: WizardStep;
+  mode: PracticeMode;
+  draftRecovered: boolean;
+  draftTrimmed: boolean;
+  contextSeeded: boolean;
+} {
+  const stored = loadWizardDraftFromStorage();
+  const baseDraft =
+    stored && wizardDraftHasSavedContent(stored.draft)
+      ? stored.draft
+      : defaultCohortDraft();
+  const seeded = seedWizardScenarioContextFromPriorPractice(baseDraft);
+
+  return {
+    draft: seeded.draft,
+    step: stored?.step ?? "proyecto",
+    mode: stored?.mode ?? "texto",
+    draftRecovered: Boolean(stored && wizardDraftHasSavedContent(stored.draft)),
+    draftTrimmed: Boolean(stored?.trimmedFileBodies),
+    contextSeeded: seeded.seeded,
+  };
+}
+
 export function KrakenLabWizard({
   isStarting = false,
   traineeId = null,
@@ -91,39 +120,41 @@ export function KrakenLabWizard({
   onCancel,
   onStart,
 }: KrakenLabWizardProps) {
-  const [step, setStep] = useState<WizardStep>("proyecto");
-  const [draft, setDraft] = useState<Partial<KrakenLabCohortConfig>>(defaultCohortDraft);
-  const [mode, setMode] = useState<PracticeMode>("texto");
+  const initialStateRef = useRef(readInitialWizardState());
+  const initialState = initialStateRef.current;
+  const [step, setStep] = useState<WizardStep>(initialState.step);
+  const [draft, setDraft] = useState<Partial<KrakenLabCohortConfig>>(initialState.draft);
+  const [mode, setMode] = useState<PracticeMode>(initialState.mode);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
-  const [draftRecovered, setDraftRecovered] = useState(false);
-  const [draftTrimmed, setDraftTrimmed] = useState(false);
+  const [draftRecovered, setDraftRecovered] = useState(initialState.draftRecovered);
+  const [draftTrimmed, setDraftTrimmed] = useState(initialState.draftTrimmed);
+  const [autosaveReady, setAutosaveReady] = useState(false);
   const difficultyGroupId = useId();
   const { showToast } = useToast();
   const recoveryToastShown = useRef(false);
+  const contextSeedToastShown = useRef(initialState.contextSeeded);
   const trimToastShown = useRef(false);
 
   useEffect(() => {
-    const stored = loadWizardDraftFromStorage();
-    if (stored && wizardDraftHasSavedContent(stored.draft)) {
-      setDraft(stored.draft);
-      setStep(stored.step);
-      setMode(stored.mode);
-      setDraftRecovered(true);
-      setDraftTrimmed(Boolean(stored.trimmedFileBodies));
-    }
-    setHydrated(true);
+    const timer = window.setTimeout(() => setAutosaveReady(true), 350);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    if (!hydrated || !draftRecovered || recoveryToastShown.current) return;
+    if (!draftRecovered || recoveryToastShown.current) return;
     recoveryToastShown.current = true;
     showToast("Borrador recuperado", "info");
-  }, [hydrated, draftRecovered, showToast]);
+  }, [draftRecovered, showToast]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!initialState.contextSeeded || contextSeedToastShown.current) return;
+    contextSeedToastShown.current = true;
+    showToast("Recuperamos el contexto de tu práctica anterior.", "info");
+  }, [initialState.contextSeeded, showToast]);
+
+  useEffect(() => {
+    if (!autosaveReady) return;
     const timer = window.setTimeout(() => {
       const result = saveWizardDraftToStorage({ step, mode, draft });
       if (result.trimmed && !trimToastShown.current) {
@@ -136,7 +167,7 @@ export function KrakenLabWizard({
       }
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [draft, step, mode, hydrated, showToast]);
+  }, [draft, step, mode, autosaveReady, showToast]);
 
   const issues = useMemo(() => validateWizardStep(step, draft), [step, draft]);
   const canAdvance = issues.length === 0;
@@ -164,6 +195,16 @@ export function KrakenLabWizard({
     setDraftTrimmed(false);
     showToast("Borrador eliminado", "info");
   }, [showToast]);
+
+  const handleSeedPriorPracticeContext = useCallback(() => {
+    const seeded = seedWizardScenarioContextFromPriorPractice(draft);
+    if (!seeded.seeded) {
+      showToast("No encontramos una práctica anterior con contexto guardado.", "info");
+      return;
+    }
+    updateDraft({ scenarioContext: seeded.draft.scenarioContext });
+    showToast("Recuperamos el contexto de tu práctica anterior.", "info");
+  }, [draft, showToast, updateDraft]);
 
   const handleGeneratePersonas = (regenerate = false) => {
     const seed = regenerate ? mintFreshSessionSeed() : draft.sessionSeed?.trim() || mintFreshSessionSeed();
@@ -279,6 +320,16 @@ export function KrakenLabWizard({
             onChange={(scenarioContext) => updateDraft({ scenarioContext })}
             onToast={(message, tone) => showToast(message, tone)}
           />
+          {shouldOfferPriorPracticeContextSeed(draft) ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="wizard-panel__seed-context"
+              onClick={handleSeedPriorPracticeContext}
+            >
+              Usar datos de la práctica anterior
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </div>

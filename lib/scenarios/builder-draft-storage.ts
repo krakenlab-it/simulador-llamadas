@@ -122,19 +122,17 @@ export function builderDraftHasSavedContent(draft: ScenarioAuthoringDraft): bool
   return textFields.some((value) => value.trim().length > 0);
 }
 
-export function loadBuilderDraftFromStorage(
-  draftKey: string,
+function parseBuilderDraftEnvelope(
+  raw: string,
+  draftKey?: string,
 ): PersistedBuilderDraft | null {
-  if (!canUseStorage()) return null;
-
   try {
-    const raw = localStorage.getItem(SCENARIO_BUILDER_DRAFT_STORAGE_KEY);
-    if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object") return null;
 
     const envelope = parsed as Partial<PersistedBuilderDraft>;
-    if (envelope.version !== 1 || envelope.draftKey !== draftKey) return null;
+    if (envelope.version !== 1) return null;
+    if (draftKey && envelope.draftKey !== draftKey) return null;
     if (!isAuthoringStep(envelope.step)) return null;
 
     const draft = normalizeDraft(envelope.draft);
@@ -142,7 +140,7 @@ export function loadBuilderDraftFromStorage(
 
     return {
       version: 1,
-      draftKey,
+      draftKey: envelope.draftKey ?? draftKey ?? "new",
       step: envelope.step,
       draft,
       savedAt: typeof envelope.savedAt === "string" ? envelope.savedAt : new Date().toISOString(),
@@ -150,6 +148,23 @@ export function loadBuilderDraftFromStorage(
   } catch {
     return null;
   }
+}
+
+export function loadAnyBuilderDraftFromStorage(): PersistedBuilderDraft | null {
+  if (!canUseStorage()) return null;
+  const raw = localStorage.getItem(SCENARIO_BUILDER_DRAFT_STORAGE_KEY);
+  if (!raw) return null;
+  return parseBuilderDraftEnvelope(raw);
+}
+
+export function loadBuilderDraftFromStorage(
+  draftKey: string,
+): PersistedBuilderDraft | null {
+  if (!canUseStorage()) return null;
+
+  const raw = localStorage.getItem(SCENARIO_BUILDER_DRAFT_STORAGE_KEY);
+  if (!raw) return null;
+  return parseBuilderDraftEnvelope(raw, draftKey);
 }
 
 export function saveBuilderDraftToStorage(input: {
