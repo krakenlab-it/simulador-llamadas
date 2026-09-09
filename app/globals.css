@@ -815,6 +815,103 @@ body {
   gap: 0.5rem;
 }
 
+.train-hub__kraken-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.agentic-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 12, 18, 0.72);
+  padding: 1rem;
+}
+
+.agentic-gate {
+  width: min(100%, 24rem);
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised, #151b24);
+  border: 1px solid var(--border-subtle, #2a3340);
+  box-shadow: var(--shadow-lg, 0 12px 40px rgba(0, 0, 0, 0.35));
+}
+
+.agentic-gate__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+}
+
+.agentic-gate__form {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.agentic-gate__error {
+  margin: 0;
+  color: #f87171;
+  font-size: 0.875rem;
+}
+
+.agentic-gate__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.agentic-panel {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 0 0 2rem;
+}
+
+.agentic-panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.agentic-panel__engines {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.agentic-panel__engine-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.agentic-panel__settings {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.agentic-panel__tones {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.agentic-panel__tone-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--text-muted, #9aa7b8);
+}
+
 /* kraken-wizard-step-pills v2 — explicit contrast (2026-09-08) */
 .kraken-wizard .wizard-steps {
   display: flex;

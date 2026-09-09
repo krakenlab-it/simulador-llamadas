@@ -2,6 +2,8 @@ import type { Client } from "pg";
 import { ScenarioRepository } from "@/lib/scenarios/repository";
 import type { CreateCustomScenarioInput } from "@/lib/scenarios/types";
 import { buildKrakenScenario } from "./generator";
+import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
+import { mergeAgenticRuntime } from "@/lib/agentic/runtime";
 import type {
   GeneratedKrakenScenario,
   KrakenLabCohortConfig,
@@ -62,6 +64,7 @@ export class KrakenLabRepository {
   async createScenarioFromCohort(
     cohort: KrakenLabCohortConfig,
     traineeId?: string,
+    agenticRuntime?: AgenticRuntimeConfig,
   ): Promise<{ scenarioId: string; generated: GeneratedKrakenScenario }> {
     const generated = buildKrakenScenario(cohort);
     const input: CreateCustomScenarioInput = {
@@ -84,20 +87,27 @@ export class KrakenLabRepository {
     const scenarioRepo = new ScenarioRepository(this.client);
     const created = await scenarioRepo.createCustom(input);
 
+    const mergedConfig = mergeAgenticRuntime(
+      {
+        ...created.config,
+        krakenLab: generated.config.krakenLab,
+        agentic: generated.config.agentic,
+      },
+      agenticRuntime,
+    );
+
     await this.client.query(
       `UPDATE scenarios SET config = $2::jsonb WHERE id = $1`,
-      [
-        created.id,
-        JSON.stringify({
-          ...created.config,
-          krakenLab: generated.config.krakenLab,
-        }),
-      ],
+      [created.id, JSON.stringify(mergedConfig)],
     );
 
     return {
       scenarioId: created.id,
-      generated: { ...generated, slug: created.slug },
+      generated: {
+        ...generated,
+        slug: created.slug,
+        config: mergedConfig as GeneratedKrakenScenario["config"],
+      },
     };
   }
 
@@ -124,6 +134,7 @@ export async function startKrakenLabSession(
     cohort: KrakenLabCohortConfig;
     traineeId: string;
     mode: "voz" | "texto";
+    agenticRuntime?: AgenticRuntimeConfig;
   },
 ): Promise<StartKrakenSessionResult> {
   const repo = new KrakenLabRepository(client);
@@ -138,6 +149,7 @@ export async function startKrakenLabSession(
   const { scenarioId, generated } = await repo.createScenarioFromCohort(
     cohort,
     input.traineeId,
+    input.agenticRuntime,
   );
 
   if (cohort.id) {

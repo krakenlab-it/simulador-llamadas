@@ -9,6 +9,15 @@ import {
   generateGroqClientReply,
   isGroqAvailable,
 } from "@/lib/llm/client-replies";
+import {
+  buildScenarioPack,
+  generateCharacterReply,
+  generateCoachNote,
+  getToneById,
+  isAgenticSessionActive,
+  pickTone,
+  resolveAgenticSeed,
+} from "@/lib/agentic";
 import { templateClientReply } from "@/lib/feedback/evaluation";
 import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
 import { isClinicRoundType, phaseKeyFromPersistenceKey } from "@/lib/simulation/round-keys";
@@ -135,7 +144,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   });
 
   const clientReaction = reactionFromAnalytics(analytics, input.utterance);
-  const coachingNote = buildCoachingNote(
+  let coachingNote = buildCoachingNote(
     analytics,
     input.roundLabel,
     input.utterance,
@@ -194,15 +203,60 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
         negativeCriteria: [],
       };
 
-    clientReply = await generateClientReply({
-      config:
-        applyVoiceAgentPersonality(input.config, input.voiceAgent) ?? input.config,
+    const effectiveConfig =
+      applyVoiceAgentPersonality(input.config, input.voiceAgent) ?? input.config;
+
+    const fallbackReply = templateClientReply(
+      effectiveConfig,
       round,
-      reaction: clientReaction,
-      clientName: input.clientName,
-      traineeUtterance: input.utterance,
-      roundNumber: resolveTurnNumber(input),
-    });
+      clientReaction,
+      input.clientName,
+    );
+
+    if (
+      isAgenticSessionActive(
+        effectiveConfig,
+        input.isPreset,
+        input.scenarioSlug,
+      )
+    ) {
+      const pack = buildScenarioPack(
+        effectiveConfig,
+        effectiveConfig.agentic?.scenarioContextText,
+      );
+      const seed = resolveAgenticSeed(effectiveConfig, input.scenarioSlug);
+      const tone = effectiveConfig.agentic?.toneId
+        ? getToneById(effectiveConfig.agentic.toneId)
+        : pickTone(seed, input.difficultyLevel);
+
+      const character = await generateCharacterReply({
+        pack,
+        tone,
+        clientName: input.clientName,
+        traineeUtterance: input.utterance,
+        roundLabel: input.roundLabel,
+        reaction: clientReaction,
+        fallbackText: fallbackReply,
+      });
+      clientReply = character.reply;
+
+      const coachPack = pack;
+      coachingNote = await generateCoachNote({
+        pack: coachPack,
+        traineeUtterance: input.utterance,
+        roundLabel: input.roundLabel,
+        analyticsSummary: `talk ${analytics.talkPercent}%, preguntas abiertas ${analytics.questionTypes.open}`,
+      });
+    } else {
+      clientReply = await generateClientReply({
+        config: effectiveConfig,
+        round,
+        reaction: clientReaction,
+        clientName: input.clientName,
+        traineeUtterance: input.utterance,
+        roundNumber: resolveTurnNumber(input),
+      });
+    }
   } else {
     clientReply = "Entiendo. Siga.";
   }

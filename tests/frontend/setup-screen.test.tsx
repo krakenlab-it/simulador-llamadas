@@ -47,12 +47,14 @@ function renderHub(
   const onCreateScenario = vi.fn();
   const onEditScenario = vi.fn();
   const onOpenKrakenWizard = vi.fn();
+  const onOpenAgenticPanel = vi.fn();
 
   render(
     <ToastProvider>
       <ScenarioHub
         onStart={onStart}
         onOpenKrakenWizard={onOpenKrakenWizard}
+        onOpenAgenticPanel={onOpenAgenticPanel}
         onCreateScenario={onCreateScenario}
         onEditScenario={onEditScenario}
         {...props}
@@ -60,7 +62,7 @@ function renderHub(
     </ToastProvider>,
   );
 
-  return { onStart, onCreateScenario, onEditScenario, onOpenKrakenWizard };
+  return { onStart, onCreateScenario, onEditScenario, onOpenKrakenWizard, onOpenAgenticPanel };
 }
 
 describe("ScenarioHub flow", () => {

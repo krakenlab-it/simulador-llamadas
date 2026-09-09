@@ -1,4 +1,5 @@
 import type { DifficultyLevel } from "@/lib/db/types";
+import { pickTone } from "@/lib/agentic/tone-bank";
 import type { ScenarioRoundDef } from "@/lib/scenarios/types";
 import { DEFAULT_MOODS } from "./constants";
 import {
@@ -465,6 +466,9 @@ export function buildKrakenScenario(
     contextSnippet ||
     "operaciones diarias";
 
+  const contextText = fullScenarioContextText(cohort.scenarioContext);
+  const tone = pickTone(`${cohort.sessionSeed}:persona`, cohort.difficultyLevel);
+
   const config: KrakenLabScenarioConfig = {
     industry: persona.extras.industry,
     productSold: product,
@@ -483,6 +487,12 @@ export function buildKrakenScenario(
     ],
     language: "es",
     callType: focus === "ventas" ? "fria" : "discovery",
+    agentic: {
+      enabled: false,
+      toneId: tone.id,
+      sessionSeed: cohort.sessionSeed,
+      scenarioContextText: contextText,
+    },
     krakenLab: meta,
   };
 

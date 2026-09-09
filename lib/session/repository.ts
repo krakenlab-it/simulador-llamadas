@@ -26,12 +26,15 @@ import {
   parseVoiceAgentSettings,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
+import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
+import { mergeAgenticRuntime } from "@/lib/agentic/runtime";
 
 export interface CreateSessionInput {
   traineeId: string;
   scenarioSlug: string;
   difficultyLevel: DifficultyLevel;
   mode: PracticeMode;
+  agenticRuntime?: AgenticRuntimeConfig;
 }
 
 export interface SessionRecord {
@@ -220,6 +223,15 @@ export class SessionRepository {
   async createSession(input: CreateSessionInput): Promise<SessionRecord> {
     const scenario = await this.loadScenario(input.scenarioSlug);
 
+    let config = scenario.config;
+    if (input.agenticRuntime && config && !scenario.isPreset) {
+      config = mergeAgenticRuntime(config, input.agenticRuntime);
+      await this.client.query(`UPDATE scenarios SET config = $2::jsonb WHERE id = $1`, [
+        scenario.id,
+        JSON.stringify(config),
+      ]);
+    }
+
     const attempt = await this.client.query<{ id: string }>(
       `INSERT INTO call_attempts (trainee_id, scenario_id, difficulty_level, mode)
        VALUES ($1, $2, $3, $4)
@@ -238,7 +250,7 @@ export class SessionRepository {
       status: "in_progress",
       currentRound: 1,
       totalRounds: scenario.totalRounds,
-      config: scenario.config,
+      config,
       voiceAgent: scenario.voiceAgent,
     };
   }
