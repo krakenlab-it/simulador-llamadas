@@ -1,12 +1,19 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createScenario, updateScenario } from "@/lib/api/client";
 import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
 import {
   authoringDraftHasContent,
   buildExampleAuthoringDraft,
 } from "@/lib/scenarios/example-draft";
+import {
+  builderDraftHasSavedContent,
+  builderDraftKey,
+  clearBuilderDraftFromStorage,
+  loadBuilderDraftFromStorage,
+  saveBuilderDraftToStorage,
+} from "@/lib/scenarios/builder-draft-storage";
 import {
   DIFFICULTY_LABEL_OPTIONS,
   INDUSTRY_OPTIONS,
@@ -96,8 +103,10 @@ export function ScenarioBuilderScreen({
   onCancel,
 }: ScenarioBuilderScreenProps) {
   const editing = Boolean(initialScenario && !initialScenario.isPreset);
+  const draftKey = builderDraftKey(editing ? initialScenario?.slug : null);
   const languageGroupId = useId();
   const callTypeGroupId = useId();
+  const hydratedRef = useRef<string | null>(null);
   const [step, setStep] = useState<AuthoringStep>("persona");
   const [draft, setDraft] = useState<ScenarioAuthoringDraft>(() =>
     initialScenario ? draftFromRecord(initialScenario) : emptyAuthoringDraft(),
@@ -105,6 +114,35 @@ export function ScenarioBuilderScreen({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useToast();
+
+  useEffect(() => {
+    if (hydratedRef.current === draftKey) return;
+    hydratedRef.current = draftKey;
+
+    const stored = loadBuilderDraftFromStorage(draftKey);
+    if (stored) {
+      setDraft(stored.draft);
+      setStep(stored.step);
+      if (builderDraftHasSavedContent(stored.draft)) {
+        showToast("Borrador recuperado. Revisa los datos antes de guardar.", "info");
+      }
+      return;
+    }
+
+    setDraft(initialScenario ? draftFromRecord(initialScenario) : emptyAuthoringDraft());
+    setStep("persona");
+  }, [draftKey, initialScenario, showToast]);
+
+  useEffect(() => {
+    if (hydratedRef.current !== draftKey) return;
+
+    const timer = window.setTimeout(() => {
+      if (!builderDraftHasSavedContent(draft)) return;
+      saveBuilderDraftToStorage({ draftKey, step, draft });
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [draft, draftKey, step]);
 
   const stepIndex = AUTHORING_STEPS.indexOf(step);
   const validationError = useMemo(() => validateAuthoringDraft(draft), [draft]);
@@ -169,6 +207,7 @@ export function ScenarioBuilderScreen({
         editing && initialScenario
           ? await updateScenario({ ...payload, slug: initialScenario.slug })
           : await createScenario(payload);
+      clearBuilderDraftFromStorage(draftKey);
       onSave({
         scenario: result.scenario,
         usedLocalFallback: result.usedLocalFallback,

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   stubCreateScenario,
   stubCreateSession,
@@ -8,9 +8,36 @@ import {
   stubUpdateScenario,
   resetStubSessions,
 } from "@/lib/api/stubs";
+import {
+  clearLocalCustomScenarios,
+  loadLocalCustomScenarios,
+  upsertLocalCustomScenario,
+} from "@/lib/scenarios/local";
+import type { ScenarioRecord } from "@/lib/scenarios/types";
 
 describe("custom scenario stubs", () => {
+  let store: Record<string, string>;
+
   beforeEach(() => {
+    store = {};
+    vi.stubGlobal("localStorage", {
+      getItem(key: string) {
+        return store[key] ?? null;
+      },
+      setItem(key: string, value: string) {
+        store[key] = value;
+      },
+      removeItem(key: string) {
+        delete store[key];
+      },
+    });
+    resetStubSessions();
+    clearLocalCustomScenarios();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearLocalCustomScenarios();
     resetStubSessions();
   });
 
@@ -96,5 +123,112 @@ describe("custom scenario stubs", () => {
       "mesa de trabajo",
     );
     expect(stubListScenarios().some((s) => s.slug === created.slug)).toBe(true);
+  });
+
+  it("updates a scenario hydrated from localStorage after stub reset", () => {
+    const created = stubCreateScenario({
+      industry: "importacion",
+      productSold: "Kraken Flow",
+      clientName: "Valeria Soto",
+      clientTitle: "Directora de Compras",
+      companyContext: "Importadora del Norte",
+      temperament: "Escéptica",
+      difficultyLabel: "Media",
+      clientProblem: "pedidos urgentes atascados",
+      objections: ["Ya tenemos ERP"],
+      winCriteria: "Mesa de trabajo el jueves",
+      language: "es",
+      callType: "discovery",
+    });
+
+    resetStubSessions();
+    expect(loadLocalCustomScenarios().some((scenario) => scenario.slug === created.slug)).toBe(
+      true,
+    );
+
+    const updated = stubUpdateScenario({
+      slug: created.slug,
+      industry: "importacion",
+      productSold: "Kraken Flow",
+      clientName: "Valeria Soto",
+      clientTitle: "Directora de Compras",
+      companyContext: "Importadora del Norte",
+      temperament: "Escéptica",
+      difficultyLabel: "Media",
+      clientProblem: "pedidos urgentes atascados",
+      objections: ["Ya tenemos ERP"],
+      winCriteria: "SPIN Advance: mesa jueves 10:00",
+      language: "es",
+      callType: "discovery",
+      dimensionGuides: {
+        valor_tailor:
+          "Conecta Kraken Flow con la posibilidad de llegar a las personas indicadas que quiere el colegio",
+      },
+    });
+
+    expect(updated.slug).toBe(created.slug);
+    expect(updated.config.dimensionGuides?.valor_tailor).toContain("Kraken Flow");
+  });
+
+  it("upserts update payload when slug exists only in localStorage", () => {
+    const slug = "valeria-soto-importaci-n-y-distribuci-n-vk68";
+    const record: ScenarioRecord = {
+      id: "scenario-valeria",
+      slug,
+      isPreset: false,
+      clientName: "Valeria Soto",
+      clientTitle: "Directora de Compras",
+      companyContext: "Importadora del Norte",
+      difficultyLabel: "Media",
+      indicator: "Mesa",
+      painPoints: ["ERP"],
+      industry: "importacion",
+      productSold: "Kraken Flow",
+      temperament: "Escéptica",
+      clientProblem: "pedidos urgentes atascados",
+      objections: ["Ya tenemos ERP"],
+      winCriteria: "Mesa de trabajo",
+      language: "es",
+      config: {
+        industry: "importacion",
+        productSold: "Kraken Flow",
+        clientProblem: "pedidos urgentes atascados",
+        objections: ["Ya tenemos ERP"],
+        winCriteria: "Mesa de trabajo",
+        temperament: "Escéptica",
+        language: "es",
+        callType: "discovery",
+        rounds: [],
+        criteria: [],
+        globalPositiveCriteria: [],
+        openingLines: [],
+      },
+    };
+
+    upsertLocalCustomScenario(record);
+    resetStubSessions();
+
+    const updated = stubUpdateScenario({
+      slug,
+      industry: "importacion",
+      productSold: "Kraken Flow",
+      clientName: "Valeria Soto",
+      clientTitle: "Directora de Compras",
+      companyContext: "Importadora del Norte",
+      temperament: "Escéptica",
+      difficultyLabel: "Media",
+      clientProblem: "pedidos urgentes atascados",
+      objections: ["Ya tenemos ERP"],
+      winCriteria: "SPIN Advance: mesa jueves 10:00",
+      language: "es",
+      callType: "discovery",
+      dimensionGuides: {
+        compostura_objecion:
+          "Valida el ERP actual y propone pruebas de concepto y prueba de que funciona Kraken Flow",
+      },
+    });
+
+    expect(updated.slug).toBe(slug);
+    expect(updated.config.dimensionGuides?.compostura_objecion).toContain("ERP");
   });
 });
