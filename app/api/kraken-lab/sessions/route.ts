@@ -79,7 +79,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const mapped = toPublicRouteError(
       error,
-      "No se pudo iniciar la simulación Kraken Lab.",
+      "No se pudo iniciar Kraken Simulación.",
     );
     return NextResponse.json(mapped.body, { status: mapped.status });
   }

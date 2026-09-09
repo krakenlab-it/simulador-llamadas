@@ -37,6 +37,7 @@ import {
   scoringPhaseCount,
 } from "@/lib/scenarios/authoring";
 import { getClientLine } from "@/lib/simulation/rounds";
+import { NUEVA_SIMULACION_CTA_LABEL } from "@/lib/kraken-lab/constants";
 import { AgenticGate } from "@/app/components/agentic/AgenticGate";
 import { isAgenticUnlocked } from "@/lib/agentic/settings";
 
@@ -310,7 +311,7 @@ export function ScenarioHub({
         <div className="train-hub__kraken-entry">
           <div className="train-hub__kraken-actions">
             <Button variant="primary" onClick={onOpenKrakenWizard}>
-              Nueva simulación Kraken Lab
+              {NUEVA_SIMULACION_CTA_LABEL}
             </Button>
             <Button
               variant="secondary"

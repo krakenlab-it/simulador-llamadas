@@ -5,6 +5,8 @@ import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import {
   DIFFICULTY_DESCRIPTIONS,
   KRAKEN_PROJECT_LABELS,
+  KRAKEN_SIMULACION_PRODUCT_NAME,
+  NUEVA_SIMULACION_CTA_LABEL,
   SIMULATION_FOCUS_LABELS,
   SIMULATOR_ROLE_LABELS,
   WIZARD_STEP_LABELS,
@@ -549,8 +551,8 @@ export function KrakenLabWizard({
   return (
     <div className="train-hub kraken-wizard">
       <header className="page-hero">
-        <p className="page-hero__eyebrow">Kraken Lab · Simulación escenarios</p>
-        <h1 className="page-hero__title">Nueva simulación Kraken Lab</h1>
+        <p className="page-hero__eyebrow">{KRAKEN_SIMULACION_PRODUCT_NAME}</p>
+        <h1 className="page-hero__title">{NUEVA_SIMULACION_CTA_LABEL}</h1>
         <p className="page-hero__subtitle">
           Configura tu cohorte, genera una persona receptora y practica con el mismo motor
           de la Clínica de Citas — con batería de diálogo fresca por sesión.
