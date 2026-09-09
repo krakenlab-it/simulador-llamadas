@@ -37,6 +37,8 @@ import {
   scoringPhaseCount,
 } from "@/lib/scenarios/authoring";
 import { getClientLine } from "@/lib/simulation/rounds";
+import { AgenticGate } from "@/app/components/agentic/AgenticGate";
+import { isAgenticUnlocked } from "@/lib/agentic/settings";
 
 export interface SetupConfig {
   scenarioSlug: string;
@@ -56,6 +58,7 @@ export interface SetupConfig {
 interface ScenarioHubProps {
   onStart: (config: SetupConfig) => void;
   onOpenKrakenWizard: () => void;
+  onOpenAgenticPanel: () => void;
   onCreateScenario: () => void;
   onEditScenario: (scenario: ScenarioRecord) => void;
   refreshKey?: number;
@@ -68,6 +71,7 @@ type ScenarioTab = "library" | "custom";
 export function ScenarioHub({
   onStart,
   onOpenKrakenWizard,
+  onOpenAgenticPanel,
   onCreateScenario,
   onEditScenario,
   refreshKey = 0,
@@ -89,6 +93,7 @@ export function ScenarioHub({
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   const [voiceAuthSkipped, setVoiceAuthSkipped] = useState(false);
+  const [agenticGateOpen, setAgenticGateOpen] = useState(false);
   const speech = useSpeechRecognition();
   const voiceConfig = useVoiceConfig();
   const { session } = useAuth();
@@ -303,14 +308,36 @@ export function ScenarioHub({
           cierre. Gana con día y hora concretos — o tu propio criterio de éxito.
         </p>
         <div className="train-hub__kraken-entry">
-          <Button variant="primary" onClick={onOpenKrakenWizard}>
-            Nueva simulación Kraken Lab
-          </Button>
+          <div className="train-hub__kraken-actions">
+            <Button variant="primary" onClick={onOpenKrakenWizard}>
+              Nueva simulación Kraken Lab
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (isAgenticUnlocked()) {
+                  onOpenAgenticPanel();
+                  return;
+                }
+                setAgenticGateOpen(true);
+              }}
+            >
+              Capa agentica
+            </Button>
+          </div>
           <p className="config-panel__hint">
             Asistente en español para cohortes de negocios internacionales: proyecto,
             perfiles, diálogos y persona receptora generada por sesión.
           </p>
         </div>
+        <AgenticGate
+          open={agenticGateOpen}
+          onClose={() => setAgenticGateOpen(false)}
+          onUnlocked={() => {
+            setAgenticGateOpen(false);
+            onOpenAgenticPanel();
+          }}
+        />
       </header>
 
       <div className="train-hub__tabs" role="tablist" aria-label="Tipo de escenario">

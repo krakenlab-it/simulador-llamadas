@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { PracticeMode } from "@/lib/db/types";
+import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
 import {
   createDefaultSessionSeed,
   enrichCohortWithPersonas,
@@ -21,6 +22,7 @@ interface StartKrakenSessionBody {
   traineeEmail?: string;
   traineeAuthUserId?: string;
   traineeDisplayName?: string;
+  agenticRuntime?: AgenticRuntimeConfig;
 }
 
 export async function POST(request: Request) {
@@ -69,6 +71,7 @@ export async function POST(request: Request) {
         cohort: enriched,
         traineeId,
         mode: body.mode,
+        agenticRuntime: body.agenticRuntime,
       });
     });
 

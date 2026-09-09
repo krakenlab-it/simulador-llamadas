@@ -14,12 +14,14 @@ import {
   beginStarting,
   closeBuilder,
   closeKrakenWizard,
+  closeAgenticPanel,
   enterCall,
   enterDetail,
   enterResults,
   initialFlowState,
   navigate,
   openBuilder,
+  openAgenticPanel,
   openKrakenWizard,
   resetToHome,
   resetToTrain,
@@ -39,6 +41,8 @@ import { LiveCallScreen } from "@/app/components/call/LiveCallScreen";
 import { ResultsScreen } from "@/app/components/results/ResultsScreen";
 import { HistoryView } from "@/app/components/history/HistoryView";
 import { KrakenLabWizard } from "@/app/components/kraken-lab/KrakenLabWizard";
+import { AgenticPanel } from "@/app/components/agentic/AgenticPanel";
+import { readAgenticRuntimeForSession } from "@/lib/agentic/settings";
 import { AuthScreen } from "@/app/components/AuthScreen";
 import { AuthProvider, useAuth } from "@/lib/auth/context";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
@@ -60,6 +64,7 @@ function shellTabFromView(view: AppView): ShellTab {
     case "train":
     case "builder":
     case "kraken-wizard":
+    case "agentic-panel":
     case "call":
       return "train";
     default: {
@@ -146,6 +151,9 @@ function SimulatorShell() {
           traineeEmail: traineeEmail ?? undefined,
           traineeAuthUserId: session?.user.id,
           traineeDisplayName: shellUser?.displayName,
+          agenticRuntime: setup.isPreset
+            ? undefined
+            : readAgenticRuntimeForSession(setup.scenarioSlug),
         });
         setTraineeId(created.traineeId);
         setCallAttemptId(created.callAttemptId);
@@ -334,6 +342,7 @@ function SimulatorShell() {
             isStarting={isStarting}
             onStart={(c) => void handleStart(c)}
             onOpenKrakenWizard={() => setFlow((prev) => openKrakenWizard(prev))}
+            onOpenAgenticPanel={() => setFlow((prev) => openAgenticPanel(prev))}
             onCreateScenario={() => {
               setBuilderScenario(null);
               setFlow((prev) => openBuilder(prev));
@@ -343,6 +352,10 @@ function SimulatorShell() {
               setFlow((prev) => openBuilder(prev));
             }}
           />
+        )}
+
+        {flow.view === "agentic-panel" && (
+          <AgenticPanel onClose={() => setFlow((prev) => closeAgenticPanel(prev))} />
         )}
 
         {flow.view === "kraken-wizard" && (

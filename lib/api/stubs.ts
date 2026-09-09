@@ -48,6 +48,8 @@ import type {
   KrakenLabCohortConfig,
   StartKrakenSessionResult,
 } from "@/lib/kraken-lab/types";
+import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
+import { mergeAgenticRuntime } from "@/lib/agentic/runtime";
 
 export interface CreateSessionRequest {
   scenarioSlug: string;
@@ -57,6 +59,7 @@ export interface CreateSessionRequest {
   traineeDisplayName?: string;
   traineeEmail?: string;
   traineeAuthUserId?: string;
+  agenticRuntime?: AgenticRuntimeConfig;
 }
 
 export interface HistoryEntry {
@@ -329,10 +332,23 @@ export function stubUpdateScenario(
 }
 
 export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
-  const scenario = getScenario(body.scenarioSlug);
-  if (!scenario) {
+  const baseScenario = getScenario(body.scenarioSlug);
+  if (!baseScenario) {
     throw new Error(`Cliente no encontrado: ${body.scenarioSlug}`);
   }
+
+  const scenario =
+    body.agenticRuntime && !baseScenario.record.isPreset
+      ? {
+          record: {
+            ...baseScenario.record,
+            config: mergeAgenticRuntime(
+              baseScenario.record.config,
+              body.agenticRuntime,
+            ),
+          },
+        }
+      : baseScenario;
 
   const callAttemptId = generateId("stub");
   const totalRounds = scoringPhaseCount(
@@ -638,6 +654,7 @@ export function stubStartKrakenSession(input: {
   traineeId?: string;
   traineeEmail?: string;
   traineeDisplayName?: string;
+  agenticRuntime?: AgenticRuntimeConfig;
 }): StartKrakenSessionResult {
   const enriched = enrichCohortWithPersonas(input.cohort);
   if (!isValidCohort(enriched)) {
@@ -667,10 +684,14 @@ export function stubStartKrakenSession(input: {
   customScenarios.set(record.slug, {
     record: {
       ...record,
-      config: {
-        ...record.config,
-        krakenLab: generated.config.krakenLab,
-      },
+      config: mergeAgenticRuntime(
+        {
+          ...record.config,
+          krakenLab: generated.config.krakenLab,
+          agentic: generated.config.agentic,
+        },
+        input.agenticRuntime,
+      ),
     },
   });
 
@@ -681,6 +702,7 @@ export function stubStartKrakenSession(input: {
     traineeId: input.traineeId,
     traineeEmail: input.traineeEmail,
     traineeDisplayName: input.traineeDisplayName,
+    agenticRuntime: input.agenticRuntime,
   });
 
   return {
@@ -690,10 +712,13 @@ export function stubStartKrakenSession(input: {
     scenarioSlug: session.scenarioSlug,
     clientName: session.clientName,
     totalRounds: session.totalRounds,
-    config: {
-      ...generated.config,
-      krakenLab: generated.config.krakenLab,
-    },
+    config: mergeAgenticRuntime(
+      {
+        ...generated.config,
+        krakenLab: generated.config.krakenLab,
+      },
+      input.agenticRuntime,
+    ) as StartKrakenSessionResult["config"],
   };
 }
 

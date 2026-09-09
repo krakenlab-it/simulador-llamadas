@@ -33,6 +33,7 @@ import {
   validateWizardStep,
 } from "@/lib/kraken-lab/validation";
 import { startKrakenSession } from "@/lib/api/kraken-lab";
+import { readAgenticRuntimeForSession } from "@/lib/agentic/settings";
 import { DIFFICULTY_LABELS, MODE_LABELS } from "@/lib/frontend/training-readiness";
 import {
   openingLineForCall,
@@ -132,6 +133,7 @@ export function KrakenLabWizard({
         traineeEmail: traineeEmail ?? undefined,
         traineeAuthUserId,
         traineeDisplayName,
+        agenticRuntime: readAgenticRuntimeForSession(seed),
       });
 
       onStart(

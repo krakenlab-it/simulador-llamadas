@@ -3,6 +3,7 @@ import type {
   SaveCohortResult,
   StartKrakenSessionResult,
 } from "@/lib/kraken-lab/types";
+import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
 import { stubStartKrakenSession } from "@/lib/api/stubs";
 
 const GENERIC_ERROR = "No se pudo completar la acción. Intenta de nuevo.";
@@ -87,6 +88,7 @@ export interface StartKrakenSessionRequest {
   traineeEmail?: string;
   traineeAuthUserId?: string;
   traineeDisplayName?: string;
+  agenticRuntime?: AgenticRuntimeConfig;
 }
 
 export async function startKrakenSession(

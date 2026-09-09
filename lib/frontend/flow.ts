@@ -9,6 +9,7 @@ export type AppView =
   | "history"
   | "builder"
   | "kraken-wizard"
+  | "agentic-panel"
   | "call"
   | "results"
   | "detail";
@@ -107,6 +108,16 @@ export function openKrakenWizard(state: FlowState): FlowState {
 
 export function closeKrakenWizard(state: FlowState): FlowState {
   if (state.view !== "kraken-wizard") return state;
+  return { ...state, view: "train" };
+}
+
+export function openAgenticPanel(state: FlowState): FlowState {
+  if (state.phase !== "idle" || state.view === "call") return state;
+  return { ...state, view: "agentic-panel" };
+}
+
+export function closeAgenticPanel(state: FlowState): FlowState {
+  if (state.view !== "agentic-panel") return state;
   return { ...state, view: "train" };
 }
 
