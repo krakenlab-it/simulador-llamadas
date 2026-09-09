@@ -356,10 +356,14 @@ export function KrakenLabWizard({
                 type="number"
                 min={16}
                 max={80}
-                value={profile.age}
+                value={profile.age === 0 ? "" : profile.age}
                 onChange={(e) => {
                   const participants = [...(draft.participants ?? [])];
-                  participants[index] = { ...profile, age: Number(e.target.value) };
+                  const raw = e.target.value;
+                  participants[index] = {
+                    ...profile,
+                    age: raw === "" ? 0 : Number(raw),
+                  };
                   updateDraft({ participants });
                 }}
               />
