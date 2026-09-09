@@ -10,7 +10,9 @@ import type { KrakenLabCohortConfig } from "@/lib/kraken-lab/types";
 import {
   canAdvanceWizardStep,
   defaultCohortDraft,
+  defaultPasanteProfile,
   validateFullCohort,
+  validateWizardStep,
 } from "@/lib/kraken-lab/validation";
 
 const SAMPLE_CONTEXT =
@@ -156,5 +158,19 @@ describe("Kraken Lab wizard validation", () => {
     const issues = validateFullCohort(cohort);
     expect(issues.some((i) => i.field.includes("phone"))).toBe(true);
     expect(issues.some((i) => i.field.includes("email"))).toBe(true);
+  });
+
+  it("prefixes participant profile issues with Participante N", () => {
+    const issues = validateWizardStep("perfiles", {
+      participantCount: 2,
+      participants: [
+        defaultPasanteProfile(),
+        defaultPasanteProfile(),
+      ],
+    });
+
+    expect(issues.some((i) => i.message === "Participante 2: Nombre completo requerido")).toBe(
+      true,
+    );
   });
 });

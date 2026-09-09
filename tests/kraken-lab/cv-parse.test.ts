@@ -98,6 +98,23 @@ describe("extractNameFromFileName", () => {
       "Maria de la Cruz",
     );
   });
+
+  it("derives full name from CV_Karen_Galindo_Narinan.pdf", () => {
+    expect(extractNameFromFileName("CV_Karen_Galindo_Narinan.pdf")).toBe(
+      "Karen Galindo Narinan",
+    );
+  });
+});
+
+describe("parseCvText phone sanitization", () => {
+  it("does not autofill YYYYMMDD-like garbage into phone", () => {
+    const parsed = parseCvText(`
+Karen Galindo Narinan
+2026061818
+`.trim());
+
+    expect(parsed.phone).toBeUndefined();
+  });
 });
 
 describe("parseCvFile", () => {
