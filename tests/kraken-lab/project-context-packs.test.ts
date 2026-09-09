@@ -3,6 +3,7 @@ import {
   migrateLegacyProjectContextPacks,
   switchProjectContextPack,
   updateActiveProjectScenarioContext,
+  updateProjectScenarioContext,
 } from "@/lib/kraken-lab/project-context-packs";
 import type { KrakenLabCohortConfig } from "@/lib/kraken-lab/types";
 
@@ -75,5 +76,20 @@ describe("project context packs", () => {
       "Simulador de Llamadas",
     );
     expect(migrated.scenarioContextByProject?.["simulador-llamadas"]).toBeUndefined();
+  });
+
+  it("writes uploads to a captured project when the active card changed mid-edit", () => {
+    let draft: Partial<KrakenLabCohortConfig> = {
+      project: "me-we",
+      scenarioContext: { text: "" },
+    };
+
+    draft = updateProjectScenarioContext(draft, "simulador-llamadas", SIMULADOR_FILES);
+
+    expect(draft.project).toBe("me-we");
+    expect(draft.scenarioContext?.files ?? []).toHaveLength(0);
+    expect(draft.scenarioContextByProject?.["simulador-llamadas"]?.files?.[0]?.name).toBe(
+      "simulador-brief.txt",
+    );
   });
 });

@@ -10,6 +10,7 @@ import {
   serializeWizardDraft,
   wizardDraftHasSavedContent,
 } from "@/lib/kraken-lab/wizard-draft-storage";
+import { switchProjectContextPack } from "@/lib/kraken-lab/project-context-packs";
 
 const SAMPLE_DRAFT: Partial<KrakenLabCohortConfig> = {
   project: "simulador-llamadas",
@@ -192,5 +193,45 @@ describe("wizard draft storage", () => {
       "Software de inventarios",
     );
     expect(hydrated?.draft.contextIndustryByProject?.["simulador-llamadas"]).toBe("Retail");
+  });
+
+  it("round-trips project packs through save, switch, and reload", () => {
+    saveWizardDraftToStorage({
+      step: "proyecto",
+      mode: "texto",
+      draft: {
+        project: "simulador-llamadas",
+        scenarioContext: {
+          text: "Contexto Simulador",
+          files: [{ id: "a-1", name: "simulador.txt", text: "Objeción CRM" }],
+        },
+      },
+    });
+
+    saveWizardDraftToStorage({
+      step: "proyecto",
+      mode: "texto",
+      draft: switchProjectContextPack(
+        loadWizardDraftFromStorage()?.draft ?? { project: "simulador-llamadas" },
+        "me-we",
+      ),
+    });
+
+    const onMeWe = loadWizardDraftFromStorage();
+    expect(onMeWe?.draft.project).toBe("me-we");
+    expect(onMeWe?.draft.scenarioContext?.files ?? []).toHaveLength(0);
+    expect(
+      onMeWe?.draft.scenarioContextByProject?.["simulador-llamadas"]?.files?.[0]?.name,
+    ).toBe("simulador.txt");
+
+    saveWizardDraftToStorage({
+      step: "proyecto",
+      mode: "texto",
+      draft: switchProjectContextPack(onMeWe?.draft ?? { project: "me-we" }, "simulador-llamadas"),
+    });
+
+    const backOnSimulador = loadWizardDraftFromStorage();
+    expect(backOnSimulador?.draft.scenarioContext?.files?.[0]?.name).toBe("simulador.txt");
+    expect(backOnSimulador?.draft.scenarioContextByProject?.["me-we"]?.files ?? []).toHaveLength(0);
   });
 });

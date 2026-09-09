@@ -10,18 +10,20 @@ import {
   countScenarioContextFiles,
   savedFilesBannerMessage,
 } from "@/lib/kraken-lab/context-from-industry";
-import type { ScenarioContextUpload } from "@/lib/kraken-lab/types";
+import type { KrakenLabProject, ScenarioContextUpload } from "@/lib/kraken-lab/types";
 import { Button } from "@/app/components/ui/Button";
 
 interface ScenarioContextUploadPanelProps {
   value: ScenarioContextUpload | undefined;
+  activeProject?: KrakenLabProject;
   uploading?: boolean;
-  onChange: (next: ScenarioContextUpload) => void;
+  onChange: (next: ScenarioContextUpload, forProject?: KrakenLabProject) => void;
   onToast: (message: string, tone: "info" | "success" | "error") => void;
 }
 
 export function ScenarioContextUploadPanel({
   value,
+  activeProject,
   uploading = false,
   onChange,
   onToast,
@@ -35,6 +37,7 @@ export function ScenarioContextUploadPanel({
   const handleFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
 
+    const scopedProject = activeProject;
     let current = context;
     let addedCount = 0;
     let limitedCount = 0;
@@ -71,7 +74,7 @@ export function ScenarioContextUploadPanel({
       }
     }
 
-    onChange(current);
+    onChange(current, scopedProject);
 
     if (addedCount > 0) {
       onToast(
@@ -98,10 +101,13 @@ export function ScenarioContextUploadPanel({
           rows={6}
           value={context.text}
           onChange={(event) =>
-            onChange({
-              ...context,
-              text: event.target.value,
-            })
+            onChange(
+              {
+                ...context,
+                text: event.target.value,
+              },
+              activeProject,
+            )
           }
           placeholder="Ej. Vendemos Kraken Flow a importadoras: pedidos urgentes se atascan entre ventas y almacén. Objeciones: ya tenemos ERP, no queremos otra captura…"
         />
@@ -130,7 +136,9 @@ export function ScenarioContextUploadPanel({
                 <button
                   type="button"
                   className="scenario-context-upload__remove"
-                  onClick={() => onChange(removeScenarioContextFile(context, file.id))}
+                  onClick={() =>
+                    onChange(removeScenarioContextFile(context, file.id), activeProject)
+                  }
                 >
                   Quitar
                 </button>

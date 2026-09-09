@@ -112,14 +112,29 @@ export function updateActiveProjectScenarioContext(
   scenarioContext: ScenarioContextUpload,
 ): Partial<KrakenLabCohortConfig> {
   const project = resolveActiveProject(draft);
-  return {
+  return updateProjectScenarioContext(draft, project, scenarioContext);
+}
+
+export function updateProjectScenarioContext(
+  draft: Partial<KrakenLabCohortConfig>,
+  project: KrakenLabProject,
+  scenarioContext: ScenarioContextUpload,
+): Partial<KrakenLabCohortConfig> {
+  const next: Partial<KrakenLabCohortConfig> = {
     ...draft,
-    scenarioContext,
     scenarioContextByProject: {
       ...(draft.scenarioContextByProject ?? {}),
       [project]: scenarioContext,
     },
   };
+
+  if (resolveActiveProject(draft) === project) {
+    next.scenarioContext = scenarioContext;
+  } else {
+    return syncActiveProjectContextToDraft(next);
+  }
+
+  return next;
 }
 
 export function updateActiveProjectIndustryPack(
@@ -215,7 +230,7 @@ export function mergeProjectContextPacks(
 
   const activeProject = resolveActiveProject(incomingPrepared);
   scenarioContextByProject[activeProject] = mergeScenarioContextUpload(
-    incomingPrepared.scenarioContext,
+    incomingPrepared.scenarioContextByProject?.[activeProject],
     scenarioContextByProject[activeProject],
   );
 
