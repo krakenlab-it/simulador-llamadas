@@ -26,7 +26,7 @@ export function ParticipantCvUpload({
     if (!file) return;
 
     try {
-      const { parsed, limited, text } = await parseCvFile(file);
+      const { parsed, limited, text, nameFromFileName } = await parseCvFile(file);
       const next = applyParsedCvToProfile(profile, parsed, file.name);
       onProfileChange(next);
 
@@ -38,7 +38,12 @@ export function ParticipantCvUpload({
         parsed.age,
       ].filter(Boolean).length;
 
-      if (filledCount > 0) {
+      if (nameFromFileName && (limited || !text)) {
+        onToast(
+          "Completamos el nombre desde el archivo; revisa edad y resto.",
+          "info",
+        );
+      } else if (filledCount > 0) {
         onToast(
           limited
             ? "Perfil completado desde el CV. Revisa o completa los campos."
