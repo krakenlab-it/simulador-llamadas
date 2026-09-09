@@ -48,6 +48,7 @@ export interface PasanteProfile {
   simulationCities: string[];
   phone: string;
   email: string;
+  cvFileName?: string;
 }
 
 export interface DialogueTypeConfig {
