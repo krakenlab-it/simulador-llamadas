@@ -6,6 +6,10 @@ import { loadLocalCustomScenarios } from "@/lib/scenarios/local";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import { fullScenarioContextText } from "./scenario-context";
 import {
+  inferContextIndustryFromBrief,
+  mergeScenarioContextUpload,
+} from "./context-from-industry";
+import {
   loadWizardDraftFromStorage,
   wizardDraftHasScenarioContextContent,
 } from "./wizard-draft-storage";
@@ -122,7 +126,13 @@ export function seedWizardScenarioContextFromPriorPractice(
     return {
       draft: {
         ...draft,
-        scenarioContext: storedWizard.draft.scenarioContext,
+        contextIndustry:
+          draft.contextIndustry ??
+          inferContextIndustryFromBrief(storedWizard.draft.scenarioContext?.text ?? ""),
+        scenarioContext: mergeScenarioContextUpload(
+          draft.scenarioContext,
+          storedWizard.draft.scenarioContext,
+        ),
       },
       seeded: true,
     };
@@ -130,13 +140,21 @@ export function seedWizardScenarioContextFromPriorPractice(
 
   const builderBrief = loadPracticeBriefFromBuilderDraft();
   if (builderBrief) {
+    const stored = loadAnyBuilderDraftFromStorage();
     return {
       draft: {
         ...draft,
-        scenarioContext: {
-          ...(draft.scenarioContext ?? { text: "" }),
-          text: builderBrief,
-        },
+        contextIndustry:
+          draft.contextIndustry ??
+          stored?.draft.industry ??
+          inferContextIndustryFromBrief(builderBrief),
+        scenarioContext: mergeScenarioContextUpload(
+          {
+            ...(draft.scenarioContext ?? { text: "" }),
+            text: builderBrief,
+          },
+          storedWizard?.draft.scenarioContext ?? draft.scenarioContext,
+        ),
       },
       seeded: true,
     };
@@ -144,13 +162,23 @@ export function seedWizardScenarioContextFromPriorPractice(
 
   const scenarioBrief = loadPracticeBriefFromLocalScenario();
   if (scenarioBrief) {
+    const preferred =
+      loadLocalCustomScenarios().find((record) => /valeria/i.test(record.clientName)) ??
+      loadLocalCustomScenarios()[0];
     return {
       draft: {
         ...draft,
-        scenarioContext: {
-          ...(draft.scenarioContext ?? { text: "" }),
-          text: scenarioBrief,
-        },
+        contextIndustry:
+          draft.contextIndustry ??
+          preferred?.industry ??
+          inferContextIndustryFromBrief(scenarioBrief),
+        scenarioContext: mergeScenarioContextUpload(
+          {
+            ...(draft.scenarioContext ?? { text: "" }),
+            text: scenarioBrief,
+          },
+          storedWizard?.draft.scenarioContext ?? draft.scenarioContext,
+        ),
       },
       seeded: true,
     };

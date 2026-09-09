@@ -27,20 +27,30 @@ describe("ScenarioContextUploadPanel", () => {
     clickSpy.mockRestore();
   });
 
-  it("renders uploaded files with a remove action", () => {
+  it("shows saved files banner and filenames after restore", () => {
     render(
       <ScenarioContextUploadPanel
         value={{
           text: "Texto pegado",
-          files: [{ id: "f1", name: "brief.txt", text: "Contenido del archivo" }],
+          files: [
+            { id: "f1", name: "brief.txt", text: "Contenido del archivo" },
+            { id: "f2", name: "objeciones.md", text: "" },
+          ],
         }}
         onChange={vi.fn()}
         onToast={vi.fn()}
       />,
     );
 
+    expect(
+      screen.getByText(
+        "Ya tienes 2 archivo(s) guardado(s) para este proyecto. ¿Quieres agregar o borrar alguno?",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("brief.txt")).toBeInTheDocument();
+    expect(screen.getByText("objeciones.md")).toBeInTheDocument();
     expect(screen.getByText("Texto agregado")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Quitar" })).toBeInTheDocument();
+    expect(screen.getByText("Sin texto extraído")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Quitar" })).toHaveLength(2);
   });
 });

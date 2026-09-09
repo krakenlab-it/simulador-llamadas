@@ -25,6 +25,12 @@ export const INDUSTRY_OPTIONS = [
   "Importación y distribución",
   "Tecnología industrial",
   "Medios y publicidad",
+  "Minería y recursos naturales",
+  "Textil y confección",
+  "Turismo y viajes",
+  "Legal y compliance",
+  "Call center y BPO",
+  "Cooperativas y sector social",
 ] as const;
 
 export const TEMPERAMENT_OPTIONS = [

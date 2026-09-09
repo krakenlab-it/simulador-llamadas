@@ -140,5 +140,28 @@ describe("wizard draft storage", () => {
 
     const loaded = loadWizardDraftFromStorage();
     expect(loaded?.draft.scenarioContext?.text).toContain("Software de inventarios");
+    expect(loaded?.draft.scenarioContext?.files?.[0]?.name).toBe("brief.txt");
+  });
+
+  it("preserves stored files when autosave sends text without files", () => {
+    saveWizardDraftToStorage({
+      step: "proyecto",
+      mode: "texto",
+      draft: SAMPLE_DRAFT,
+    });
+
+    saveWizardDraftToStorage({
+      step: "proyecto",
+      mode: "texto",
+      draft: {
+        project: "otro",
+        scenarioContext: {
+          text: "Brief actualizado con más de treinta caracteres para validación.",
+        },
+      },
+    });
+
+    const loaded = loadWizardDraftFromStorage();
+    expect(loaded?.draft.scenarioContext?.files?.[0]?.name).toBe("brief.txt");
   });
 });

@@ -27,6 +27,13 @@ import type {
 import { ReceiverPersonaCard } from "@/app/components/kraken-lab/ReceiverPersonaCard";
 import { ScenarioContextUploadPanel } from "@/app/components/kraken-lab/ScenarioContextUploadPanel";
 import { ParticipantCvUpload } from "@/app/components/kraken-lab/ParticipantCvUpload";
+import { SelectWithOther } from "@/app/components/ui/SelectWithOther";
+import { INDUSTRY_OPTIONS } from "@/lib/scenarios/select-options";
+import {
+  buildIndustryAwareBrief,
+  inferContextIndustryFromBrief,
+  shouldConfirmIndustryBriefOverwrite,
+} from "@/lib/kraken-lab/context-from-industry";
 import { useToast } from "@/components/ui/Toast";
 import {
   canAdvanceWizardStep,
@@ -102,7 +109,12 @@ function readInitialWizardState(): {
   const seeded = seedWizardScenarioContextFromPriorPractice(baseDraft);
 
   return {
-    draft: seeded.draft,
+    draft: {
+      ...seeded.draft,
+      contextIndustry:
+        seeded.draft.contextIndustry ??
+        inferContextIndustryFromBrief(seeded.draft.scenarioContext?.text ?? ""),
+    },
     step: stored?.step ?? "proyecto",
     mode: stored?.mode ?? "texto",
     draftRecovered: Boolean(stored && wizardDraftHasSavedContent(stored.draft)),
@@ -202,9 +214,60 @@ export function KrakenLabWizard({
       showToast("No encontramos una práctica anterior con contexto guardado.", "info");
       return;
     }
-    updateDraft({ scenarioContext: seeded.draft.scenarioContext });
+    updateDraft({
+      scenarioContext: seeded.draft.scenarioContext,
+      contextIndustry:
+        seeded.draft.contextIndustry ??
+        inferContextIndustryFromBrief(seeded.draft.scenarioContext?.text ?? ""),
+    });
     showToast("Recuperamos el contexto de tu práctica anterior.", "info");
   }, [draft, showToast, updateDraft]);
+
+  const handleContextIndustryChange = useCallback(
+    (industry: string) => {
+      const trimmed = industry.trim();
+      if (!trimmed) {
+        updateDraft({ contextIndustry: "" });
+        return;
+      }
+
+      const previousIndustry = draft.contextIndustry?.trim() ?? "";
+      const existingText = draft.scenarioContext?.text ?? "";
+      if (
+        previousIndustry &&
+        previousIndustry !== trimmed &&
+        shouldConfirmIndustryBriefOverwrite(existingText) &&
+        !window.confirm(
+          "¿Actualizar el problema al contexto de la nueva industria? Se conservan Cliente y Producto.",
+        )
+      ) {
+        updateDraft({ contextIndustry: trimmed });
+        return;
+      }
+
+      const fileTexts = (draft.scenarioContext?.files ?? [])
+        .map((file) => file.text)
+        .filter(Boolean);
+      const nextText = buildIndustryAwareBrief({
+        industry: trimmed,
+        existingText,
+        fileTexts,
+      });
+
+      updateDraft({
+        contextIndustry: trimmed,
+        scenarioContext: {
+          ...(draft.scenarioContext ?? { text: "" }),
+          text: nextText,
+        },
+      });
+
+      if (previousIndustry && previousIndustry !== trimmed) {
+        showToast(`Actualizamos el problema al contexto de ${trimmed}.`, "info");
+      }
+    },
+    [draft.contextIndustry, draft.scenarioContext, showToast, updateDraft],
+  );
 
   const handleGeneratePersonas = (regenerate = false) => {
     const seed = regenerate ? mintFreshSessionSeed() : draft.sessionSeed?.trim() || mintFreshSessionSeed();
@@ -315,6 +378,14 @@ export function KrakenLabWizard({
             Pega o sube material del producto/servicio, objeciones típicas o guiones de
             referencia. Lo usamos para generar personas y diálogos más humanos.
           </p>
+          <SelectWithOther
+            label="Industria"
+            value={draft.contextIndustry ?? ""}
+            options={INDUSTRY_OPTIONS}
+            onChange={handleContextIndustryChange}
+            placeholder="Selecciona la industria del escenario"
+            otherPlaceholder="Ej. taller de llantas, cooperativa agrícola"
+          />
           <ScenarioContextUploadPanel
             value={draft.scenarioContext}
             onChange={(scenarioContext) => updateDraft({ scenarioContext })}
