@@ -57,7 +57,7 @@ export type WizardStep = (typeof WIZARD_STEPS)[number];
 export const WIZARD_STEP_LABELS: Record<WizardStep, string> = {
   proyecto: "Proyecto Kraken Lab",
   participantes: "Tamaño del grupo",
-  perfiles: "Perfiles de pasantes",
+  perfiles: "Perfiles de participantes",
   simulacion: "Qué simular",
   rol: "Rol del simulador",
   dialogos: "Contexto por diálogo",

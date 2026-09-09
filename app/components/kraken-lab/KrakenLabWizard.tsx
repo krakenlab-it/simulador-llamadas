@@ -549,7 +549,7 @@ export function KrakenLabWizard({
   return (
     <div className="train-hub kraken-wizard">
       <header className="page-hero">
-        <p className="page-hero__eyebrow">Kraken Lab · Pasantes</p>
+        <p className="page-hero__eyebrow">Kraken Lab · Simulación escenarios</p>
         <h1 className="page-hero__title">Nueva simulación Kraken Lab</h1>
         <p className="page-hero__subtitle">
           Configura tu cohorte, genera una persona receptora y practica con el mismo motor

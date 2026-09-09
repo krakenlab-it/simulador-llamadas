@@ -83,7 +83,7 @@ export function validateWizardStep(
         return [
           {
             field: "participants",
-            message: `Completa los ${count} perfiles de pasantes`,
+            message: `Completa los ${count} perfiles de participantes`,
           },
         ];
       }
