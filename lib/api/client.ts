@@ -267,6 +267,9 @@ export async function updateScenario(
       return { scenario: remote, usedLocalFallback: false };
     }
   } catch (error) {
+    if (error instanceof TypeError) {
+      return { scenario: stubUpdateScenario(body), usedLocalFallback: true };
+    }
     throw error;
   }
   return { scenario: stubUpdateScenario(body), usedLocalFallback: true };

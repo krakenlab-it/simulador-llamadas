@@ -228,8 +228,20 @@ function withSavedVoiceAgent(record: ScenarioRecord): ScenarioRecord {
   return saved ? applyVoiceAgentToRecord(record, saved) : record;
 }
 
+function hydrateCustomScenario(slug: string): StubScenario | null {
+  const inMemory = customScenarios.get(slug);
+  if (inMemory) return inMemory;
+
+  const fromLocal = loadLocalCustomScenarios().find((record) => record.slug === slug);
+  if (!fromLocal) return null;
+
+  const scenario = { record: fromLocal };
+  customScenarios.set(slug, scenario);
+  return scenario;
+}
+
 function getScenario(slug: string): StubScenario | null {
-  const found = customScenarios.get(slug) ?? buildPresetScenario(slug);
+  const found = hydrateCustomScenario(slug) ?? buildPresetScenario(slug);
   if (!found) return null;
   return { record: withSavedVoiceAgent(found.record) };
 }
@@ -316,15 +328,17 @@ export function stubCreateScenario(
 export function stubUpdateScenario(
   input: UpdateCustomScenarioInput,
 ): ScenarioRecord {
-  const existing = customScenarios.get(input.slug);
-  if (!existing) {
-    throw new Error(`Escenario no encontrado: ${input.slug}`);
-  }
-  if (existing.record.isPreset) {
+  const existing = hydrateCustomScenario(input.slug);
+  if (existing?.record.isPreset) {
     throw new Error(`Clinic presets cannot be edited: ${input.slug}`);
   }
+
   const record = withSavedVoiceAgent(
-    recordFromInput(input, existing.record.slug, existing.record.id),
+    recordFromInput(
+      input,
+      existing?.record.slug ?? input.slug,
+      existing?.record.id ?? generateId("scenario"),
+    ),
   );
   customScenarios.set(record.slug, { record });
   upsertLocalCustomScenario(record);
