@@ -55,6 +55,13 @@ import {
   seedWizardScenarioContextFromPriorPractice,
   shouldOfferPriorPracticeContextSeed,
 } from "@/lib/kraken-lab/practice-context-seed";
+import {
+  migrateLegacyProjectContextPacks,
+  prepareWizardDraftForSessionStart,
+  switchProjectContextPack,
+  updateActiveProjectIndustryPack,
+  updateActiveProjectScenarioContext,
+} from "@/lib/kraken-lab/project-context-packs";
 import { DIFFICULTY_LABELS, MODE_LABELS } from "@/lib/frontend/training-readiness";
 import {
   openingLineForCall,
@@ -104,16 +111,17 @@ function readInitialWizardState(): {
   const stored = loadWizardDraftFromStorage();
   const baseDraft =
     stored && wizardDraftHasSavedContent(stored.draft)
-      ? stored.draft
+      ? migrateLegacyProjectContextPacks(stored.draft)
       : defaultCohortDraft();
   const seeded = seedWizardScenarioContextFromPriorPractice(baseDraft);
+  const prepared = migrateLegacyProjectContextPacks(seeded.draft);
 
   return {
     draft: {
-      ...seeded.draft,
+      ...prepared,
       contextIndustry:
-        seeded.draft.contextIndustry ??
-        inferContextIndustryFromBrief(seeded.draft.scenarioContext?.text ?? ""),
+        prepared.contextIndustry ??
+        inferContextIndustryFromBrief(prepared.scenarioContext?.text ?? ""),
     },
     step: stored?.step ?? "proyecto",
     mode: stored?.mode ?? "texto",
@@ -191,6 +199,20 @@ export function KrakenLabWizard({
     [],
   );
 
+  const handleProjectSwitch = useCallback(
+    (nextProject: KrakenLabProject) => {
+      setDraft((prev) => switchProjectContextPack(prev, nextProject));
+    },
+    [],
+  );
+
+  const handleScenarioContextChange = useCallback(
+    (scenarioContext: NonNullable<KrakenLabCohortConfig["scenarioContext"]>) => {
+      setDraft((prev) => updateActiveProjectScenarioContext(prev, scenarioContext));
+    },
+    [],
+  );
+
   const handleClearDraft = useCallback(() => {
     if (
       !window.confirm(
@@ -215,10 +237,13 @@ export function KrakenLabWizard({
       return;
     }
     updateDraft({
+      ...seeded.draft,
       scenarioContext: seeded.draft.scenarioContext,
+      scenarioContextByProject: seeded.draft.scenarioContextByProject,
       contextIndustry:
         seeded.draft.contextIndustry ??
         inferContextIndustryFromBrief(seeded.draft.scenarioContext?.text ?? ""),
+      contextIndustryByProject: seeded.draft.contextIndustryByProject,
     });
     showToast("Recuperamos el contexto de tu práctica anterior.", "info");
   }, [draft, showToast, updateDraft]);
@@ -227,7 +252,13 @@ export function KrakenLabWizard({
     (industry: string) => {
       const trimmed = industry.trim();
       if (!trimmed) {
-        updateDraft({ contextIndustry: "" });
+        setDraft((prev) =>
+          updateActiveProjectIndustryPack(
+            prev,
+            "",
+            prev.scenarioContext ?? { text: "" },
+          ),
+        );
         return;
       }
 
@@ -241,7 +272,7 @@ export function KrakenLabWizard({
           "¿Actualizar el problema al contexto de la nueva industria? Se conservan Cliente y Producto.",
         )
       ) {
-        updateDraft({ contextIndustry: trimmed });
+        setDraft((prev) => updateActiveProjectIndustryPack(prev, trimmed, prev.scenarioContext ?? { text: "" }));
         return;
       }
 
@@ -254,19 +285,18 @@ export function KrakenLabWizard({
         fileTexts,
       });
 
-      updateDraft({
-        contextIndustry: trimmed,
-        scenarioContext: {
-          ...(draft.scenarioContext ?? { text: "" }),
+      setDraft((prev) =>
+        updateActiveProjectIndustryPack(prev, trimmed, {
+          ...(prev.scenarioContext ?? { text: "" }),
           text: nextText,
-        },
-      });
+        }),
+      );
 
       if (previousIndustry && previousIndustry !== trimmed) {
         showToast(`Actualizamos el problema al contexto de ${trimmed}.`, "info");
       }
     },
-    [draft.contextIndustry, draft.scenarioContext, showToast, updateDraft],
+    [draft.contextIndustry, draft.scenarioContext, showToast],
   );
 
   const handleGeneratePersonas = (regenerate = false) => {
@@ -289,9 +319,10 @@ export function KrakenLabWizard({
     setSubmitting(true);
     setError(null);
 
-    const seed = draft.sessionSeed?.trim() || mintFreshSessionSeed();
+    const sessionDraft = prepareWizardDraftForSessionStart(draft);
+    const seed = sessionDraft.sessionSeed?.trim() || mintFreshSessionSeed();
     const cohort = enrichCohortWithPersonas({
-      ...(draft as KrakenLabCohortConfig),
+      ...(sessionDraft as KrakenLabCohortConfig),
       sessionSeed: seed,
     });
 
@@ -349,11 +380,11 @@ export function KrakenLabWizard({
           role="button"
           tabIndex={0}
           aria-pressed={draft.project === project}
-          onClick={() => updateDraft({ project })}
+          onClick={() => handleProjectSwitch(project)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              updateDraft({ project });
+              handleProjectSwitch(project);
             }
           }}
         >
@@ -388,7 +419,7 @@ export function KrakenLabWizard({
           />
           <ScenarioContextUploadPanel
             value={draft.scenarioContext}
-            onChange={(scenarioContext) => updateDraft({ scenarioContext })}
+            onChange={handleScenarioContextChange}
             onToast={(message, tone) => showToast(message, tone)}
           />
           {shouldOfferPriorPracticeContextSeed(draft) ? (
