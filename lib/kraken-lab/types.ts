@@ -110,6 +110,8 @@ export interface KrakenLabCohortConfig {
   difficultyLevel: DifficultyLevel;
   /** Deterministic seed for dialogue battery generation. */
   sessionSeed: string;
+  /** Industry selected on the scenario context step (drives brief rewrite). */
+  contextIndustry?: string;
   createdAt?: string;
 }
 

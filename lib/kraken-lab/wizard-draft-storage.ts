@@ -3,6 +3,7 @@ import type { WizardStep } from "./constants";
 import { WIZARD_STEPS } from "./constants";
 import type { KrakenLabCohortConfig, PasanteProfile, ScenarioContextUpload } from "./types";
 import { fullScenarioContextText } from "./scenario-context";
+import { mergeScenarioContextUpload } from "./context-from-industry";
 import { defaultCohortDraft } from "./validation";
 
 export const KRAKEN_WIZARD_DRAFT_STORAGE_KEY = "kraken-simulacion:wizard-draft:v1";
@@ -114,15 +115,10 @@ export function mergeWizardDraftPreservingRicherFields(
 ): Partial<KrakenLabCohortConfig> {
   const merged: Partial<KrakenLabCohortConfig> = { ...incoming };
 
-  const incomingContextLength = fullScenarioContextText(incoming.scenarioContext).trim().length;
-  const storedContextLength = fullScenarioContextText(stored.scenarioContext).trim().length;
-  if (
-    incomingContextLength < 30 &&
-    storedContextLength >= incomingContextLength &&
-    wizardDraftHasScenarioContextContent(stored)
-  ) {
-    merged.scenarioContext = stored.scenarioContext;
-  }
+  merged.scenarioContext = mergeScenarioContextUpload(
+    incoming.scenarioContext,
+    stored.scenarioContext,
+  );
 
   if (
     !wizardDraftHasParticipantsContent(incoming) &&
@@ -130,6 +126,10 @@ export function mergeWizardDraftPreservingRicherFields(
   ) {
     merged.participants = stored.participants;
     merged.participantCount = stored.participantCount ?? merged.participantCount;
+  }
+
+  if (!incoming.contextIndustry?.trim() && stored.contextIndustry?.trim()) {
+    merged.contextIndustry = stored.contextIndustry;
   }
 
   return merged;
@@ -152,6 +152,8 @@ export function mergeWizardDraftWithDefaults(
     ...defaults,
     ...stored,
     scenarioContext: normalizeScenarioContext(stored.scenarioContext) ?? defaults.scenarioContext,
+    contextIndustry:
+      typeof stored.contextIndustry === "string" ? stored.contextIndustry : undefined,
     participants: participants.length > 0 ? participants : (defaults.participants ?? []),
     participantCount: stored.participantCount ?? defaults.participantCount,
     simulationFocuses: stored.simulationFocuses ?? defaults.simulationFocuses,

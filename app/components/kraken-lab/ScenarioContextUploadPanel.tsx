@@ -6,6 +6,10 @@ import {
   extractTextFromScenarioFile,
   removeScenarioContextFile,
 } from "@/lib/kraken-lab/scenario-context";
+import {
+  countScenarioContextFiles,
+  savedFilesBannerMessage,
+} from "@/lib/kraken-lab/context-from-industry";
 import type { ScenarioContextUpload } from "@/lib/kraken-lab/types";
 import { Button } from "@/app/components/ui/Button";
 
@@ -26,6 +30,7 @@ export function ScenarioContextUploadPanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const context = value ?? { text: "" };
   const files = context.files ?? [];
+  const fileCount = countScenarioContextFiles(context);
 
   const handleFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
@@ -102,6 +107,39 @@ export function ScenarioContextUploadPanel({
         />
       </label>
 
+      {fileCount > 0 ? (
+        <div className="scenario-context-upload__saved-files">
+          <p
+            className="scenario-context-upload__saved-banner"
+            role="status"
+            aria-live="polite"
+          >
+            {savedFilesBannerMessage(fileCount)}
+          </p>
+          <ul className="scenario-context-upload__files" aria-label="Documentos cargados">
+            {files.map((file) => (
+              <li key={file.id} className="scenario-context-upload__file">
+                <span className="scenario-context-upload__file-name">{file.name}</span>
+                {file.text ? (
+                  <span className="scenario-context-upload__file-status">Texto agregado</span>
+                ) : (
+                  <span className="scenario-context-upload__file-status scenario-context-upload__file-status--muted">
+                    Sin texto extraído
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="scenario-context-upload__remove"
+                  onClick={() => onChange(removeScenarioContextFile(context, file.id))}
+                >
+                  Quitar
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="scenario-context-upload__actions">
         <input
           ref={fileInputRef}
@@ -132,30 +170,6 @@ export function ScenarioContextUploadPanel({
           .txt, .md, .pdf, .docx · puedes elegir varios archivos
         </p>
       </div>
-
-      {files.length > 0 ? (
-        <ul className="scenario-context-upload__files" aria-label="Documentos cargados">
-          {files.map((file) => (
-            <li key={file.id} className="scenario-context-upload__file">
-              <span className="scenario-context-upload__file-name">{file.name}</span>
-              {file.text ? (
-                <span className="scenario-context-upload__file-status">Texto agregado</span>
-              ) : (
-                <span className="scenario-context-upload__file-status scenario-context-upload__file-status--muted">
-                  Sin texto extraído
-                </span>
-              )}
-              <button
-                type="button"
-                className="scenario-context-upload__remove"
-                onClick={() => onChange(removeScenarioContextFile(context, file.id))}
-              >
-                Quitar
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </div>
   );
 }
