@@ -139,8 +139,13 @@ describe("wizard draft storage", () => {
     });
 
     const loaded = loadWizardDraftFromStorage();
-    expect(loaded?.draft.scenarioContext?.text).toContain("Software de inventarios");
-    expect(loaded?.draft.scenarioContext?.files?.[0]?.name).toBe("brief.txt");
+    expect(loaded?.draft.scenarioContextByProject?.["simulador-llamadas"]?.text).toContain(
+      "Software de inventarios",
+    );
+    expect(
+      loaded?.draft.scenarioContextByProject?.["simulador-llamadas"]?.files?.[0]?.name,
+    ).toBe("brief.txt");
+    expect(loaded?.draft.scenarioContext?.text ?? "").toBe("");
   });
 
   it("preserves stored files when autosave sends text without files", () => {
@@ -162,6 +167,30 @@ describe("wizard draft storage", () => {
     });
 
     const loaded = loadWizardDraftFromStorage();
-    expect(loaded?.draft.scenarioContext?.files?.[0]?.name).toBe("brief.txt");
+    expect(
+      loaded?.draft.scenarioContextByProject?.["simulador-llamadas"]?.files?.[0]?.name,
+    ).toBe("brief.txt");
+    expect(loaded?.draft.scenarioContext?.text).toContain(
+      "Brief actualizado con más de treinta caracteres",
+    );
+  });
+
+  it("migrates legacy top-level scenarioContext into per-project storage on hydrate", () => {
+    const hydrated = hydrateWizardDraft({
+      version: 1,
+      savedAt: "2026-09-09T12:00:00.000Z",
+      step: "proyecto",
+      mode: "texto",
+      draft: {
+        project: "simulador-llamadas",
+        scenarioContext: SAMPLE_DRAFT.scenarioContext,
+        contextIndustry: "Retail",
+      },
+    });
+
+    expect(hydrated?.draft.scenarioContextByProject?.["simulador-llamadas"]?.text).toContain(
+      "Software de inventarios",
+    );
+    expect(hydrated?.draft.contextIndustryByProject?.["simulador-llamadas"]).toBe("Retail");
   });
 });

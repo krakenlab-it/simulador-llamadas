@@ -2,8 +2,12 @@ import type { PracticeMode } from "@/lib/db/types";
 import type { WizardStep } from "./constants";
 import { WIZARD_STEPS } from "./constants";
 import type { KrakenLabCohortConfig, PasanteProfile, ScenarioContextUpload } from "./types";
-import { fullScenarioContextText } from "./scenario-context";
-import { mergeScenarioContextUpload } from "./context-from-industry";
+import {
+  draftHasAnyProjectContextContent,
+  mergeProjectContextPacks,
+  migrateLegacyProjectContextPacks,
+  prepareWizardDraftForStorage,
+} from "./project-context-packs";
 import { defaultCohortDraft } from "./validation";
 
 export const KRAKEN_WIZARD_DRAFT_STORAGE_KEY = "kraken-simulacion:wizard-draft:v1";
@@ -90,8 +94,7 @@ export function wizardDraftHasSavedContent(
 export function wizardDraftHasScenarioContextContent(
   draft: Partial<KrakenLabCohortConfig>,
 ): boolean {
-  if (fullScenarioContextText(draft.scenarioContext).trim().length > 0) return true;
-  return (draft.scenarioContext?.files?.length ?? 0) > 0;
+  return draftHasAnyProjectContextContent(draft);
 }
 
 export function wizardDraftHasParticipantsContent(
@@ -113,12 +116,7 @@ export function mergeWizardDraftPreservingRicherFields(
   incoming: Partial<KrakenLabCohortConfig>,
   stored: Partial<KrakenLabCohortConfig>,
 ): Partial<KrakenLabCohortConfig> {
-  const merged: Partial<KrakenLabCohortConfig> = { ...incoming };
-
-  merged.scenarioContext = mergeScenarioContextUpload(
-    incoming.scenarioContext,
-    stored.scenarioContext,
-  );
+  const merged = mergeProjectContextPacks(incoming, stored);
 
   if (
     !wizardDraftHasParticipantsContent(incoming) &&
@@ -126,10 +124,6 @@ export function mergeWizardDraftPreservingRicherFields(
   ) {
     merged.participants = stored.participants;
     merged.participantCount = stored.participantCount ?? merged.participantCount;
-  }
-
-  if (!incoming.contextIndustry?.trim() && stored.contextIndustry?.trim()) {
-    merged.contextIndustry = stored.contextIndustry;
   }
 
   return merged;
@@ -148,19 +142,35 @@ export function mergeWizardDraftWithDefaults(
       ? normalizedParticipants
       : (defaults.participants ?? []);
 
-  return {
+  const normalizedScenarioContextByProject = stored.scenarioContextByProject
+    ? Object.fromEntries(
+        Object.entries(stored.scenarioContextByProject)
+          .map(([project, context]) => [
+            project,
+            normalizeScenarioContext(context) ?? { text: "" },
+          ])
+          .filter(([, context]) => context !== undefined),
+      )
+    : undefined;
+
+  return migrateLegacyProjectContextPacks({
     ...defaults,
     ...stored,
     scenarioContext: normalizeScenarioContext(stored.scenarioContext) ?? defaults.scenarioContext,
+    scenarioContextByProject: normalizedScenarioContextByProject,
     contextIndustry:
       typeof stored.contextIndustry === "string" ? stored.contextIndustry : undefined,
+    contextIndustryByProject:
+      stored.contextIndustryByProject && typeof stored.contextIndustryByProject === "object"
+        ? stored.contextIndustryByProject
+        : undefined,
     participants: participants.length > 0 ? participants : (defaults.participants ?? []),
     participantCount: stored.participantCount ?? defaults.participantCount,
     simulationFocuses: stored.simulationFocuses ?? defaults.simulationFocuses,
     dialogueTypes: stored.dialogueTypes ?? defaults.dialogueTypes,
     receiverPersonas: stored.receiverPersonas ?? defaults.receiverPersonas,
     sessionSeed: stored.sessionSeed ?? defaults.sessionSeed,
-  };
+  });
 }
 
 export function serializeWizardDraft(payload: Omit<PersistedWizardDraft, "version" | "savedAt">): PersistedWizardDraft {
@@ -202,19 +212,38 @@ export function loadWizardDraftFromStorage(): PersistedWizardDraft | null {
   }
 }
 
+function trimScenarioFileText(
+  context: ScenarioContextUpload | undefined,
+): ScenarioContextUpload | undefined {
+  if (!context?.files?.length) return context;
+  return {
+    ...context,
+    files: context.files.map((file) => ({
+      ...file,
+      text: "",
+    })),
+  };
+}
+
 function trimScenarioFileBodies(
   draft: Partial<KrakenLabCohortConfig>,
 ): Partial<KrakenLabCohortConfig> {
-  if (!draft.scenarioContext?.files?.length) return draft;
+  const trimmedActive = trimScenarioFileText(draft.scenarioContext);
+  const trimmedByProject = draft.scenarioContextByProject
+    ? Object.fromEntries(
+        Object.entries(draft.scenarioContextByProject).map(([project, context]) => [
+          project,
+          trimScenarioFileText(context) ?? context,
+        ]),
+      )
+    : undefined;
+
+  if (!trimmedActive && !trimmedByProject) return draft;
+
   return {
     ...draft,
-    scenarioContext: {
-      ...draft.scenarioContext,
-      files: draft.scenarioContext.files.map((file) => ({
-        ...file,
-        text: "",
-      })),
-    },
+    ...(trimmedActive ? { scenarioContext: trimmedActive } : {}),
+    ...(trimmedByProject ? { scenarioContextByProject: trimmedByProject } : {}),
   };
 }
 
@@ -232,10 +261,11 @@ export function saveWizardDraftToStorage(input: {
   }
 
   const stored = loadWizardDraftFromStorage();
-  const draftToSave =
+  const mergedDraft =
     stored && wizardDraftHasSavedContent(stored.draft)
       ? mergeWizardDraftPreservingRicherFields(input.draft, stored.draft)
       : input.draft;
+  const draftToSave = prepareWizardDraftForStorage(mergedDraft);
 
   const payload = serializeWizardDraft({
     step: input.step,

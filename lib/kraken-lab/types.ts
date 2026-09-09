@@ -98,6 +98,7 @@ export interface KrakenLabCohortConfig {
   project: KrakenLabProject;
   projectOther?: string;
   scenarioContext?: ScenarioContextUpload;
+  scenarioContextByProject?: Partial<Record<KrakenLabProject, ScenarioContextUpload>>;
   participantCount: number;
   participants: PasanteProfile[];
   simulationFocuses: SimulationFocus[];
@@ -110,8 +111,9 @@ export interface KrakenLabCohortConfig {
   difficultyLevel: DifficultyLevel;
   /** Deterministic seed for dialogue battery generation. */
   sessionSeed: string;
-  /** Industry selected on the scenario context step (drives brief rewrite). */
+  /** Industry selected on the scenario context step (active project view). */
   contextIndustry?: string;
+  contextIndustryByProject?: Partial<Record<KrakenLabProject, string>>;
   createdAt?: string;
 }
 

@@ -10,6 +10,13 @@ import {
   mergeScenarioContextUpload,
 } from "./context-from-industry";
 import {
+  getProjectContextPack,
+  getProjectIndustry,
+  resolveActiveProject,
+  updateActiveProjectIndustryPack,
+  updateActiveProjectScenarioContext,
+} from "./project-context-packs";
+import {
   loadWizardDraftFromStorage,
   wizardDraftHasScenarioContextContent,
 } from "./wizard-draft-storage";
@@ -109,13 +116,40 @@ function loadPracticeBriefFromLocalScenario(): string | null {
   return brief.length >= MIN_SCENARIO_CONTEXT_CHARS ? brief : null;
 }
 
+function activeProjectContextText(draft: Partial<KrakenLabCohortConfig>): string {
+  const project = resolveActiveProject(draft);
+  return fullScenarioContextText(getProjectContextPack(draft, project));
+}
+
+function applySeededContext(
+  draft: Partial<KrakenLabCohortConfig>,
+  scenarioContext: NonNullable<KrakenLabCohortConfig["scenarioContext"]>,
+  contextIndustry?: string,
+): Partial<KrakenLabCohortConfig> {
+  const project = resolveActiveProject(draft);
+  const existingIndustry = getProjectIndustry(draft, project);
+  const industry =
+    existingIndustry ||
+    contextIndustry?.trim() ||
+    inferContextIndustryFromBrief(scenarioContext.text ?? "") ||
+    "";
+
+  return updateActiveProjectIndustryPack(
+    updateActiveProjectScenarioContext(draft, scenarioContext),
+    industry,
+    scenarioContext,
+  );
+}
+
 export function seedWizardScenarioContextFromPriorPractice(
   draft: Partial<KrakenLabCohortConfig>,
 ): { draft: Partial<KrakenLabCohortConfig>; seeded: boolean } {
-  if (fullScenarioContextText(draft.scenarioContext).trim().length >= MIN_SCENARIO_CONTEXT_CHARS) {
+  if (activeProjectContextText(draft).trim().length >= MIN_SCENARIO_CONTEXT_CHARS) {
     return { draft, seeded: false };
   }
 
+  const project = resolveActiveProject(draft);
+  const activeContext = getProjectContextPack(draft, project);
   const storedWizard = loadWizardDraftFromStorage();
   if (
     storedWizard &&
@@ -123,17 +157,17 @@ export function seedWizardScenarioContextFromPriorPractice(
     fullScenarioContextText(storedWizard.draft.scenarioContext).trim().length >=
       MIN_SCENARIO_CONTEXT_CHARS
   ) {
+    const mergedContext = mergeScenarioContextUpload(
+      activeContext,
+      storedWizard.draft.scenarioContext,
+    );
     return {
-      draft: {
-        ...draft,
-        contextIndustry:
-          draft.contextIndustry ??
+      draft: applySeededContext(
+        draft,
+        mergedContext,
+        storedWizard.draft.contextIndustry ??
           inferContextIndustryFromBrief(storedWizard.draft.scenarioContext?.text ?? ""),
-        scenarioContext: mergeScenarioContextUpload(
-          draft.scenarioContext,
-          storedWizard.draft.scenarioContext,
-        ),
-      },
+      ),
       seeded: true,
     };
   }
@@ -141,21 +175,19 @@ export function seedWizardScenarioContextFromPriorPractice(
   const builderBrief = loadPracticeBriefFromBuilderDraft();
   if (builderBrief) {
     const stored = loadAnyBuilderDraftFromStorage();
-    return {
-      draft: {
-        ...draft,
-        contextIndustry:
-          draft.contextIndustry ??
-          stored?.draft.industry ??
-          inferContextIndustryFromBrief(builderBrief),
-        scenarioContext: mergeScenarioContextUpload(
-          {
-            ...(draft.scenarioContext ?? { text: "" }),
-            text: builderBrief,
-          },
-          storedWizard?.draft.scenarioContext ?? draft.scenarioContext,
-        ),
+    const mergedContext = mergeScenarioContextUpload(
+      {
+        ...activeContext,
+        text: builderBrief,
       },
+      storedWizard?.draft.scenarioContext ?? activeContext,
+    );
+    return {
+      draft: applySeededContext(
+        draft,
+        mergedContext,
+        stored?.draft.industry ?? inferContextIndustryFromBrief(builderBrief),
+      ),
       seeded: true,
     };
   }
@@ -165,21 +197,19 @@ export function seedWizardScenarioContextFromPriorPractice(
     const preferred =
       loadLocalCustomScenarios().find((record) => /valeria/i.test(record.clientName)) ??
       loadLocalCustomScenarios()[0];
-    return {
-      draft: {
-        ...draft,
-        contextIndustry:
-          draft.contextIndustry ??
-          preferred?.industry ??
-          inferContextIndustryFromBrief(scenarioBrief),
-        scenarioContext: mergeScenarioContextUpload(
-          {
-            ...(draft.scenarioContext ?? { text: "" }),
-            text: scenarioBrief,
-          },
-          storedWizard?.draft.scenarioContext ?? draft.scenarioContext,
-        ),
+    const mergedContext = mergeScenarioContextUpload(
+      {
+        ...activeContext,
+        text: scenarioBrief,
       },
+      storedWizard?.draft.scenarioContext ?? activeContext,
+    );
+    return {
+      draft: applySeededContext(
+        draft,
+        mergedContext,
+        preferred?.industry ?? inferContextIndustryFromBrief(scenarioBrief),
+      ),
       seeded: true,
     };
   }
@@ -190,7 +220,5 @@ export function seedWizardScenarioContextFromPriorPractice(
 export function shouldOfferPriorPracticeContextSeed(
   draft: Partial<KrakenLabCohortConfig>,
 ): boolean {
-  return (
-    fullScenarioContextText(draft.scenarioContext).trim().length < MIN_SCENARIO_CONTEXT_CHARS
-  );
+  return activeProjectContextText(draft).trim().length < MIN_SCENARIO_CONTEXT_CHARS;
 }
