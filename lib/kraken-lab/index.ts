@@ -5,3 +5,4 @@ export * from "./generator";
 export * from "./validation";
 export * from "./repository";
 export * from "./cv-parse";
+export * from "./wizard-draft-storage";
