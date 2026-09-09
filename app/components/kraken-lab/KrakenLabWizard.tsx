@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import {
   DIFFICULTY_DESCRIPTIONS,
@@ -37,6 +37,13 @@ import {
 } from "@/lib/kraken-lab/validation";
 import { startKrakenSession } from "@/lib/api/kraken-lab";
 import { readAgenticRuntimeForSession } from "@/lib/agentic/settings";
+import {
+  clearWizardDraftFromStorage,
+  loadWizardDraftFromStorage,
+  participantCountChangeNeedsConfirm,
+  saveWizardDraftToStorage,
+  wizardDraftHasSavedContent,
+} from "@/lib/kraken-lab/wizard-draft-storage";
 import { DIFFICULTY_LABELS, MODE_LABELS } from "@/lib/frontend/training-readiness";
 import {
   openingLineForCall,
@@ -89,8 +96,47 @@ export function KrakenLabWizard({
   const [mode, setMode] = useState<PracticeMode>("texto");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const [draftRecovered, setDraftRecovered] = useState(false);
+  const [draftTrimmed, setDraftTrimmed] = useState(false);
   const difficultyGroupId = useId();
   const { showToast } = useToast();
+  const recoveryToastShown = useRef(false);
+  const trimToastShown = useRef(false);
+
+  useEffect(() => {
+    const stored = loadWizardDraftFromStorage();
+    if (stored && wizardDraftHasSavedContent(stored.draft)) {
+      setDraft(stored.draft);
+      setStep(stored.step);
+      setMode(stored.mode);
+      setDraftRecovered(true);
+      setDraftTrimmed(Boolean(stored.trimmedFileBodies));
+    }
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated || !draftRecovered || recoveryToastShown.current) return;
+    recoveryToastShown.current = true;
+    showToast("Borrador recuperado", "info");
+  }, [hydrated, draftRecovered, showToast]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const timer = window.setTimeout(() => {
+      const result = saveWizardDraftToStorage({ step, mode, draft });
+      if (result.trimmed && !trimToastShown.current) {
+        trimToastShown.current = true;
+        setDraftTrimmed(true);
+        showToast(
+          "Guardamos nombres de archivo; el texto largo se recortó por espacio.",
+          "info",
+        );
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [draft, step, mode, hydrated, showToast]);
 
   const issues = useMemo(() => validateWizardStep(step, draft), [step, draft]);
   const canAdvance = issues.length === 0;
@@ -101,6 +147,23 @@ export function KrakenLabWizard({
     },
     [],
   );
+
+  const handleClearDraft = useCallback(() => {
+    if (
+      !window.confirm(
+        "¿Limpiar el borrador guardado? Se perderá la documentación y perfiles cargados.",
+      )
+    ) {
+      return;
+    }
+    clearWizardDraftFromStorage();
+    setDraft(defaultCohortDraft());
+    setStep("proyecto");
+    setMode("texto");
+    setDraftRecovered(false);
+    setDraftTrimmed(false);
+    showToast("Borrador eliminado", "info");
+  }, [showToast]);
 
   const handleGeneratePersonas = (regenerate = false) => {
     const seed = regenerate ? mintFreshSessionSeed() : draft.sessionSeed?.trim() || mintFreshSessionSeed();
@@ -232,6 +295,20 @@ export function KrakenLabWizard({
           value={draft.participantCount ?? 1}
           onChange={(e) => {
             const count = Math.min(12, Math.max(1, Number(e.target.value) || 1));
+            const currentCount = draft.participantCount ?? 1;
+            if (
+              participantCountChangeNeedsConfirm(
+                currentCount,
+                count,
+                draft.participants,
+              )
+            ) {
+              const removed = (draft.participants?.length ?? 0) - count;
+              const ok = window.confirm(
+                `¿Reducir a ${count} participante${count === 1 ? "" : "s"}? Se perderán ${removed} perfil${removed === 1 ? "" : "es"}.`,
+              );
+              if (!ok) return;
+            }
             updateDraft({
               participantCount: count,
               participants: syncParticipantsToCount({
@@ -563,13 +640,27 @@ export function KrakenLabWizard({
   return (
     <div className="train-hub kraken-wizard">
       <header className="page-hero">
-        <p className="page-hero__eyebrow">{KRAKEN_SIMULACION_PRODUCT_NAME}</p>
+        <div className="wizard-page-hero__top">
+          <p className="page-hero__eyebrow">{KRAKEN_SIMULACION_PRODUCT_NAME}</p>
+          <Button variant="ghost" onClick={handleClearDraft}>
+            Limpiar borrador
+          </Button>
+        </div>
         <h1 className="page-hero__title">{NUEVA_SIMULACION_CTA_LABEL}</h1>
         <p className="page-hero__subtitle">
           Configura tu cohorte, genera una persona receptora y practica con el mismo motor
           de la Clínica de Citas — con batería de diálogo fresca por sesión.
         </p>
       </header>
+
+      {draftRecovered ? (
+        <div className="wizard-draft-banner" role="status">
+          Recuperamos la documentación de tu práctica.
+          {draftTrimmed
+            ? " Algunos archivos se guardaron solo por nombre por límite de espacio."
+            : null}
+        </div>
+      ) : null}
 
       <nav className="wizard-steps" aria-label="Pasos del asistente">
         {WIZARD_STEPS.map((s, index) => (
