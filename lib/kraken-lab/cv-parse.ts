@@ -88,6 +88,35 @@ function isValidAge(age: number): boolean {
   return age >= 16 && age <= 80;
 }
 
+function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (year < 1900 || year > 2099 || month < 1 || month > 12 || day < 1 || day > 31) {
+    return false;
+  }
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
+function isLikelyYyyyMmDdPhoneGarbage(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length !== 8 && digits.length !== 10) return false;
+
+  const year = Number(digits.slice(0, 4));
+  const month = Number(digits.slice(4, 6));
+  const day = Number(digits.slice(6, 8));
+
+  if (year < 2000) return false;
+  return isValidCalendarDate(year, month, day);
+}
+
+function sanitizeExtractedPhone(value: string | undefined): string | undefined {
+  if (!value || isLikelyYyyyMmDdPhoneGarbage(value)) return undefined;
+  return value;
+}
+
 function extractEmail(text: string): string | undefined {
   return text.match(EMAIL_PATTERN)?.[0]?.toLowerCase();
 }
@@ -102,7 +131,11 @@ function extractPhone(text: string): string | undefined {
 
   for (const pattern of patterns) {
     const match = text.match(pattern);
-    if (match) return match[0].replace(/\s+/g, " ").trim();
+    if (match) {
+      const candidate = match[0].replace(/\s+/g, " ").trim();
+      const sanitized = sanitizeExtractedPhone(candidate);
+      if (sanitized) return sanitized;
+    }
   }
 
   return undefined;

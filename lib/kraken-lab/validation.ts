@@ -26,21 +26,31 @@ function isPhone(value: string): boolean {
 function validatePasante(profile: PasanteProfile, index: number): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const prefix = `participants[${index}]`;
+  const label = `Participante ${index + 1}`;
 
   if (!profile.fullName.trim()) {
-    issues.push({ field: `${prefix}.fullName`, message: "Nombre completo requerido" });
+    issues.push({
+      field: `${prefix}.fullName`,
+      message: `${label}: Nombre completo requerido`,
+    });
   }
   if (!Number.isFinite(profile.age) || profile.age < 16 || profile.age > 80) {
-    issues.push({ field: `${prefix}.age`, message: "Edad entre 16 y 80" });
+    issues.push({ field: `${prefix}.age`, message: `${label}: Edad entre 16 y 80` });
   }
   if (!profile.city.trim()) {
-    issues.push({ field: `${prefix}.city`, message: "Ciudad requerida" });
+    issues.push({ field: `${prefix}.city`, message: `${label}: Ciudad requerida` });
   }
   if (!isPhone(profile.phone)) {
-    issues.push({ field: `${prefix}.phone`, message: "Teléfono válido (10+ dígitos)" });
+    issues.push({
+      field: `${prefix}.phone`,
+      message: `${label}: Teléfono válido (10+ dígitos)`,
+    });
   }
   if (!isEmail(profile.email)) {
-    issues.push({ field: `${prefix}.email`, message: "Correo válido requerido" });
+    issues.push({
+      field: `${prefix}.email`,
+      message: `${label}: Correo válido requerido`,
+    });
   }
 
   return issues;
