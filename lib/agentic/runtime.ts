@@ -7,11 +7,14 @@ export function mergeAgenticRuntime(
   runtime: AgenticRuntimeConfig | undefined,
 ): ScenarioConfig {
   if (!runtime) return config;
+  const preservedContext = config.agentic?.scenarioContextText;
   return {
     ...config,
     agentic: {
       ...config.agentic,
       ...runtime,
+      scenarioContextText:
+        runtime.scenarioContextText?.trim() || preservedContext,
     },
   };
 }

@@ -8,8 +8,12 @@ describe("checkReplyGrounding", () => {
     objections: ["Caro"],
     product: "Membresía premium",
     winCriteria: "Visita al gimnasio",
+    companyContext: "Gimnasio Centro",
+    clientTitle: "Gerente",
+    industry: "Salud privada",
+    temperament: "Escéptica",
     forbiddenClaims: ["100% de éxito"],
-    snippets: [{ id: "s1", text: "El presupuesto anual es de 50 mil pesos" }],
+    snippets: [{ id: "s1", text: "El presupuesto anual es de 50 mil pesos", source: "field" }],
     contextText: "El presupuesto anual es de 50 mil pesos",
   };
 

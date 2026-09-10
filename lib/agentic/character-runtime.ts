@@ -9,18 +9,26 @@ function reactionMood(reaction: CharacterReplyInput["reaction"]): string {
 }
 
 export function buildCharacterPrompt(input: CharacterReplyInput): string {
-  const snippets = retrieveTopSnippets(input.pack, input.traineeUtterance, 3);
-  const facts = input.pack.facts.slice(0, 5).join("; ");
-  const objections = input.pack.objections.slice(0, 3).join("; ");
+  const snippets = retrieveTopSnippets(input.pack, input.traineeUtterance, 8);
+  const facts = input.pack.facts.slice(0, 8).join("; ");
+  const objections = input.pack.objections.slice(0, 6).join("; ");
+  const companyLine = input.pack.companyContext
+    ? `Empresa/contexto: ${input.pack.companyContext}.`
+    : "";
+  const titleLine = input.pack.clientTitle
+    ? `Tu cargo: ${input.pack.clientTitle}.`
+    : "";
 
   return `Eres ${input.clientName}, cliente real en una simulación de ventas.
+${companyLine} ${titleLine}
+Industria: ${input.pack.industry}. Temperamento: ${input.pack.temperament}.
 Producto/servicio en juego: ${input.pack.product}.
-Problema: ${facts}.
+Hechos del escenario: ${facts}.
 Objeciones posibles: ${objections}.
 Criterio de éxito del vendedor: ${input.pack.winCriteria}.
 Tono emocional: ${input.tone.label} (intensidad ${input.tone.intensity}/3). ${input.tone.promptHint}
 Ronda: ${input.roundLabel}. Estado: ${reactionMood(input.reaction)}.
-Hechos permitidos (NO inventes cifras, precios ni nombres fuera de esto):
+Hechos permitidos (solo usa hechos del pack; NO inventes cifras, precios ni nombres fuera de esto):
 ${snippets.map((snippet) => `- ${snippet}`).join("\n")}
 Prohibido afirmar: ${input.pack.forbiddenClaims.join("; ")}.
 El vendedor dijo: "${input.traineeUtterance}".

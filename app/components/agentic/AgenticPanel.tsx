@@ -32,7 +32,7 @@ const ENGINES = [
   },
   {
     title: "Diálogo",
-    body: "Genera réplicas del cliente ancladas al pack del escenario, con fallback determinista.",
+    body: "Genera réplicas del cliente ancladas a la documentación subida y a los campos del escenario, con fallback determinista.",
   },
   {
     title: "Coach",
@@ -78,7 +78,8 @@ export function AgenticPanel({ onClose }: AgenticPanelProps) {
           <h1 className="page-hero__title">Capa agentica</h1>
           <p className="page-hero__subtitle">
             Cuatro motores coordinados para {KRAKEN_SIMULACION_PRODUCT_NAME} y escenarios
-            personalizados. Los presets de Clínica no cambian.
+            personalizados. Las réplicas se anclan a la documentación y a los campos del escenario.
+            Los presets de Clínica no cambian.
           </p>
         </div>
         <Button variant="ghost" onClick={onClose}>
@@ -128,6 +129,10 @@ export function AgenticPanel({ onClose }: AgenticPanelProps) {
             </li>
           ))}
         </ul>
+        <p className="config-panel__hint">
+          Las respuestas en vivo usan solo hechos del pack: documentación subida y campos del
+          escenario (producto, problema, objeciones, rondas).
+        </p>
       </section>
     </div>
   );
