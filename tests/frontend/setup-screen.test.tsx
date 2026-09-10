@@ -378,6 +378,17 @@ describe("ScenarioHub flow", () => {
     });
   });
 
+  it("marks the chosen scenario card as selected", async () => {
+    const user = userEvent.setup();
+    renderHub();
+
+    const card = await screen.findByRole("button", { name: /Mariana Escobedo/i });
+    await user.click(card);
+
+    expect(card).toHaveClass("card--selected");
+    expect(card).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("shows a loading state while scenarios load", () => {
     vi.mocked(loadScenarioCatalog).mockImplementation(
       () => new Promise(() => undefined),
