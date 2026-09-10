@@ -45,7 +45,7 @@ describe("ScenarioBuilderScreen preview fallback", () => {
     );
     await user.selectOptions(screen.getByLabelText("Tipo de empresa / industria"), "Otro");
     await user.type(
-      screen.getByPlaceholderText(/taller de llantas/i),
+      screen.getByPlaceholderText(/Escribe tu valor/i),
       "taller de llantas",
     );
     await user.selectOptions(screen.getByLabelText("¿Qué se vende?"), "Otro");

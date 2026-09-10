@@ -31,12 +31,21 @@ function SelectHarness({
   );
 }
 
+function fieldRoot(label: string): HTMLElement {
+  const labelEl = screen.getByText(label, { selector: ".field__label" });
+  const root = labelEl.closest(".select-with-other");
+  if (!(root instanceof HTMLElement)) {
+    throw new Error(`Missing select-with-other root for ${label}`);
+  }
+  return root;
+}
+
 describe("SelectWithOther", () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("reveals and focuses a custom input when Otro is selected", async () => {
+  it("replaces the select with a typeable textbox when Otro is selected", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
@@ -45,11 +54,14 @@ describe("SelectWithOther", () => {
     await user.selectOptions(screen.getByLabelText("Industria / negocio"), "Otro");
 
     expect(onChange).toHaveBeenCalledWith(OTHER_OPTION_VALUE);
-    const root = screen.getByLabelText("Industria / negocio").closest(".select-with-other");
-    expect(root).toHaveClass("field--full");
-    const otherInput = within(root as HTMLElement).getByTestId("select-with-other-input");
-    expect(otherInput).toBeInTheDocument();
+    expect(screen.queryByLabelText("Industria / negocio", { selector: "select" })).not.toBeInTheDocument();
+
+    const root = fieldRoot("Industria / negocio");
+    const otherInput = within(root).getByRole("textbox");
+    expect(otherInput).toBeVisible();
+    expect(otherInput).toHaveAttribute("placeholder", "Escribe tu valor…");
     expect(otherInput).toHaveFocus();
+    expect(within(root).getByText("Modo personalizado: escribe aquí.")).toBeInTheDocument();
   });
 
   it("stores a typed custom value instead of the sentinel", async () => {
@@ -57,31 +69,39 @@ describe("SelectWithOther", () => {
 
     render(<SelectHarness initialValue={OTHER_OPTION_VALUE} />);
 
-    const otherInput = within(
-      screen.getByLabelText("Industria / negocio").closest(".select-with-other") as HTMLElement,
-    ).getByTestId("select-with-other-input");
+    const otherInput = screen.getByRole("textbox");
     await user.click(otherInput);
     await user.paste("Taller de llantas");
 
     expect(otherInput).toHaveValue("Taller de llantas");
-    expect(screen.getByLabelText("Industria / negocio")).toHaveValue(OTHER_OPTION_VALUE);
   });
 
-  it("reloads a saved custom value as Otro plus textbox", () => {
+  it("restores the select when Elegir de la lista is clicked", async () => {
+    const user = userEvent.setup();
+
+    render(<SelectHarness initialValue={OTHER_OPTION_VALUE} />);
+
+    await user.click(screen.getByRole("button", { name: "Elegir de la lista" }));
+
+    expect(screen.getByLabelText("Industria / negocio")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("reloads a saved custom value as a typeable textbox", () => {
     render(<SelectHarness initialValue="Distribuidora regional" />);
 
-    expect(screen.getByLabelText("Industria / negocio")).toHaveValue(OTHER_OPTION_VALUE);
-    expect(screen.getByLabelText("Escribe tu valor")).toHaveValue("Distribuidora regional");
+    expect(screen.queryByLabelText("Industria / negocio", { selector: "select" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue("Distribuidora regional");
   });
 
   it("never shows the sentinel inside the text input", () => {
     render(<SelectHarness initialValue={OTHER_OPTION_VALUE} />);
 
-    expect(screen.getByLabelText("Escribe tu valor")).toHaveValue("");
-    expect(screen.getByLabelText("Escribe tu valor")).not.toHaveValue(OTHER_OPTION_VALUE);
+    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect(screen.getByRole("textbox")).not.toHaveValue(OTHER_OPTION_VALUE);
   });
 
-  it("stores a listed option without showing the custom input", async () => {
+  it("stores a listed option without showing the custom textbox", async () => {
     const user = userEvent.setup();
 
     function Harness() {
@@ -101,7 +121,7 @@ describe("SelectWithOther", () => {
     await user.selectOptions(screen.getByLabelText("Temperamento"), "Gatekeeper estricto");
 
     expect(screen.getByLabelText("Temperamento")).toHaveValue("Gatekeeper estricto");
-    expect(screen.queryByLabelText("Escribe tu valor")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 });
 

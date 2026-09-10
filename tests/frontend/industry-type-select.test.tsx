@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { IndustryTypeSelect } from "@/app/components/ui/IndustryTypeSelect";
@@ -58,7 +58,7 @@ describe("IndustryTypeSelect", () => {
     expect(onChange).toHaveBeenCalledWith("Logística y transporte");
   });
 
-  it("reveals and focuses the custom input when Otro is selected", async () => {
+  it("replaces the select with a typeable textbox when Otro is selected", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
 
@@ -67,24 +67,33 @@ describe("IndustryTypeSelect", () => {
     await user.selectOptions(screen.getByLabelText("Tipo de empresa / industria"), "Otro");
 
     expect(onChange).toHaveBeenCalledWith(OTHER_OPTION_VALUE);
-    const root = screen
-      .getByLabelText("Tipo de empresa / industria")
-      .closest(".industry-type-select");
-    const otherInput = within(root as HTMLElement).getByTestId("select-with-other-input");
-    expect(otherInput).toBeInTheDocument();
-    expect(otherInput).toHaveFocus();
+    expect(
+      screen.queryByLabelText("Tipo de empresa / industria", { selector: "select" }),
+    ).not.toBeInTheDocument();
+
+    const textbox = screen.getByRole("textbox");
+    expect(textbox).toBeVisible();
+    expect(textbox).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Elegir de la lista" })).toBeInTheDocument();
   });
 
-  it("reloads a saved custom industry as Otro plus textbox", () => {
+  it("restores the select when Elegir de la lista is clicked", async () => {
+    const user = userEvent.setup();
+
+    render(<IndustryHarness initialValue={OTHER_OPTION_VALUE} />);
+
+    await user.click(screen.getByRole("button", { name: "Elegir de la lista" }));
+
+    expect(screen.getByLabelText("Tipo de empresa / industria")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("reloads a saved custom industry as a typeable textbox", () => {
     render(<IndustryHarness initialValue="Taller de llantas" />);
 
-    const root = screen
-      .getByLabelText("Tipo de empresa / industria")
-      .closest(".industry-type-select") as HTMLElement;
-
-    expect(screen.getByLabelText("Tipo de empresa / industria")).toHaveValue(
-      OTHER_OPTION_VALUE,
-    );
-    expect(within(root).getByTestId("select-with-other-input")).toHaveValue("Taller de llantas");
+    expect(
+      screen.queryByLabelText("Tipo de empresa / industria", { selector: "select" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toHaveValue("Taller de llantas");
   });
 });
