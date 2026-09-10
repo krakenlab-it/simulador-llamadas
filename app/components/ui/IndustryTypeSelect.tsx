@@ -36,7 +36,11 @@ export function IndustryTypeSelect({
   }, [showOtherInput]);
 
   return (
-    <div className="field field--full industry-type-select">
+    <div
+      className={`field field--full industry-type-select${
+        showOtherInput ? " select-with-other--other-open" : ""
+      }`}
+    >
       <label className="field__label" htmlFor={selectId}>
         Tipo de empresa / industria
       </label>
@@ -62,22 +66,27 @@ export function IndustryTypeSelect({
         <option value={OTHER_OPTION_VALUE}>Otro</option>
       </select>
       {showOtherInput ? (
-        <>
+        <div className="select-with-other__other-block">
+          <p className="select-with-other__hint">
+            Puedes tipar tu opción personalizada.
+          </p>
           <label className="field__label" htmlFor={otherId}>
             Escribe tu valor
           </label>
           <input
             ref={otherInputRef}
             id={otherId}
-            className="industry-type-select__other"
+            className="industry-type-select__other select-with-other__other"
             value={customValue}
             placeholder={otherPlaceholder}
+            autoFocus
+            data-testid="select-with-other-input"
             onChange={(event) => {
               const next = event.target.value;
               onChange(next === "" ? OTHER_OPTION_VALUE : next);
             }}
           />
-        </>
+        </div>
       ) : null}
     </div>
   );
