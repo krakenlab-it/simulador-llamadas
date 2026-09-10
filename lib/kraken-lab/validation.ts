@@ -218,7 +218,7 @@ export function isValidCohort(cohort: Partial<KrakenLabCohortConfig>): cohort is
 export function defaultPasanteProfile(): PasanteProfile {
   return {
     fullName: "",
-    age: 22,
+    age: 0,
     city: "",
     simulationCities: [],
     phone: "",

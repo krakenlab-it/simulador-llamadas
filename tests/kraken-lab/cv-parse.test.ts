@@ -52,7 +52,7 @@ Edad: 24
   it("merges parsed fields into a participant profile", () => {
     const base: PasanteProfile = {
       fullName: "",
-      age: 22,
+      age: 0,
       city: "",
       simulationCities: [],
       phone: "",
@@ -62,6 +62,7 @@ Edad: 24
     const next = applyParsedCvToProfile(base, parseCvText(SAMPLE_CV), "cv.txt");
 
     expect(next.fullName).toBe("Santiago Mendoza");
+    expect(next.age).toBe(28);
     expect(next.email).toBe("santiago.mendoza@example.com");
     expect(next.cvFileName).toBe("cv.txt");
   });
@@ -83,6 +84,63 @@ Edad: 24
     );
 
     expect(next.age).toBe(31);
+  });
+
+  it("overwrites placeholder age 22 when CV includes a valid age", () => {
+    const base: PasanteProfile = {
+      fullName: "",
+      age: 22,
+      city: "",
+      simulationCities: [],
+      phone: "",
+      email: "",
+    };
+
+    const next = applyParsedCvToProfile(
+      base,
+      parseCvText("Santiago Mendoza\nEdad: 28"),
+      "cv.txt",
+    );
+
+    expect(next.age).toBe(28);
+  });
+
+  it("leaves age blank when CV has no age and profile was never set", () => {
+    const base: PasanteProfile = {
+      fullName: "",
+      age: 0,
+      city: "",
+      simulationCities: [],
+      phone: "",
+      email: "",
+    };
+
+    const next = applyParsedCvToProfile(
+      base,
+      parseCvText("Santiago Mendoza\nCiudad de México"),
+      "cv.txt",
+    );
+
+    expect(next.age).toBe(0);
+  });
+
+  it("keeps manually entered age when CV has no age", () => {
+    const base: PasanteProfile = {
+      fullName: "Santiago Mendoza",
+      age: 29,
+      city: "",
+      simulationCities: [],
+      phone: "",
+      email: "",
+    };
+
+    const next = applyParsedCvToProfile(
+      base,
+      parseCvText("Santiago Mendoza\nCiudad de México"),
+      "cv.txt",
+    );
+
+    expect(next.age).toBe(29);
   });
 });
 

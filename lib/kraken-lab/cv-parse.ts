@@ -279,6 +279,16 @@ export function parseCvText(text: string): ParsedCvFields {
   };
 }
 
+function resolveAgeAfterCvParse(profile: PasanteProfile, parsed: ParsedCvFields): number {
+  if (parsed.age !== undefined && isValidAge(parsed.age)) {
+    return parsed.age;
+  }
+  if (!isBlankAge(profile.age) && isValidAge(profile.age)) {
+    return profile.age;
+  }
+  return 0;
+}
+
 export function applyParsedCvToProfile(
   profile: PasanteProfile,
   parsed: ParsedCvFields,
@@ -291,11 +301,7 @@ export function applyParsedCvToProfile(
       : !isBlankString(parsed.fullName)
         ? parsed.fullName!
         : profile.fullName,
-    age: !isBlankAge(profile.age)
-      ? profile.age
-      : !isBlankAge(parsed.age)
-        ? parsed.age!
-        : profile.age,
+    age: resolveAgeAfterCvParse(profile, parsed),
     city: !isBlankString(profile.city)
       ? profile.city
       : !isBlankString(parsed.city)
