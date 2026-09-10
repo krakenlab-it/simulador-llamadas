@@ -71,6 +71,8 @@ function normalizeParticipant(value: unknown): PasanteProfile | null {
     fullName: raw.fullName,
     age: Number.isFinite(raw.age) ? raw.age : 0,
     city: typeof raw.city === "string" ? raw.city : "",
+    simulationCountry:
+      typeof raw.simulationCountry === "string" ? raw.simulationCountry : undefined,
     simulationCities: Array.isArray(raw.simulationCities)
       ? raw.simulationCities.filter((city): city is string => typeof city === "string")
       : [],

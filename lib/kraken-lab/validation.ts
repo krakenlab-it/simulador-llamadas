@@ -40,7 +40,7 @@ function validatePasante(profile: PasanteProfile, index: number): ValidationIssu
   if (!profile.city.trim()) {
     issues.push({ field: `${prefix}.city`, message: `${label}: Ciudad requerida` });
   }
-  if (!isPhone(profile.phone)) {
+  if (profile.phone.trim() && !isPhone(profile.phone)) {
     issues.push({
       field: `${prefix}.phone`,
       message: `${label}: Teléfono válido (10+ dígitos)`,
