@@ -31,6 +31,11 @@ export type { EndSessionTurnInput } from "./service";
 
 let sharedPool: Pool | null = null;
 
+/** Usage/session Postgres is optional: billed TTS can still run from a live JWT. */
+export function isDatabaseConfigured(): boolean {
+  return Boolean(process.env.DATABASE_URL?.trim());
+}
+
 function getPool(): Pool {
   const databaseUrl = process.env.DATABASE_URL;
 

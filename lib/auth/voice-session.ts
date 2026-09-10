@@ -47,6 +47,12 @@ export async function startBilledVoiceSession(
     });
 
     if (!response.ok) {
+      if (response.status >= 500) {
+        return {
+          fallbackToBrowser: false,
+          reason: "voice_session_unavailable",
+        };
+      }
       return { fallbackToBrowser: true, reason: "voice_session_start_failed" };
     }
 
@@ -61,7 +67,11 @@ export async function startBilledVoiceSession(
       return data;
     }
 
-    return { fallbackToBrowser: true, reason: "voice_session_start_failed" };
+    return {
+      fallbackToBrowser: false,
+      reason: data.reason ?? "voice_session_unavailable",
+      verifiedUserId: data.verifiedUserId,
+    };
   } catch {
     return { fallbackToBrowser: true, reason: "voice_session_start_failed" };
   }

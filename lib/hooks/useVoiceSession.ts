@@ -16,6 +16,8 @@ export interface VoiceSessionState {
   remainingConvaiSeconds: number;
   warnLowTime: boolean;
   fallbackToBrowser: boolean;
+  /** True after the billed-session attempt finishes (or is skipped). */
+  resolved: boolean;
 }
 
 export interface VoiceSessionOptions {
@@ -45,32 +47,48 @@ export function useVoiceSession(
   );
   const [warnLowTime, setWarnLowTime] = useState(false);
   const [fallbackToBrowser, setFallbackToBrowser] = useState(false);
+  const [resolved, setResolved] = useState(false);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedRef = useRef(false);
   const sessionUsageIdRef = useRef<string | null>(null);
 
   const startSession = useCallback(async () => {
-    if (
-      mode !== "voz" ||
-      !voiceConfig.requiresVoiceAuth ||
-      startedRef.current
-    ) {
+    if (voiceConfig.ready === false) {
+      return;
+    }
+    if (mode !== "voz" || !voiceConfig.requiresVoiceAuth) {
+      setResolved(true);
+      return;
+    }
+    if (startedRef.current) {
       return;
     }
     startedRef.current = true;
 
     const result = await startBilledVoiceSession(callAttemptId ?? undefined);
 
-    if (result.fallbackToBrowser || !result.sessionUsageId) {
+    if (result.fallbackToBrowser) {
       setFallbackToBrowser(true);
+      setResolved(true);
       return;
     }
 
-    sessionUsageIdRef.current = result.sessionUsageId;
-    setSessionUsageId(result.sessionUsageId);
-    setResolvedVerifiedUserId(result.verifiedUserId ?? verifiedUserId);
-    setBilledActive(true);
-  }, [mode, voiceConfig.requiresVoiceAuth, callAttemptId, verifiedUserId]);
+    if (result.sessionUsageId) {
+      sessionUsageIdRef.current = result.sessionUsageId;
+      setSessionUsageId(result.sessionUsageId);
+      setResolvedVerifiedUserId(result.verifiedUserId ?? verifiedUserId);
+      setBilledActive(true);
+    } else if (result.verifiedUserId) {
+      setResolvedVerifiedUserId(result.verifiedUserId);
+    }
+    setResolved(true);
+  }, [
+    mode,
+    voiceConfig.ready,
+    voiceConfig.requiresVoiceAuth,
+    callAttemptId,
+    verifiedUserId,
+  ]);
 
   useEffect(() => {
     void startSession();
@@ -128,5 +146,6 @@ export function useVoiceSession(
     remainingConvaiSeconds,
     warnLowTime,
     fallbackToBrowser,
+    resolved,
   };
 }

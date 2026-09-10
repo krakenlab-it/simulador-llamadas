@@ -34,6 +34,11 @@ import {
 
 export interface UseSpeechSynthesisOptions {
   sessionUsageId?: string | null;
+  /**
+   * Explicit skip / spend-brake demotion. Infra failures (missing usage DB,
+   * 500 on session start) must stay false so billed TTS still runs.
+   */
+  fallbackToBrowser?: boolean;
   /** BCP-47 for browser speechSynthesis. Clinic calls stay on es-MX. */
   locale?: string;
   voiceAgent?: VoiceAgentSettings | null;
@@ -114,7 +119,7 @@ async function fetchServerAudio(
 export function useSpeechSynthesis(
   options: UseSpeechSynthesisOptions = {},
 ): UseSpeechSynthesisResult {
-  const { sessionUsageId, voiceAgent } = options;
+  const { sessionUsageId, voiceAgent, fallbackToBrowser = false } = options;
   const locale = voiceAgent
     ? resolveSpeechLocale({ language: voiceAgent.language })
     : (options.locale ?? "es-MX");
@@ -145,19 +150,12 @@ export function useSpeechSynthesis(
     [sessionUsageId, voiceAgent],
   );
 
-  const useServerTts =
-    voiceConfig.serverTts &&
-    (!voiceConfig.requiresVoiceAuth || Boolean(sessionUsageId));
+  const useServerTts = voiceConfig.serverTts && !fallbackToBrowser;
 
   useEffect(() => {
     const browserOk = isSpeechSynthesisSupported();
-    const elevenLabsNeedsAuth =
-      voiceConfig.ttsTier === "elevenlabs" && voiceConfig.requiresVoiceAuth;
-    setSupported(
-      browserOk ||
-        (voiceConfig.serverTts && (!elevenLabsNeedsAuth || Boolean(sessionUsageId))),
-    );
-  }, [voiceConfig, sessionUsageId]);
+    setSupported(browserOk || (voiceConfig.serverTts && !fallbackToBrowser));
+  }, [voiceConfig, fallbackToBrowser]);
 
   const revokeObjectUrl = useCallback(() => {
     if (objectUrlRef.current) {
