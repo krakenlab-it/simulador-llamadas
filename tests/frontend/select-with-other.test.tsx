@@ -64,6 +64,44 @@ describe("SelectWithOther", () => {
     expect(within(root).getByText("Modo personalizado: escribe aquí.")).toBeInTheDocument();
   });
 
+  it("preserves spaces while typing a custom value", async () => {
+    const user = userEvent.setup();
+
+    render(<SelectHarness initialValue={OTHER_OPTION_VALUE} />);
+
+    const input = screen.getByRole("textbox");
+    await user.click(input);
+    await user.paste("Pasteles de sabores");
+
+    expect(input).toHaveValue("Pasteles de sabores");
+  });
+
+  it("preserves a trailing space while the next word is being typed", async () => {
+    const user = userEvent.setup();
+
+    function Harness() {
+      const [value, setValue] = useState(OTHER_OPTION_VALUE);
+      return (
+        <SelectWithOther
+          label="¿Qué se vende?"
+          value={value}
+          options={["Software SaaS / plataforma", "Consultoría especializada"]}
+          onChange={setValue}
+        />
+      );
+    }
+
+    render(<Harness />);
+
+    const input = screen.getByRole("textbox");
+    await user.click(input);
+    await user.paste("Pasteles ");
+    expect(input).toHaveValue("Pasteles ");
+
+    await user.type(input, "de sabores");
+    expect(input).toHaveValue("Pasteles de sabores");
+  });
+
   it("stores a typed custom value instead of the sentinel", async () => {
     const user = userEvent.setup();
 
@@ -130,6 +168,19 @@ describe("resolveSelectWithOtherValue", () => {
     expect(resolveSelectWithOtherValue(OTHER_OPTION_VALUE, OPTIONS)).toEqual({
       selectValue: OTHER_OPTION_VALUE,
       customValue: "",
+      showOtherInput: true,
+    });
+  });
+
+  it("preserves internal and trailing spaces in custom values", () => {
+    expect(resolveSelectWithOtherValue("Pasteles de sabores", OPTIONS)).toEqual({
+      selectValue: OTHER_OPTION_VALUE,
+      customValue: "Pasteles de sabores",
+      showOtherInput: true,
+    });
+    expect(resolveSelectWithOtherValue("Pasteles ", OPTIONS)).toEqual({
+      selectValue: OTHER_OPTION_VALUE,
+      customValue: "Pasteles ",
       showOtherInput: true,
     });
   });
