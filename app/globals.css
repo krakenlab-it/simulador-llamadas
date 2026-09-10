@@ -2417,7 +2417,17 @@ body {
 .builder-form__error {
   color: var(--danger);
   font-size: 0.85rem;
+  margin: 0;
+}
+
+.builder-form__error-list {
   margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.builder-form__error-list .builder-form__error + .builder-form__error {
+  margin-top: 0.35rem;
 }
 
 .builder-form__actions {

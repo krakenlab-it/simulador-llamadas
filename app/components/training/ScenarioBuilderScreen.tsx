@@ -29,10 +29,11 @@ import {
   draftFromRecord,
   draftToCreateInput,
   emptyAuthoringDraft,
+  issuesForAuthoringStep,
   languageLabel,
+  listAuthoringDraftIssues,
   nextAuthoringStep,
   previousAuthoringStep,
-  validateAuthoringDraft,
   type AuthoringStep,
   type ScenarioAuthoringDraft,
 } from "@/lib/scenarios/authoring";
@@ -149,8 +150,12 @@ export function ScenarioBuilderScreen({
   }, [draft, draftKey, step]);
 
   const stepIndex = AUTHORING_STEPS.indexOf(step);
-  const validationError = useMemo(() => validateAuthoringDraft(draft), [draft]);
-  const canSave = validationError === null;
+  const pendingIssues = useMemo(() => listAuthoringDraftIssues(draft), [draft]);
+  const stepPendingIssues = useMemo(
+    () => issuesForAuthoringStep(step, draft),
+    [draft, step],
+  );
+  const canSave = pendingIssues.length === 0;
 
   const setField = <K extends keyof ScenarioAuthoringDraft>(
     field: K,
@@ -219,9 +224,18 @@ export function ScenarioBuilderScreen({
     showToast("Ejemplo cargado. Revisa cliente, fases y éxito antes de guardar.", "success");
   };
 
+  const handleContinue = () => {
+    if (stepPendingIssues.length > 0) {
+      setError(null);
+      return;
+    }
+    setError(null);
+    setStep(nextAuthoringStep(step));
+  };
+
   const handleSave = async () => {
     if (!canSave) {
-      setError(validationError);
+      setError("Completa los campos pendientes antes de guardar.");
       return;
     }
     setSaving(true);
@@ -233,6 +247,13 @@ export function ScenarioBuilderScreen({
           ? await updateScenario({ ...payload, slug: initialScenario.slug })
           : await createScenario(payload);
       clearBuilderDraftFromStorage(draftKey);
+      showToast("Escenario guardado", "success");
+      if (result.usedLocalFallback) {
+        showToast(
+          "Guardado en este navegador (sin conexión al servidor).",
+          "info",
+        );
+      }
       onSave({
         scenario: result.scenario,
         usedLocalFallback: result.usedLocalFallback,
@@ -553,6 +574,16 @@ export function ScenarioBuilderScreen({
           </fieldset>
         ) : null}
 
+        {pendingIssues.length > 0 ? (
+          <ul className="builder-form__error-list" role="alert">
+            {pendingIssues.map((issue) => (
+              <li key={issue.field} className="builder-form__error">
+                Pendiente: {issue.message}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
         {error ? (
           <p className="builder-form__error" role="alert">
             {error}
@@ -573,16 +604,12 @@ export function ScenarioBuilderScreen({
             </Button>
           )}
           {step !== "success" ? (
-            <Button
-              variant="primary"
-              onClick={() => setStep(nextAuthoringStep(step))}
-            >
+            <Button variant="primary" onClick={handleContinue}>
               Continuar
             </Button>
           ) : (
             <Button
               variant="primary"
-              disabled={!canSave}
               loading={saving}
               onClick={() => void handleSave()}
             >
