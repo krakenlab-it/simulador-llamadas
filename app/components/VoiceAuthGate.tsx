@@ -32,6 +32,11 @@ export function VoiceAuthGate({ onVerified, onSkip }: VoiceAuthGateProps) {
       if (cancelled) return;
       setRegistering(false);
       if (!result) {
+        // A live session is enough for billed TTS/STT. Do not trap the
+        // trainer behind an email-confirmation / verify-endpoint failure.
+        if (session?.user.id) {
+          return;
+        }
         setRegisterError("No se pudo verificar la sesión para voz facturada.");
         return;
       }

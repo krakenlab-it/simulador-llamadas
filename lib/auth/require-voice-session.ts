@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { Client } from "pg";
 import { withPgClient } from "@/lib/session";
+import { resolveVoiceUserIdentity } from "@/lib/auth/voice-user";
 import { getOrCreateVerifiedUser } from "@/lib/voice/usage";
 
 export interface VoiceAuthContext {
@@ -32,13 +33,12 @@ export async function verifySupabaseAccessToken(
   if (!url || !anonKey) return null;
 
   const supabase = createClient(url, anonKey);
-  const { data, error } = await supabase.auth.getUser(accessToken);
-  if (error || !data.user?.email) return null;
+  const { data } = await supabase.auth.getUser(accessToken);
+  if (!data.user) return null;
 
-  return {
-    userId: data.user.id,
-    email: data.user.email.trim().toLowerCase(),
-  };
+  // A live session JWT is enough for billed TTS/STT. Do not require
+  // email_confirmed_at — Preview and some Supabase projects leave it null.
+  return resolveVoiceUserIdentity(data.user);
 }
 
 export async function resolveVoiceAuth(
