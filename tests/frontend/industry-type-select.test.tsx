@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { IndustryTypeSelect } from "@/app/components/ui/IndustryTypeSelect";
@@ -67,7 +67,10 @@ describe("IndustryTypeSelect", () => {
     await user.selectOptions(screen.getByLabelText("Tipo de empresa / industria"), "Otro");
 
     expect(onChange).toHaveBeenCalledWith(OTHER_OPTION_VALUE);
-    const otherInput = screen.getByLabelText("Escribe tu valor");
+    const root = screen
+      .getByLabelText("Tipo de empresa / industria")
+      .closest(".industry-type-select");
+    const otherInput = within(root as HTMLElement).getByTestId("select-with-other-input");
     expect(otherInput).toBeInTheDocument();
     expect(otherInput).toHaveFocus();
   });
@@ -75,9 +78,13 @@ describe("IndustryTypeSelect", () => {
   it("reloads a saved custom industry as Otro plus textbox", () => {
     render(<IndustryHarness initialValue="Taller de llantas" />);
 
+    const root = screen
+      .getByLabelText("Tipo de empresa / industria")
+      .closest(".industry-type-select") as HTMLElement;
+
     expect(screen.getByLabelText("Tipo de empresa / industria")).toHaveValue(
       OTHER_OPTION_VALUE,
     );
-    expect(screen.getByLabelText("Escribe tu valor")).toHaveValue("Taller de llantas");
+    expect(within(root).getByTestId("select-with-other-input")).toHaveValue("Taller de llantas");
   });
 });

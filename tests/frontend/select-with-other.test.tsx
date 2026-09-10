@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { SelectWithOther } from "@/app/components/ui/SelectWithOther";
@@ -45,7 +45,9 @@ describe("SelectWithOther", () => {
     await user.selectOptions(screen.getByLabelText("Industria / negocio"), "Otro");
 
     expect(onChange).toHaveBeenCalledWith(OTHER_OPTION_VALUE);
-    const otherInput = screen.getByLabelText("Escribe tu valor");
+    const root = screen.getByLabelText("Industria / negocio").closest(".select-with-other");
+    expect(root).toHaveClass("field--full");
+    const otherInput = within(root as HTMLElement).getByTestId("select-with-other-input");
     expect(otherInput).toBeInTheDocument();
     expect(otherInput).toHaveFocus();
   });
@@ -55,7 +57,9 @@ describe("SelectWithOther", () => {
 
     render(<SelectHarness initialValue={OTHER_OPTION_VALUE} />);
 
-    const otherInput = screen.getByLabelText("Escribe tu valor");
+    const otherInput = within(
+      screen.getByLabelText("Industria / negocio").closest(".select-with-other") as HTMLElement,
+    ).getByTestId("select-with-other-input");
     await user.click(otherInput);
     await user.paste("Taller de llantas");
 

@@ -46,7 +46,9 @@ export function SelectWithOther({
 
   return (
     <div
-      className={`field select-with-other${showOtherInput ? " field--full" : ""}`}
+      className={`field field--full select-with-other${
+        showOtherInput ? " select-with-other--other-open" : ""
+      }`}
     >
       <label className="field__label" htmlFor={selectId}>
         {label}
@@ -74,7 +76,10 @@ export function SelectWithOther({
         <option value={OTHER_OPTION_VALUE}>{otherLabel}</option>
       </select>
       {showOtherInput ? (
-        <>
+        <div className="select-with-other__other-block">
+          <p className="select-with-other__hint">
+            Puedes tipar tu opción personalizada.
+          </p>
           <label className="field__label" htmlFor={otherId}>
             Escribe tu valor
           </label>
@@ -85,12 +90,14 @@ export function SelectWithOther({
             value={customValue}
             required={required}
             placeholder={otherPlaceholder}
+            autoFocus
+            data-testid="select-with-other-input"
             onChange={(event) => {
               const next = event.target.value;
               onChange(next === "" ? OTHER_OPTION_VALUE : next);
             }}
           />
-        </>
+        </div>
       ) : null}
     </div>
   );
