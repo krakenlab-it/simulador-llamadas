@@ -6,7 +6,7 @@ import type { PasanteProfile } from "@/lib/kraken-lab/types";
 
 const emptyProfile: PasanteProfile = {
   fullName: "",
-  age: 22,
+  age: 0,
   city: "",
   simulationCities: [],
   phone: "",
