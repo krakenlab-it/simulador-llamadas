@@ -288,7 +288,8 @@ body {
 }
 
 .select-with-other__other,
-.industry-type-select__other {
+.industry-type-select__other,
+.select-with-other__custom-input {
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -301,7 +302,19 @@ body {
   color: var(--paper);
   font: inherit;
   font-size: 0.9rem;
+  opacity: 1;
+  visibility: visible;
+  position: relative;
+  z-index: 2;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 35%, transparent);
+}
+
+.select-with-other__custom-mode {
+  display: block;
+  width: 100%;
+  overflow: visible;
+  position: relative;
+  z-index: 2;
 }
 
 .select-with-other__other-block {
@@ -312,9 +325,42 @@ body {
 }
 
 .select-with-other__hint {
-  margin: 0 0 0.35rem;
+  margin: 0.45rem 0 0.35rem;
   font-size: 0.78rem;
   color: var(--muted);
+}
+
+.select-with-other__back {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-2);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.select-with-other__back:hover,
+.select-with-other__back:focus-visible {
+  color: var(--accent);
+  outline: none;
+}
+
+.select-with-other__custom-input::placeholder {
+  color: color-mix(in srgb, var(--muted) 65%, transparent);
+}
+
+.select-with-other__custom-input:focus,
+.industry-type-select__other:focus,
+.select-with-other__other:focus {
+  outline: none;
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 45%, transparent);
 }
 
 .builder-form__grid .select-with-other,
@@ -326,13 +372,6 @@ body {
 
 .select-with-other--other-open {
   overflow: visible;
-}
-
-.industry-type-select__other:focus,
-.select-with-other__other:focus {
-  outline: none;
-  border-color: var(--accent-2);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 45%, transparent);
 }
 
 .builder-form__industry-block {
