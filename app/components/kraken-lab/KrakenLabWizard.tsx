@@ -856,9 +856,11 @@ export function KrakenLabWizard({
       <section className="wizard-body">{renderStep()}</section>
 
       {issues.length > 0 ? (
-        <ul className="wizard-errors" role="status">
+        <ul className="wizard-errors builder-form__error-list" role="alert">
           {issues.map((issue) => (
-            <li key={issue.field}>{issue.message}</li>
+            <li key={issue.field} className="builder-form__error">
+              Pendiente: {issue.message}
+            </li>
           ))}
         </ul>
       ) : null}
