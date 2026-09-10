@@ -14,10 +14,18 @@ export interface ToneProfile {
   promptHint: string;
 }
 
+export type ScenarioPackSnippetSource = "field" | "context" | "round";
+
 export interface ScenarioPackSnippet {
   id: string;
   text: string;
-  source?: string;
+  source?: ScenarioPackSnippetSource;
+}
+
+export interface ScenarioPackMetadata {
+  companyContext?: string;
+  clientTitle?: string;
+  clientName?: string;
 }
 
 export interface ScenarioPack {
@@ -25,6 +33,10 @@ export interface ScenarioPack {
   objections: string[];
   product: string;
   winCriteria: string;
+  companyContext: string;
+  clientTitle: string;
+  industry: string;
+  temperament: string;
   forbiddenClaims: string[];
   snippets: ScenarioPackSnippet[];
   contextText: string;

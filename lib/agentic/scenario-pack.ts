@@ -1,5 +1,9 @@
 import type { ScenarioConfig } from "@/lib/scenarios/types";
-import type { ScenarioPack, ScenarioPackSnippet } from "./types";
+import type {
+  ScenarioPack,
+  ScenarioPackMetadata,
+  ScenarioPackSnippet,
+} from "./types";
 
 const FORBIDDEN_CLAIMS = [
   "garantía de resultados",
@@ -7,6 +11,8 @@ const FORBIDDEN_CLAIMS = [
   "sin riesgo alguno",
   "mejor precio del mercado",
 ];
+
+const MAX_SNIPPETS = 24;
 
 function splitSentences(text: string): string[] {
   return text
@@ -27,17 +33,51 @@ function uniqueStrings(values: string[]): string[] {
   return out;
 }
 
+function pushSnippet(
+  snippets: ScenarioPackSnippet[],
+  seen: Set<string>,
+  text: string,
+  source: ScenarioPackSnippet["source"],
+): void {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.length < 12) return;
+  const key = trimmed.toLowerCase();
+  if (seen.has(key)) return;
+  seen.add(key);
+  snippets.push({
+    id: `snippet-${snippets.length + 1}`,
+    text: trimmed,
+    source,
+  });
+}
+
 function buildSnippets(
-  facts: string[],
+  fieldFacts: string[],
+  roundTexts: string[],
   contextText: string,
 ): ScenarioPackSnippet[] {
-  const contextSentences = splitSentences(contextText);
-  const combined = uniqueStrings([...contextSentences, ...facts, ...splitSentences(contextText)]);
-  return combined.slice(0, 12).map((text, index) => ({
-    id: `snippet-${index + 1}`,
-    text,
-    source: contextSentences.includes(text) ? "context" : "scenario",
-  }));
+  const snippets: ScenarioPackSnippet[] = [];
+  const seen = new Set<string>();
+
+  for (const sentence of splitSentences(contextText)) {
+    pushSnippet(snippets, seen, sentence, "context");
+  }
+
+  for (const fact of fieldFacts) {
+    pushSnippet(snippets, seen, fact, "field");
+    for (const sentence of splitSentences(fact)) {
+      pushSnippet(snippets, seen, sentence, "field");
+    }
+  }
+
+  for (const roundText of roundTexts) {
+    pushSnippet(snippets, seen, roundText, "round");
+    for (const sentence of splitSentences(roundText)) {
+      pushSnippet(snippets, seen, sentence, "round");
+    }
+  }
+
+  return snippets.slice(0, MAX_SNIPPETS);
 }
 
 /**
@@ -46,6 +86,7 @@ function buildSnippets(
 export function buildScenarioPack(
   config: ScenarioConfig,
   scenarioContextText = "",
+  metadata: ScenarioPackMetadata = {},
 ): ScenarioPack {
   const contextText = (
     scenarioContextText ||
@@ -53,13 +94,39 @@ export function buildScenarioPack(
     ""
   ).trim();
 
-  const facts = uniqueStrings([
+  const companyContext = metadata.companyContext?.trim() ?? "";
+  const clientTitle = metadata.clientTitle?.trim() ?? "";
+
+  const roundTexts = config.rounds.flatMap((round) =>
+    [
+      round.label,
+      round.goal,
+      round.clientPrompt,
+      round.whatGoodLooksLike,
+      round.positiveCriteria.length
+        ? `Criterios positivos: ${round.positiveCriteria.join(", ")}`
+        : "",
+      round.negativeCriteria.length
+        ? `Criterios negativos: ${round.negativeCriteria.join(", ")}`
+        : "",
+    ].filter((part): part is string => Boolean(part)),
+  );
+
+  const fieldFacts = uniqueStrings([
+    companyContext ? `Empresa: ${companyContext}` : "",
+    clientTitle ? `Cargo: ${clientTitle}` : "",
+    metadata.clientName ? `Cliente: ${metadata.clientName}` : "",
+    config.industry,
     config.clientProblem,
     config.productSold,
-    config.industry,
     config.temperament,
+    config.winCriteria,
     ...config.globalPositiveCriteria,
     ...config.openingLines,
+  ]).filter(Boolean);
+
+  const facts = uniqueStrings([
+    ...fieldFacts,
     ...splitSentences(contextText),
   ]).filter(Boolean);
 
@@ -73,8 +140,12 @@ export function buildScenarioPack(
     objections,
     product: config.productSold,
     winCriteria: config.winCriteria,
+    companyContext,
+    clientTitle,
+    industry: config.industry,
+    temperament: config.temperament,
     forbiddenClaims: FORBIDDEN_CLAIMS,
-    snippets: buildSnippets(facts, contextText),
+    snippets: buildSnippets(fieldFacts, roundTexts, contextText),
     contextText,
   };
 }

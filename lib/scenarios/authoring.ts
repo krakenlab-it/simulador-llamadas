@@ -1,3 +1,4 @@
+import { buildAgenticScenarioContextText } from "@/lib/agentic/scenario-context-text";
 import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
 import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
@@ -622,7 +623,7 @@ export function parseAuthoringBody(
 export function buildAuthoredScenarioConfig(
   input: CreateCustomScenarioInput,
 ): ScenarioConfig {
-  return buildScenarioConfig({
+  const base = buildScenarioConfig({
     industry: input.industry,
     productSold: input.productSold,
     clientProblem: input.clientProblem,
@@ -635,6 +636,28 @@ export function buildAuthoredScenarioConfig(
     rounds: input.rounds,
     dimensionGuides: input.dimensionGuides,
   });
+
+  const scenarioContextText = buildAgenticScenarioContextText({
+    companyContext: input.companyContext,
+    clientProblem: input.clientProblem,
+    productSold: input.productSold,
+    industry: input.industry,
+    winCriteria: input.winCriteria,
+    temperament: input.temperament,
+    clientTitle: input.clientTitle,
+    objections: input.objections,
+    rounds: input.rounds,
+  });
+
+  return {
+    ...base,
+    agentic: {
+      enabled: base.agentic?.enabled ?? false,
+      toneId: base.agentic?.toneId,
+      sessionSeed: base.agentic?.sessionSeed,
+      scenarioContextText,
+    },
+  };
 }
 
 export function formatDimensionGuidesForPrompt(

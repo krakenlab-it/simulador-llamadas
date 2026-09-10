@@ -44,7 +44,9 @@ import {
   validateWizardStep,
 } from "@/lib/kraken-lab/validation";
 import { startKrakenSession } from "@/lib/api/kraken-lab";
-import { readAgenticRuntimeForSession } from "@/lib/agentic/settings";
+import { readAgenticRuntimeForSession, isAgenticEnabledForSimulations } from "@/lib/agentic/settings";
+import { AGENTIC_GROUNDING_PENDING_MESSAGE } from "@/lib/agentic/scenario-context-text";
+import { hasMinimumKrakenAgenticGrounding } from "@/lib/kraken-lab/context-anchors";
 import {
   clearWizardDraftFromStorage,
   loadWizardDraftFromStorage,
@@ -194,6 +196,15 @@ export function KrakenLabWizard({
   }, [draft, step, mode, autosaveReady, showToast]);
 
   const issues = useMemo(() => validateWizardStep(step, draft), [step, draft]);
+  const agenticGroundingIssues = useMemo(() => {
+    if (!isAgenticEnabledForSimulations()) return [];
+    if (hasMinimumKrakenAgenticGrounding(draft as KrakenLabCohortConfig)) return [];
+    return [{ field: "agentic.grounding", message: AGENTIC_GROUNDING_PENDING_MESSAGE }];
+  }, [draft]);
+  const visibleIssues = useMemo(
+    () => [...issues, ...agenticGroundingIssues],
+    [issues, agenticGroundingIssues],
+  );
   const canAdvance = issues.length === 0;
   const activeProject = resolveActiveProject(draft);
   const activeScenarioContext = useMemo(
@@ -341,6 +352,13 @@ export function KrakenLabWizard({
 
   const handleStart = async () => {
     if (!canAdvanceWizardStep("dificultad", draft) || submitting) return;
+    if (
+      isAgenticEnabledForSimulations() &&
+      !hasMinimumKrakenAgenticGrounding(draft as KrakenLabCohortConfig)
+    ) {
+      setError(AGENTIC_GROUNDING_PENDING_MESSAGE);
+      return;
+    }
     setSubmitting(true);
     setError(null);
 
@@ -855,9 +873,9 @@ export function KrakenLabWizard({
 
       <section className="wizard-body">{renderStep()}</section>
 
-      {issues.length > 0 ? (
+      {visibleIssues.length > 0 ? (
         <ul className="wizard-errors builder-form__error-list" role="alert">
-          {issues.map((issue) => (
+          {visibleIssues.map((issue) => (
             <li key={issue.field} className="builder-form__error">
               Pendiente: {issue.message}
             </li>

@@ -24,6 +24,7 @@ import {
   MAX_AUTHORED_BEATS,
   MIN_AUTHORED_BEATS,
   applyLanguageDefaults,
+  buildAuthoredScenarioConfig,
   callTypeLabel,
   defaultDimensionGuides,
   draftFromRecord,
@@ -37,6 +38,8 @@ import {
   type AuthoringStep,
   type ScenarioAuthoringDraft,
 } from "@/lib/scenarios/authoring";
+import { AGENTIC_GROUNDING_PENDING_MESSAGE, hasMinimumAgenticGrounding } from "@/lib/agentic/scenario-context-text";
+import { isAgenticEnabledForSimulations } from "@/lib/agentic/settings";
 import type { ScenarioLanguage, ScenarioRecord, ScenarioRoundDef } from "@/lib/scenarios/types";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
 import { Button } from "@/app/components/ui/Button";
@@ -151,6 +154,16 @@ export function ScenarioBuilderScreen({
 
   const stepIndex = AUTHORING_STEPS.indexOf(step);
   const pendingIssues = useMemo(() => listAuthoringDraftIssues(draft), [draft]);
+  const agenticGroundingIssues = useMemo(() => {
+    if (!isAgenticEnabledForSimulations()) return [];
+    const config = buildAuthoredScenarioConfig(draftToCreateInput(draft));
+    if (hasMinimumAgenticGrounding(config)) return [];
+    return [{ field: "agentic.grounding", step: "persona" as const, message: AGENTIC_GROUNDING_PENDING_MESSAGE }];
+  }, [draft]);
+  const allPendingIssues = useMemo(
+    () => [...pendingIssues, ...agenticGroundingIssues],
+    [pendingIssues, agenticGroundingIssues],
+  );
   const stepPendingIssues = useMemo(
     () => issuesForAuthoringStep(step, draft),
     [draft, step],
@@ -574,9 +587,9 @@ export function ScenarioBuilderScreen({
           </fieldset>
         ) : null}
 
-        {pendingIssues.length > 0 ? (
+        {allPendingIssues.length > 0 ? (
           <ul className="builder-form__error-list" role="alert">
-            {pendingIssues.map((issue) => (
+            {allPendingIssues.map((issue) => (
               <li key={issue.field} className="builder-form__error">
                 Pendiente: {issue.message}
               </li>

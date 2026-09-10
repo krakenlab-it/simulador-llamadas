@@ -16,7 +16,12 @@ function allowedNumbersFromPack(pack: ScenarioPack): Set<string> {
   const corpus = [
     pack.product,
     pack.winCriteria,
+    pack.companyContext,
+    pack.clientTitle,
+    pack.industry,
+    pack.temperament,
     ...pack.facts,
+    ...pack.objections,
     ...pack.snippets.map((snippet) => snippet.text),
     pack.contextText,
   ].join(" ");

@@ -1,7 +1,20 @@
 import type { DifficultyLevel } from "@/lib/db/types";
+import { buildAgenticScenarioContextText } from "@/lib/agentic/scenario-context-text";
 import { pickTone } from "@/lib/agentic/tone-bank";
 import type { ScenarioRoundDef } from "@/lib/scenarios/types";
 import { DEFAULT_MOODS } from "./constants";
+import {
+  buildDialogueCorpus,
+  deriveCompanyLabel,
+  deriveIndustryFromCorpus,
+  deriveObjectionsForDifficulty,
+  derivePainPointsFromCorpus,
+  deriveProblemFromDialogue,
+  deriveProductFromDialogue,
+  deriveRoleFromCorpus,
+  extractObjectionsFromCorpus,
+  hasRichScenarioContext,
+} from "./context-anchors";
 import {
   DIFFICULTY_LABELS,
   FEMALE_FIRST_NAMES,
@@ -108,6 +121,18 @@ function roundLabelsForFocus(focus: SimulationFocus | "otro"): string[] {
 
 function roundKeys(): string[] {
   return ["apertura", "objecion", "claridad", "correo", "cierre"];
+}
+
+function uniqueObjections(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    const key = value.trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value.trim());
+  }
+  return out;
 }
 
 function difficultyLabelForLevel(level: DifficultyLevel, rng: SeededRng): string {
@@ -339,6 +364,7 @@ export function generateReceiverPersonas(
     | "difficultyLevel"
     | "scenarioContext"
     | "project"
+    | "roleObjective"
   >,
   count = PERSONA_COUNT,
 ): ReceiverPersona[] {
@@ -346,6 +372,8 @@ export function generateReceiverPersonas(
   const cities =
     cohort.participants.flatMap((participant) => participant.simulationCities).filter(Boolean) ||
     cohort.participants.map((participant) => participant.city);
+  const corpus = buildDialogueCorpus(cohort);
+  const anchored = hasRichScenarioContext(corpus);
 
   const personas: ReceiverPersona[] = [];
   const usedNames = new Set<string>();
@@ -354,8 +382,10 @@ export function generateReceiverPersonas(
   for (let index = 0; index < count; index += 1) {
     const gender: ReceiverGender = rng.pick(["masculino", "femenino", "otro"]);
     const name = pickUniqueName(rng, gender, usedNames);
-    const industry = rng.pick(RECEIVER_INDUSTRIES);
-    const role = rng.pick(RECEIVER_ROLES);
+    const industry = anchored
+      ? deriveIndustryFromCorpus(corpus, rng)
+      : rng.pick(RECEIVER_INDUSTRIES);
+    const role = anchored ? deriveRoleFromCorpus(corpus, rng) : rng.pick(RECEIVER_ROLES);
     const city = rng.pick(cities.length > 0 ? cities : ["Ciudad de México", "Monterrey", "Guadalajara"]);
     const homeStress = rng.int(
       0,
@@ -368,13 +398,18 @@ export function generateReceiverPersonas(
     const moods = rng.pickMany(DEFAULT_MOODS, rng.int(2, 3));
     const temperament = rng.pick(TEMPERAMENT_BY_DIFFICULTY[cohort.difficultyLevel]);
     const difficultyLabel = difficultyLabelForLevel(cohort.difficultyLevel, rng);
-    const painPoints = buildPainPoints(rng, cohort.scenarioContext, rng.int(1, 3));
+    const painPoints = anchored
+      ? derivePainPointsFromCorpus(corpus, rng, rng.int(1, 3))
+      : buildPainPoints(rng, cohort.scenarioContext, rng.int(1, 3));
     const indicator = buildIndicator(rng, cohort.scenarioContext, industry, usedIndicators);
     const attentionStates = deriveAttentionBattery(
       { temperament, moods },
       cohort.difficultyLevel,
       rng,
     );
+    const company = anchored
+      ? deriveCompanyLabel(corpus, industry, city)
+      : `${industry} ${city.split(" ")[0]}`;
 
     personas.push({
       id: `persona-${index + 1}-${rng.int(1000, 9999)}`,
@@ -382,7 +417,7 @@ export function generateReceiverPersonas(
       age: rng.int(32, 58),
       gender,
       role,
-      company: `${industry} ${city.split(" ")[0]}`,
+      company,
       city,
       moods,
       homeStress,
@@ -425,8 +460,17 @@ export function buildDialogueBattery(
   const focus = primaryDialogue.focus;
   const labels = roundLabelsForFocus(focus);
   const keys = roundKeys();
-  const objections = OBJECTION_TEMPLATES[cohort.difficultyLevel];
   const rng = new SeededRng(`${cohort.sessionSeed}:battery:${persona.id}`);
+  const corpus = buildDialogueCorpus(cohort);
+  const anchored = hasRichScenarioContext(corpus);
+  const objections = anchored
+    ? deriveObjectionsForDifficulty(
+        corpus,
+        cohort.difficultyLevel,
+        OBJECTION_TEMPLATES,
+        rng,
+      )
+    : OBJECTION_TEMPLATES[cohort.difficultyLevel];
   const contextSnippet = scenarioContextSnippet(cohort.scenarioContext, 100);
 
   return keys.map((key, index) => {
@@ -499,6 +543,8 @@ export function buildKrakenScenario(
   const focus = primaryDialogue?.focus ?? "ventas";
   const rounds = buildDialogueBattery(cohort, persona);
   const rng = new SeededRng(`${cohort.sessionSeed}:scenario:${persona.id}`);
+  const corpus = buildDialogueCorpus(cohort);
+  const anchored = hasRichScenarioContext(corpus);
   const contextSnippet = scenarioContextSnippet(cohort.scenarioContext, 120);
 
   const meta: KrakenLabScenarioMeta = {
@@ -514,24 +560,57 @@ export function buildKrakenScenario(
   };
 
   const product =
+    deriveProductFromDialogue(primaryDialogue, corpus) ||
     primaryDialogue?.productServiceExplanation.trim() ||
     contextSnippet ||
     "servicio";
   const problem =
+    deriveProblemFromDialogue(primaryDialogue, corpus, persona.painPoints[0]) ||
     primaryDialogue?.simulationContext.trim() ||
     primaryDialogue?.realObjective.trim() ||
     persona.painPoints[0] ||
     contextSnippet ||
     "operaciones diarias";
 
-  const contextText = fullScenarioContextText(cohort.scenarioContext);
+  const uploadedContext = fullScenarioContextText(cohort.scenarioContext);
+  const contextText = buildAgenticScenarioContextText(
+    {
+      companyContext: persona.company,
+      clientProblem: problem,
+      productSold: product,
+      industry: persona.extras.industry,
+      winCriteria: winCriteriaForFocus(focus, cohort.roleObjective),
+      temperament: persona.temperament,
+      clientTitle: persona.role,
+      objections: anchored
+        ? deriveObjectionsForDifficulty(
+            corpus,
+            cohort.difficultyLevel,
+            OBJECTION_TEMPLATES,
+            rng,
+          )
+        : [
+            ...OBJECTION_TEMPLATES[cohort.difficultyLevel],
+            ...persona.painPoints.slice(0, 2),
+          ],
+      rounds,
+    },
+    uploadedContext,
+  );
   const tone = pickTone(`${cohort.sessionSeed}:persona`, cohort.difficultyLevel);
+
+  const objections = anchored
+    ? uniqueObjections([
+        ...extractObjectionsFromCorpus(corpus),
+        ...persona.painPoints.slice(0, 2),
+      ])
+    : [...OBJECTION_TEMPLATES[cohort.difficultyLevel], ...persona.painPoints.slice(0, 2)];
 
   const config: KrakenLabScenarioConfig = {
     industry: persona.extras.industry,
     productSold: product,
     clientProblem: problem,
-    objections: [...OBJECTION_TEMPLATES[cohort.difficultyLevel], ...persona.painPoints.slice(0, 2)],
+    objections,
     winCriteria: winCriteriaForFocus(focus, cohort.roleObjective),
     temperament: persona.temperament,
     rounds,

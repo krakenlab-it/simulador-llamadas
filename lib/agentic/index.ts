@@ -14,6 +14,12 @@ export type {
 
 export { buildScenarioPack } from "./scenario-pack";
 export {
+  AGENTIC_GROUNDING_PENDING_MESSAGE,
+  buildAgenticScenarioContextText,
+  getAgenticGroundingPendingMessage,
+  hasMinimumAgenticGrounding,
+} from "./scenario-context-text";
+export {
   TONE_BANK,
   TONE_IDS,
   getToneById,
