@@ -21,6 +21,7 @@ import { registerVerifiedVoiceUser } from "@/lib/auth/voice-session";
 import { useAuth } from "@/lib/auth/context";
 import {
   canStartTraining,
+  needsBilledVoiceAuthGate,
   startBlockedReason,
   DIFFICULTY_LABELS,
   MODE_LABELS,
@@ -174,11 +175,13 @@ export function ScenarioHub({
     setLevel(restored.difficultyLevel);
   }, [selected]);
 
-  const needsVoiceAuth =
-    mode === "voz" &&
-    voiceConfig.requiresVoiceAuth &&
-    !voiceAuthSkipped &&
-    !verifiedUserId;
+  const needsVoiceAuth = needsBilledVoiceAuthGate({
+    mode,
+    requiresVoiceAuth: voiceConfig.requiresVoiceAuth,
+    skipped: voiceAuthSkipped,
+    verifiedUserId,
+    hasValidSession: Boolean(session?.user.id),
+  });
 
   const readiness = {
     scenarioSelected: selected !== null,
@@ -187,7 +190,7 @@ export function ScenarioHub({
     micVerified,
     isStarting: isStarting || savingVoiceAgent,
     needsVoiceAuth,
-    voiceAuthVerified: Boolean(verifiedUserId),
+    voiceAuthVerified: Boolean(verifiedUserId || session?.user.id),
   };
 
   const canStart = canStartTraining(readiness);
