@@ -77,4 +77,26 @@ describe("Kraken Lab persona generation", () => {
     expect(getClientBySlug("rodrigo")?.name).toBe("Rodrigo Nava");
     expect(getClientBySlug("efrain")?.name).toBe("Efraín Loera");
   });
+
+  it("uses KPI templates for indicators instead of copying the scenario brief", () => {
+    const personas = generateReceiverPersonas(
+      {
+        ...baseCohort("valeria-brief-indicator-seed"),
+        scenarioContext: {
+          text: "Cliente: Valeria Soto (Directora de Compras) · Gimnasio · Monterrey. Producto: membresía premium.",
+        },
+      },
+      3,
+    );
+
+    const indicators = personas.map((persona) => persona.indicator);
+    expect(new Set(indicators).size).toBe(3);
+
+    for (const indicator of indicators) {
+      expect(indicator).toMatch(/^Indicador: /);
+      expect(indicator.toLowerCase()).not.toContain("valeria soto");
+      expect(indicator.toLowerCase()).not.toContain("cliente:");
+      expect(indicator.toLowerCase()).not.toContain("directora de compras");
+    }
+  });
 });

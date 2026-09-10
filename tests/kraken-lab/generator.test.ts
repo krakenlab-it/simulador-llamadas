@@ -81,6 +81,24 @@ describe("Kraken Lab generator", () => {
     expect(easyPersona.extras.patienceLevel).not.toBe(hardPersona.extras.patienceLevel);
   });
 
+  it("builds KPI-like indicators that do not echo the uploaded brief", () => {
+    const personas = generateReceiverPersonas(
+      sampleCohort({
+        sessionSeed: "indicator-kpi-seed",
+        scenarioContext: {
+          text: "Cliente: Valeria Soto (Directora de Compras) · Gimnasio · Monterrey",
+        },
+      }),
+      3,
+    );
+
+    expect(new Set(personas.map((persona) => persona.indicator)).size).toBe(3);
+    for (const persona of personas) {
+      expect(persona.indicator).toMatch(/^Indicador: /);
+      expect(persona.indicator.toLowerCase()).not.toContain("valeria");
+    }
+  });
+
   it("builds a five-round dialogue battery with attention states", () => {
     const cohort = sampleCohort();
     const persona = cohort.receiverPersonas[0];

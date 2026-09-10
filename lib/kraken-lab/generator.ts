@@ -152,23 +152,80 @@ function buildPainPoints(
   return pains;
 }
 
+function normalizeHint(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function industryKpiHints(industry: string): string[] {
+  const normalized = normalizeHint(industry);
+  if (normalized.includes("retail")) {
+    return ["conversion", "inventario", "retencion", "sucursal"];
+  }
+  if (normalized.includes("logist")) {
+    return ["entregas", "logistico", "envio"];
+  }
+  if (normalized.includes("telecom")) {
+    return ["respuesta", "retencion", "clientes"];
+  }
+  if (normalized.includes("servicios")) {
+    return ["lead", "productividad", "cobranza"];
+  }
+  if (normalized.includes("manufact") || normalized.includes("automot")) {
+    return ["productividad", "retrabajo", "entregas"];
+  }
+  if (normalized.includes("import") || normalized.includes("distrib")) {
+    return ["inventario", "entregas", "pedido"];
+  }
+  if (normalized.includes("salud") || normalized.includes("hospital")) {
+    return ["turno", "respuesta", "retencion"];
+  }
+  return [];
+}
+
+function scoreKpiTemplate(template: string, hints: string[]): number {
+  const normalizedTemplate = normalizeHint(template);
+  return hints.reduce(
+    (score, hint) => (normalizedTemplate.includes(hint) ? score + 1 : score),
+    0,
+  );
+}
+
 function buildIndicator(
   rng: SeededRng,
   context: ScenarioContextUpload | undefined,
   industry: string,
+  usedIndicators: Set<string>,
 ): string {
-  const snippet = scenarioContextSnippet(context, 60);
-  if (snippet) {
-    return snippet.startsWith("Indicador:")
-      ? snippet
-      : `Indicador: ${snippet.replace(/^Indicador:\s*/i, "").slice(0, 72)}`;
+  const hints = [
+    ...contextKeywords(context).map(normalizeHint),
+    ...industryKpiHints(industry),
+  ].filter((hint) => hint.length >= 4);
+
+  const ranked = KPI_TEMPLATES.map((template) => ({
+    template,
+    score: scoreKpiTemplate(template, hints),
+  }));
+  const bestScore = Math.max(...ranked.map((entry) => entry.score));
+  const pool =
+    bestScore > 0
+      ? ranked.filter((entry) => entry.score === bestScore).map((entry) => entry.template)
+      : [...KPI_TEMPLATES];
+
+  const unusedInPool = pool.filter((template) => !usedIndicators.has(template));
+  let pickPool =
+    unusedInPool.length > 0
+      ? unusedInPool
+      : KPI_TEMPLATES.filter((template) => !usedIndicators.has(template));
+  if (pickPool.length === 0) {
+    pickPool = [...KPI_TEMPLATES];
   }
 
-  const industryHint = industry.toLowerCase().slice(0, 4);
-  const matches = KPI_TEMPLATES.filter((item) =>
-    item.toLowerCase().includes(industryHint),
-  );
-  return rng.pick(matches.length > 0 ? matches : KPI_TEMPLATES);
+  const indicator = rng.pick(pickPool);
+  usedIndicators.add(indicator);
+  return indicator;
 }
 
 function deriveAttentionBattery(
@@ -292,6 +349,7 @@ export function generateReceiverPersonas(
 
   const personas: ReceiverPersona[] = [];
   const usedNames = new Set<string>();
+  const usedIndicators = new Set<string>();
 
   for (let index = 0; index < count; index += 1) {
     const gender: ReceiverGender = rng.pick(["masculino", "femenino", "otro"]);
@@ -311,7 +369,7 @@ export function generateReceiverPersonas(
     const temperament = rng.pick(TEMPERAMENT_BY_DIFFICULTY[cohort.difficultyLevel]);
     const difficultyLabel = difficultyLabelForLevel(cohort.difficultyLevel, rng);
     const painPoints = buildPainPoints(rng, cohort.scenarioContext, rng.int(1, 3));
-    const indicator = buildIndicator(rng, cohort.scenarioContext, industry);
+    const indicator = buildIndicator(rng, cohort.scenarioContext, industry, usedIndicators);
     const attentionStates = deriveAttentionBattery(
       { temperament, moods },
       cohort.difficultyLevel,
