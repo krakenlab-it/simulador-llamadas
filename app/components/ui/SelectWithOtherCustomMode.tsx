@@ -25,10 +25,6 @@ export function SelectWithOtherCustomMode({
   const localRef = useRef<HTMLInputElement>(null);
   const resolvedRef = inputRef ?? localRef;
 
-  useEffect(() => {
-    resolvedRef.current?.focus();
-  }, []);
-
   return (
     <div className="select-with-other__custom-mode">
       <input
