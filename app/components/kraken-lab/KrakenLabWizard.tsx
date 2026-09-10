@@ -27,6 +27,7 @@ import type {
 import { ReceiverPersonaCard } from "@/app/components/kraken-lab/ReceiverPersonaCard";
 import { ScenarioContextUploadPanel } from "@/app/components/kraken-lab/ScenarioContextUploadPanel";
 import { ParticipantCvUpload } from "@/app/components/kraken-lab/ParticipantCvUpload";
+import { ParticipantSimulationCitiesField } from "@/app/components/kraken-lab/ParticipantSimulationCitiesField";
 import { SelectWithOther } from "@/app/components/ui/SelectWithOther";
 import { INDUSTRY_OPTIONS } from "@/lib/scenarios/select-options";
 import {
@@ -558,25 +559,21 @@ export function KrakenLabWizard({
                 }}
               />
             </label>
+            <ParticipantSimulationCitiesField
+              country={profile.simulationCountry}
+              cities={profile.simulationCities}
+              onChange={({ country: simulationCountry, cities: simulationCities }) => {
+                const participants = [...(draft.participants ?? [])];
+                participants[index] = {
+                  ...profile,
+                  simulationCountry,
+                  simulationCities,
+                };
+                updateDraft({ participants });
+              }}
+            />
             <label className="field">
-              <span>Ciudades de simulación (separadas por coma)</span>
-              <input
-                value={profile.simulationCities.join(", ")}
-                onChange={(e) => {
-                  const participants = [...(draft.participants ?? [])];
-                  participants[index] = {
-                    ...profile,
-                    simulationCities: e.target.value
-                      .split(",")
-                      .map((s) => s.trim())
-                      .filter(Boolean),
-                  };
-                  updateDraft({ participants });
-                }}
-              />
-            </label>
-            <label className="field">
-              <span>Teléfono</span>
+              <span>Teléfono (opcional)</span>
               <input
                 value={profile.phone}
                 onChange={(e) => {

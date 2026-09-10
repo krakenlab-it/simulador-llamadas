@@ -45,6 +45,7 @@ export interface PasanteProfile {
   fullName: string;
   age: number;
   city: string;
+  simulationCountry?: string;
   simulationCities: string[];
   phone: string;
   email: string;
