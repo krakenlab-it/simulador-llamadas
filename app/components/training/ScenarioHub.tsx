@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
 import type { ClientPersona } from "@/lib/clients";
 import { CLIENTS } from "@/lib/clients";
-import { listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
+import { loadScenarioCatalog, saveScenarioVoiceAgent } from "@/lib/api/client";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import {
@@ -21,6 +21,7 @@ import { registerVerifiedVoiceUser } from "@/lib/auth/voice-session";
 import { useAuth } from "@/lib/auth/context";
 import {
   canStartTraining,
+  needsBilledVoiceAuthGate,
   startBlockedReason,
   DIFFICULTY_LABELS,
   MODE_LABELS,
@@ -37,6 +38,9 @@ import {
   scoringPhaseCount,
 } from "@/lib/scenarios/authoring";
 import { getClientLine } from "@/lib/simulation/rounds";
+import { NUEVA_SIMULACION_CTA_LABEL } from "@/lib/kraken-lab/constants";
+import { AgenticGate } from "@/app/components/agentic/AgenticGate";
+import { isAgenticUnlocked } from "@/lib/agentic/settings";
 
 export interface SetupConfig {
   scenarioSlug: string;
@@ -55,6 +59,8 @@ export interface SetupConfig {
 
 interface ScenarioHubProps {
   onStart: (config: SetupConfig) => void;
+  onOpenKrakenWizard: () => void;
+  onOpenAgenticPanel: () => void;
   onCreateScenario: () => void;
   onEditScenario: (scenario: ScenarioRecord) => void;
   refreshKey?: number;
@@ -66,6 +72,8 @@ type ScenarioTab = "library" | "custom";
 
 export function ScenarioHub({
   onStart,
+  onOpenKrakenWizard,
+  onOpenAgenticPanel,
   onCreateScenario,
   onEditScenario,
   refreshKey = 0,
@@ -76,7 +84,6 @@ export function ScenarioHub({
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
   const [loadingScenarios, setLoadingScenarios] = useState(true);
-  const [catalogFailed, setCatalogFailed] = useState(false);
   const [savingVoiceAgent, setSavingVoiceAgent] = useState(false);
   const { showToast } = useToast();
   const [mode, setMode] = useState<PracticeMode>("voz");
@@ -88,6 +95,7 @@ export function ScenarioHub({
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   const [voiceAuthSkipped, setVoiceAuthSkipped] = useState(false);
+  const [agenticGateOpen, setAgenticGateOpen] = useState(false);
   const speech = useSpeechRecognition();
   const voiceConfig = useVoiceConfig();
   const { session } = useAuth();
@@ -110,18 +118,18 @@ export function ScenarioHub({
 
   useEffect(() => {
     setLoadingScenarios(true);
-    setCatalogFailed(false);
-    void listScenarios()
-      .then((rows) => {
-        setScenarios(rows);
-        setCatalogFailed(false);
-      })
-      .catch(() => {
-        setScenarios([]);
-        setCatalogFailed(true);
+    void loadScenarioCatalog()
+      .then(({ scenarios, usedLocalFallback }) => {
+        setScenarios(scenarios);
+        if (usedLocalFallback) {
+          showToast(
+            "Catálogo en modo demo local. Los presets de clínica siguen disponibles.",
+            "info",
+          );
+        }
       })
       .finally(() => setLoadingScenarios(false));
-  }, [refreshKey]);
+  }, [refreshKey, showToast]);
 
   useEffect(() => {
     if (selectedSlugOnLoad) {
@@ -133,9 +141,7 @@ export function ScenarioHub({
   const presets = scenarios.filter((s) => s.isPreset);
   const custom = scenarios.filter((s) => !s.isPreset);
   const displayPresets =
-    catalogFailed
-      ? []
-      : presets.length > 0
+    presets.length > 0
       ? presets
       : CLIENTS.map(
           (c) =>
@@ -169,11 +175,13 @@ export function ScenarioHub({
     setLevel(restored.difficultyLevel);
   }, [selected]);
 
-  const needsVoiceAuth =
-    mode === "voz" &&
-    voiceConfig.requiresVoiceAuth &&
-    !voiceAuthSkipped &&
-    !verifiedUserId;
+  const needsVoiceAuth = needsBilledVoiceAuthGate({
+    mode,
+    requiresVoiceAuth: voiceConfig.requiresVoiceAuth,
+    skipped: voiceAuthSkipped,
+    verifiedUserId,
+    hasValidSession: Boolean(session?.user.id),
+  });
 
   const readiness = {
     scenarioSelected: selected !== null,
@@ -182,7 +190,7 @@ export function ScenarioHub({
     micVerified,
     isStarting: isStarting || savingVoiceAgent,
     needsVoiceAuth,
-    voiceAuthVerified: Boolean(verifiedUserId),
+    voiceAuthVerified: Boolean(verifiedUserId || session?.user.id),
   };
 
   const canStart = canStartTraining(readiness);
@@ -303,6 +311,37 @@ export function ScenarioHub({
           Cinco rondas por llamada: apertura, objeción, claridad, seguimiento y
           cierre. Gana con día y hora concretos — o tu propio criterio de éxito.
         </p>
+        <div className="train-hub__kraken-entry">
+          <div className="train-hub__kraken-actions">
+            <Button variant="primary" onClick={onOpenKrakenWizard}>
+              {NUEVA_SIMULACION_CTA_LABEL}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (isAgenticUnlocked()) {
+                  onOpenAgenticPanel();
+                  return;
+                }
+                setAgenticGateOpen(true);
+              }}
+            >
+              Capa agentica
+            </Button>
+          </div>
+          <p className="config-panel__hint">
+            Asistente en español para cohortes de negocios internacionales: proyecto,
+            perfiles, diálogos y persona receptora generada por sesión.
+          </p>
+        </div>
+        <AgenticGate
+          open={agenticGateOpen}
+          onClose={() => setAgenticGateOpen(false)}
+          onUnlocked={() => {
+            setAgenticGateOpen(false);
+            onOpenAgenticPanel();
+          }}
+        />
       </header>
 
       <div className="train-hub__tabs" role="tablist" aria-label="Tipo de escenario">
@@ -330,11 +369,6 @@ export function ScenarioHub({
         <div className="train-hub__loading">
           <Spinner label="Cargando escenarios…" />
         </div>
-      ) : catalogFailed ? (
-        <EmptyState
-          title="No se pudieron cargar los escenarios"
-          description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo — no arrancamos la clínica de respaldo para no ensayar un caso distinto al de producción."
-        />
       ) : tab === "custom" && custom.length === 0 ? (
         <EmptyState
           title="Aún no tienes escenarios propios"

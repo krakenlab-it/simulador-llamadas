@@ -4,6 +4,7 @@ const API_KEY = "sk_super_secret_elevenlabs_key";
 
 vi.mock("@/lib/session", () => ({
   withPgClient: vi.fn(async (fn: (client: unknown) => unknown) => fn({})),
+  isDatabaseConfigured: () => true,
 }));
 
 vi.mock("@/lib/voice/ladder", () => ({
@@ -313,6 +314,31 @@ describe("POST /api/voice/tts", () => {
         failureReason: "session_extra_tts_limit",
       }),
     );
+  });
+
+  it("synthesizes billed audio for a signed-in user without a usage session", async () => {
+    vi.mocked(synthesizeSpeech).mockResolvedValue({
+      result: {
+        audio: Buffer.from([0x49, 0x44, 0x33, 0x04]),
+        mimeType: "audio/mpeg",
+        tier: "elevenlabs",
+        endpoint: "convert",
+      },
+      failures: [],
+    });
+
+    const response = await POST(
+      new Request("https://example.com/api/voice/tts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: "Buenas tardes, ¿quién habla?" }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("audio/mpeg");
+    expect(synthesizeSpeech).toHaveBeenCalledTimes(1);
+    expect(gateElevenLabsCall).not.toHaveBeenCalled();
   });
 
   it("still returns billed audio when metering fails after ElevenLabs succeeds", async () => {

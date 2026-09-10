@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canStartTraining,
+  needsBilledVoiceAuthGate,
   startBlockedReason,
 } from "@/lib/frontend/training-readiness";
 
@@ -37,7 +38,7 @@ describe("training readiness", () => {
     expect(canStartTraining(input)).toBe(true);
   });
 
-  it("requires voice auth when configured in voice mode", () => {
+  it("requires a login session for billed voice, not email confirmation", () => {
     const input = {
       ...base,
       mode: "voz" as const,
@@ -46,7 +47,34 @@ describe("training readiness", () => {
       voiceAuthVerified: false,
     };
     expect(canStartTraining(input)).toBe(false);
-    expect(startBlockedReason(input)).toContain("correo");
+    expect(startBlockedReason(input)).toBe(
+      "Inicia sesión para usar voz con facturación.",
+    );
+    expect(startBlockedReason(input)).not.toMatch(/verifica tu correo/i);
+  });
+
+  it("skips the billed-voice login gate when the session is already valid", () => {
+    expect(
+      needsBilledVoiceAuthGate({
+        mode: "voz",
+        requiresVoiceAuth: true,
+        skipped: false,
+        verifiedUserId: null,
+        hasValidSession: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("still asks for login when billed voice is on and there is no session", () => {
+    expect(
+      needsBilledVoiceAuthGate({
+        mode: "voz",
+        requiresVoiceAuth: true,
+        skipped: false,
+        verifiedUserId: null,
+        hasValidSession: false,
+      }),
+    ).toBe(true);
   });
 
   it("allows voice mode when voice auth is satisfied", () => {

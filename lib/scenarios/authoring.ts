@@ -1,7 +1,9 @@
+import { buildAgenticScenarioContextText } from "@/lib/agentic/scenario-context-text";
 import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
 import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
 import { buildDefaultRounds, buildScenarioConfig } from "./defaults";
+import { normalizeSelectWithOtherStoredValue, isSelectWithOtherPending } from "./select-options";
 import type {
   CreateCustomScenarioInput,
   DimensionGuides,
@@ -22,6 +24,12 @@ export const MAX_AUTHORED_BEATS = 7;
 
 export const AUTHORING_STEPS = ["persona", "beats", "success"] as const;
 export type AuthoringStep = (typeof AUTHORING_STEPS)[number];
+
+export interface AuthoringDraftIssue {
+  field: string;
+  step: AuthoringStep;
+  message: string;
+}
 
 export interface ScenarioAuthoringDraft {
   industry: string;
@@ -390,33 +398,87 @@ export function applyLanguageDefaults(
   };
 }
 
-export function validateAuthoringDraft(
+function pushSelectWithOtherIssue(
+  issues: AuthoringDraftIssue[],
+  field: string,
+  step: AuthoringStep,
+  label: string,
+  value: string,
+): void {
+  if (isSelectWithOtherPending(value)) {
+    issues.push({
+      field,
+      step,
+      message: `Falta ${label} (escribe tu valor en Otro).`,
+    });
+    return;
+  }
+  if (!normalizeSelectWithOtherStoredValue(value)) {
+    issues.push({ field, step, message: `Falta ${label}.` });
+  }
+}
+
+export function listAuthoringDraftIssues(
   draft: ScenarioAuthoringDraft,
-): string | null {
-  const required: Array<[keyof ScenarioAuthoringDraft, string]> = [
-    ["industry", "industria"],
-    ["productSold", "qué se vende"],
+): AuthoringDraftIssue[] {
+  const issues: AuthoringDraftIssue[] = [];
+  const personaStep: AuthoringStep = "persona";
+
+  pushSelectWithOtherIssue(issues, "industry", personaStep, "industria", draft.industry);
+  pushSelectWithOtherIssue(
+    issues,
+    "productSold",
+    personaStep,
+    "qué se vende",
+    draft.productSold,
+  );
+
+  const requiredText: Array<[keyof ScenarioAuthoringDraft, string]> = [
     ["clientName", "nombre del cliente"],
     ["clientTitle", "rol del cliente"],
     ["companyContext", "empresa / contexto"],
     ["clientProblem", "problema del cliente"],
-    ["winCriteria", "criterio de éxito"],
   ];
 
-  for (const [field, label] of required) {
+  for (const [field, label] of requiredText) {
     const value = draft[field];
     if (typeof value === "string" && !value.trim()) {
-      return `Falta ${label}.`;
+      issues.push({ field, step: personaStep, message: `Falta ${label}.` });
     }
   }
 
-  if (!isScenarioLanguage(draft.language)) {
-    return "Elige un idioma del cliente.";
-  }
-  if (!isScenarioCallType(draft.callType)) {
-    return "Elige el tipo de llamada.";
+  if (isSelectWithOtherPending(draft.temperament)) {
+    issues.push({
+      field: "temperament",
+      step: personaStep,
+      message: "Falta temperamento (escribe tu valor en Otro).",
+    });
   }
 
+  if (isSelectWithOtherPending(draft.difficultyLabel)) {
+    issues.push({
+      field: "difficultyLabel",
+      step: personaStep,
+      message: "Falta dificultad (escribe tu valor en Otro).",
+    });
+  }
+
+  if (!isScenarioLanguage(draft.language)) {
+    issues.push({
+      field: "language",
+      step: personaStep,
+      message: "Elige un idioma del cliente.",
+    });
+  }
+  if (!isScenarioCallType(draft.callType)) {
+    issues.push({
+      field: "callType",
+      step: personaStep,
+      message: "Elige el tipo de llamada.",
+    });
+  }
+
+  const beatsStep: AuthoringStep = "beats";
   const rounds = normalizeAuthoredRounds(draft.rounds, {
     industry: draft.industry,
     productSold: draft.productSold,
@@ -425,13 +487,65 @@ export function validateAuthoringDraft(
   });
 
   if (rounds.length < MIN_AUTHORED_BEATS) {
-    return `Define al menos ${MIN_AUTHORED_BEATS} fases.`;
-  }
-  if (rounds.some((round) => !round.label.trim() || !round.goal.trim())) {
-    return "Cada fase necesita nombre y qué debe lograr el vendedor.";
+    issues.push({
+      field: "rounds",
+      step: beatsStep,
+      message: `Define al menos ${MIN_AUTHORED_BEATS} fases.`,
+    });
   }
 
-  return null;
+  rounds.forEach((round, index) => {
+    if (!round.label.trim()) {
+      issues.push({
+        field: `rounds[${index}].label`,
+        step: beatsStep,
+        message: `Falta nombre de la fase ${index + 1}.`,
+      });
+    }
+    if (!round.goal.trim()) {
+      issues.push({
+        field: `rounds[${index}].goal`,
+        step: beatsStep,
+        message: `Falta objetivo de la fase ${index + 1}.`,
+      });
+    }
+  });
+
+  const successStep: AuthoringStep = "success";
+  if (!draft.winCriteria.trim()) {
+    issues.push({
+      field: "winCriteria",
+      step: successStep,
+      message: "Falta criterio de éxito.",
+    });
+  }
+
+  for (const dim of SCORE_DIMENSIONS) {
+    const text = draft.dimensionGuides[dim.id]?.trim() ?? "";
+    if (!text) {
+      issues.push({
+        field: `dimensionGuides.${dim.id}`,
+        step: successStep,
+        message: `Falta guía para ${dim.label}.`,
+      });
+    }
+  }
+
+  return issues;
+}
+
+export function issuesForAuthoringStep(
+  step: AuthoringStep,
+  draft: ScenarioAuthoringDraft,
+): AuthoringDraftIssue[] {
+  return listAuthoringDraftIssues(draft).filter((issue) => issue.step === step);
+}
+
+export function validateAuthoringDraft(
+  draft: ScenarioAuthoringDraft,
+): string | null {
+  const issues = listAuthoringDraftIssues(draft);
+  return issues.length > 0 ? issues[0].message : null;
 }
 
 export function draftToCreateInput(
@@ -445,14 +559,17 @@ export function draftToCreateInput(
   });
 
   return {
-    industry: draft.industry.trim(),
-    productSold: draft.productSold.trim(),
+    industry: normalizeSelectWithOtherStoredValue(draft.industry),
+    productSold: normalizeSelectWithOtherStoredValue(draft.productSold),
     clientName: draft.clientName.trim(),
     clientTitle: draft.clientTitle.trim(),
     companyContext: draft.companyContext.trim(),
-    temperament: draft.temperament.trim() || defaultTemperament(draft.language),
+    temperament:
+      normalizeSelectWithOtherStoredValue(draft.temperament) ||
+      defaultTemperament(draft.language),
     difficultyLabel:
-      draft.difficultyLabel.trim() || defaultDifficultyLabel(draft.language),
+      normalizeSelectWithOtherStoredValue(draft.difficultyLabel) ||
+      defaultDifficultyLabel(draft.language),
     clientProblem: draft.clientProblem.trim(),
     objections: draft.objections.map((item) => item.trim()).filter(Boolean),
     winCriteria: draft.winCriteria.trim(),
@@ -506,7 +623,7 @@ export function parseAuthoringBody(
 export function buildAuthoredScenarioConfig(
   input: CreateCustomScenarioInput,
 ): ScenarioConfig {
-  return buildScenarioConfig({
+  const base = buildScenarioConfig({
     industry: input.industry,
     productSold: input.productSold,
     clientProblem: input.clientProblem,
@@ -519,6 +636,28 @@ export function buildAuthoredScenarioConfig(
     rounds: input.rounds,
     dimensionGuides: input.dimensionGuides,
   });
+
+  const scenarioContextText = buildAgenticScenarioContextText({
+    companyContext: input.companyContext,
+    clientProblem: input.clientProblem,
+    productSold: input.productSold,
+    industry: input.industry,
+    winCriteria: input.winCriteria,
+    temperament: input.temperament,
+    clientTitle: input.clientTitle,
+    objections: input.objections,
+    rounds: input.rounds,
+  });
+
+  return {
+    ...base,
+    agentic: {
+      enabled: base.agentic?.enabled ?? false,
+      toneId: base.agentic?.toneId,
+      sessionSeed: base.agentic?.sessionSeed,
+      scenarioContextText,
+    },
+  };
 }
 
 export function formatDimensionGuidesForPrompt(

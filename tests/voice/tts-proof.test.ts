@@ -14,6 +14,7 @@ import {
 
 vi.mock("@/lib/session", () => ({
   withPgClient: vi.fn(async (fn: (client: unknown) => unknown) => fn({})),
+  isDatabaseConfigured: () => true,
 }));
 
 vi.mock("@/lib/voice/gates", () => ({

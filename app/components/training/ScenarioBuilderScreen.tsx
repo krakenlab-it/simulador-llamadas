@@ -1,32 +1,62 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createScenario, updateScenario } from "@/lib/api/client";
 import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
+import {
+  authoringDraftHasContent,
+  buildExampleAuthoringDraft,
+} from "@/lib/scenarios/example-draft";
+import {
+  builderDraftHasSavedContent,
+  builderDraftKey,
+  clearBuilderDraftFromStorage,
+  loadBuilderDraftFromStorage,
+  saveBuilderDraftToStorage,
+} from "@/lib/scenarios/builder-draft-storage";
+import {
+  DIFFICULTY_LABEL_OPTIONS,
+  PRODUCT_SERVICE_OPTIONS,
+  TEMPERAMENT_OPTIONS,
+} from "@/lib/scenarios/select-options";
 import {
   AUTHORING_STEPS,
   MAX_AUTHORED_BEATS,
   MIN_AUTHORED_BEATS,
   applyLanguageDefaults,
+  buildAuthoredScenarioConfig,
   callTypeLabel,
   defaultDimensionGuides,
   draftFromRecord,
   draftToCreateInput,
   emptyAuthoringDraft,
+  issuesForAuthoringStep,
   languageLabel,
+  listAuthoringDraftIssues,
   nextAuthoringStep,
   previousAuthoringStep,
-  validateAuthoringDraft,
   type AuthoringStep,
   type ScenarioAuthoringDraft,
 } from "@/lib/scenarios/authoring";
+import { AGENTIC_GROUNDING_PENDING_MESSAGE, hasMinimumAgenticGrounding } from "@/lib/agentic/scenario-context-text";
+import { isAgenticEnabledForSimulations } from "@/lib/agentic/settings";
 import type { ScenarioLanguage, ScenarioRecord, ScenarioRoundDef } from "@/lib/scenarios/types";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
+import { summarizeAuthoringStep } from "@/lib/scenarios/authoring-step-summaries";
+import { StepNavPopover } from "@/app/components/ui/StepNavPopover";
 import { Button } from "@/app/components/ui/Button";
+import { IndustryTypeSelect } from "@/app/components/ui/IndustryTypeSelect";
+import { SelectWithOther } from "@/app/components/ui/SelectWithOther";
 import { SegmentedControl } from "@/app/components/ui/Switch";
+import { useToast } from "@/components/ui/Toast";
+import {
+  buildClientProblemForIndustry,
+  isIndustryDefaultClientProblem,
+} from "@/lib/kraken-lab/context-from-industry";
 
 export interface ScenarioBuilderResult {
   scenario: ScenarioRecord;
+  usedLocalFallback?: boolean;
 }
 
 interface ScenarioBuilderScreenProps {
@@ -83,18 +113,64 @@ export function ScenarioBuilderScreen({
   onCancel,
 }: ScenarioBuilderScreenProps) {
   const editing = Boolean(initialScenario && !initialScenario.isPreset);
+  const draftKey = builderDraftKey(editing ? initialScenario?.slug : null);
   const languageGroupId = useId();
   const callTypeGroupId = useId();
+  const hydratedRef = useRef<string | null>(null);
   const [step, setStep] = useState<AuthoringStep>("persona");
   const [draft, setDraft] = useState<ScenarioAuthoringDraft>(() =>
     initialScenario ? draftFromRecord(initialScenario) : emptyAuthoringDraft(),
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    if (hydratedRef.current === draftKey) return;
+    hydratedRef.current = draftKey;
+
+    const stored = loadBuilderDraftFromStorage(draftKey);
+    if (stored) {
+      setDraft(stored.draft);
+      setStep(stored.step);
+      if (builderDraftHasSavedContent(stored.draft)) {
+        showToast("Borrador recuperado. Revisa los datos antes de guardar.", "info");
+      }
+      return;
+    }
+
+    setDraft(initialScenario ? draftFromRecord(initialScenario) : emptyAuthoringDraft());
+    setStep("persona");
+  }, [draftKey, initialScenario, showToast]);
+
+  useEffect(() => {
+    if (hydratedRef.current !== draftKey) return;
+
+    const timer = window.setTimeout(() => {
+      if (!builderDraftHasSavedContent(draft)) return;
+      saveBuilderDraftToStorage({ draftKey, step, draft });
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [draft, draftKey, step]);
 
   const stepIndex = AUTHORING_STEPS.indexOf(step);
-  const validationError = useMemo(() => validateAuthoringDraft(draft), [draft]);
-  const canSave = validationError === null;
+  const pendingIssues = useMemo(() => listAuthoringDraftIssues(draft), [draft]);
+  const agenticGroundingIssues = useMemo(() => {
+    if (!isAgenticEnabledForSimulations()) return [];
+    const config = buildAuthoredScenarioConfig(draftToCreateInput(draft));
+    if (hasMinimumAgenticGrounding(config)) return [];
+    return [{ field: "agentic.grounding", step: "persona" as const, message: AGENTIC_GROUNDING_PENDING_MESSAGE }];
+  }, [draft]);
+  const allPendingIssues = useMemo(
+    () => [...pendingIssues, ...agenticGroundingIssues],
+    [pendingIssues, agenticGroundingIssues],
+  );
+  const stepPendingIssues = useMemo(
+    () => issuesForAuthoringStep(step, draft),
+    [draft, step],
+  );
+  const canSave = pendingIssues.length === 0;
 
   const setField = <K extends keyof ScenarioAuthoringDraft>(
     field: K,
@@ -106,6 +182,27 @@ export function ScenarioBuilderScreen({
   const handleLanguageChange = (value: string) => {
     const language = value as ScenarioLanguage;
     setDraft((prev) => applyLanguageDefaults(prev, language));
+  };
+
+  const handleIndustryChange = (nextIndustry: string) => {
+    setDraft((prev) => {
+      const shouldRefreshProblem =
+        !prev.clientProblem.trim() ||
+        isIndustryDefaultClientProblem(prev.clientProblem, prev.industry);
+
+      return {
+        ...prev,
+        industry: nextIndustry,
+        ...(shouldRefreshProblem && nextIndustry.trim()
+          ? {
+              clientProblem: buildClientProblemForIndustry(
+                nextIndustry,
+                prev.productSold,
+              ),
+            }
+          : {}),
+      };
+    });
   };
 
   const updateRound = (index: number, patch: Partial<ScenarioRoundDef>) => {
@@ -130,20 +227,52 @@ export function ScenarioBuilderScreen({
     });
   };
 
+  const handleAutofillExample = () => {
+    if (authoringDraftHasContent(draft)) {
+      const confirmed = window.confirm(
+        "¿Reemplazar los datos actuales con el ejemplo de Valeria Soto / Importadora del Norte?",
+      );
+      if (!confirmed) return;
+    }
+    setDraft(buildExampleAuthoringDraft());
+    setStep("persona");
+    showToast("Ejemplo cargado. Revisa cliente, fases y éxito antes de guardar.", "success");
+  };
+
+  const handleContinue = () => {
+    if (stepPendingIssues.length > 0) {
+      setError(null);
+      return;
+    }
+    setError(null);
+    setStep(nextAuthoringStep(step));
+  };
+
   const handleSave = async () => {
     if (!canSave) {
-      setError(validationError);
+      setError("Completa los campos pendientes antes de guardar.");
       return;
     }
     setSaving(true);
     setError(null);
     try {
       const payload = draftToCreateInput(draft);
-      const scenario =
+      const result =
         editing && initialScenario
           ? await updateScenario({ ...payload, slug: initialScenario.slug })
           : await createScenario(payload);
-      onSave({ scenario });
+      clearBuilderDraftFromStorage(draftKey);
+      showToast("Escenario guardado", "success");
+      if (result.usedLocalFallback) {
+        showToast(
+          "Guardado en este navegador (sin conexión al servidor).",
+          "info",
+        );
+      }
+      onSave({
+        scenario: result.scenario,
+        usedLocalFallback: result.usedLocalFallback,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar");
     } finally {
@@ -157,16 +286,27 @@ export function ScenarioBuilderScreen({
       aria-label={editing ? "Editar escenario" : "Crear escenario"}
     >
       <header className="page-hero page-hero--compact">
-        <p className="page-hero__eyebrow">
-          {editing ? "Editar escenario" : "Escenario personalizado"}
-        </p>
-        <h1 className="page-hero__title">
-          {editing ? "Afinar el caso de venta" : "Diseña tu caso de venta"}
-        </h1>
-        <p className="page-hero__subtitle">
-          Tres pasos: persona del cliente, fases de la llamada y cómo se gana.
-          Clínica de Citas sigue siendo un preset; esto no lo cambia.
-        </p>
+        <div className="builder-screen__hero-copy">
+          <p className="page-hero__eyebrow">
+            {editing ? "Editar escenario" : "Escenario personalizado"}
+          </p>
+          <h1 className="page-hero__title">
+            {editing ? "Afinar el caso de venta" : "Diseña tu caso de venta"}
+          </h1>
+          <p className="page-hero__subtitle">
+            Tres pasos: persona del cliente, fases de la llamada y cómo se gana.
+            Clínica de Citas sigue siendo un preset; esto no lo cambia.
+          </p>
+        </div>
+        {!editing ? (
+          <Button
+            variant="secondary"
+            className="builder-screen__example-btn"
+            onClick={handleAutofillExample}
+          >
+            Completar datos para una simulación ejemplo
+          </Button>
+        ) : null}
       </header>
 
       <ol className="builder-steps" aria-label="Pasos del diseñador">
@@ -174,23 +314,17 @@ export function ScenarioBuilderScreen({
           const state =
             item === step ? "current" : index < stepIndex ? "done" : "pending";
           return (
-            <li
+            <StepNavPopover
               key={item}
-              className={`builder-steps__item builder-steps__item--${state}`}
-            >
-              <button
-                type="button"
-                className="builder-steps__button"
-                aria-current={item === step ? "step" : undefined}
-                onClick={() => setStep(item)}
-              >
-                <span className="builder-steps__index">{index + 1}</span>
-                <span className="builder-steps__copy">
-                  <strong>{stepLabel(item)}</strong>
-                  <span>{stepHint(item)}</span>
-                </span>
-              </button>
-            </li>
+              variant="builder"
+              stepNumber={index + 1}
+              label={stepLabel(item)}
+              hint={stepHint(item)}
+              summary={summarizeAuthoringStep(item, draft)}
+              isActive={state === "current"}
+              isDone={state === "done"}
+              onSelect={() => setStep(item)}
+            />
           );
         })}
       </ol>
@@ -232,46 +366,36 @@ export function ScenarioBuilderScreen({
                   placeholder="Ej. Gerente de sucursal"
                 />
               </label>
+              <IndustryTypeSelect value={draft.industry} onChange={handleIndustryChange} />
               <label className="field field--full">
-                <span className="field__label">Empresa / contexto</span>
+                <span className="field__label">Nombre de la empresa / contexto</span>
                 <input
                   value={draft.companyContext}
                   onChange={(e) => setField("companyContext", e.target.value)}
-                  placeholder="Ej. Cadena nacional de gimnasios"
+                  placeholder="Ej. Importadora del Norte · Monterrey"
                 />
               </label>
-              <label className="field">
-                <span className="field__label">Industria / negocio</span>
-                <input
-                  value={draft.industry}
-                  onChange={(e) => setField("industry", e.target.value)}
-                  placeholder="Ej. sucursal bancaria, taller de llantas"
-                />
-              </label>
-              <label className="field">
-                <span className="field__label">¿Qué se vende?</span>
-                <input
-                  value={draft.productSold}
-                  onChange={(e) => setField("productSold", e.target.value)}
-                  placeholder="Ej. membresía premium, póliza de auto"
-                />
-              </label>
-              <label className="field">
-                <span className="field__label">Temperamento</span>
-                <input
-                  value={draft.temperament}
-                  onChange={(e) => setField("temperament", e.target.value)}
-                  placeholder="Ej. Escéptico, directo"
-                />
-              </label>
-              <label className="field">
-                <span className="field__label">Dificultad (etiqueta)</span>
-                <input
-                  value={draft.difficultyLabel}
-                  onChange={(e) => setField("difficultyLabel", e.target.value)}
-                  placeholder="Media"
-                />
-              </label>
+              <SelectWithOther
+                label="¿Qué se vende?"
+                value={draft.productSold}
+                options={PRODUCT_SERVICE_OPTIONS}
+                onChange={(value) => setField("productSold", value)}
+                otherPlaceholder="Ej. membresía premium, póliza de auto"
+              />
+              <SelectWithOther
+                label="Temperamento"
+                value={draft.temperament}
+                options={TEMPERAMENT_OPTIONS}
+                onChange={(value) => setField("temperament", value)}
+                otherPlaceholder="Ej. Escéptico, directo"
+              />
+              <SelectWithOther
+                label="Dificultad (etiqueta)"
+                value={draft.difficultyLabel}
+                options={DIFFICULTY_LABEL_OPTIONS}
+                onChange={(value) => setField("difficultyLabel", value)}
+                otherPlaceholder="Ej. Media"
+              />
               <label className="field field--full">
                 <span className="field__label">Problema real del cliente</span>
                 <textarea
@@ -459,6 +583,16 @@ export function ScenarioBuilderScreen({
           </fieldset>
         ) : null}
 
+        {allPendingIssues.length > 0 ? (
+          <ul className="builder-form__error-list" role="alert">
+            {allPendingIssues.map((issue) => (
+              <li key={issue.field} className="builder-form__error">
+                Pendiente: {issue.message}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
         {error ? (
           <p className="builder-form__error" role="alert">
             {error}
@@ -479,16 +613,12 @@ export function ScenarioBuilderScreen({
             </Button>
           )}
           {step !== "success" ? (
-            <Button
-              variant="primary"
-              onClick={() => setStep(nextAuthoringStep(step))}
-            >
+            <Button variant="primary" onClick={handleContinue}>
               Continuar
             </Button>
           ) : (
             <Button
               variant="primary"
-              disabled={!canSave}
               loading={saving}
               onClick={() => void handleSave()}
             >

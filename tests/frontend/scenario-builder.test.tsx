@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ScenarioBuilderScreen } from "@/app/components/training/ScenarioBuilderScreen";
+import { ToastProvider } from "@/components/ui/Toast";
 import { draftToCreateInput, emptyAuthoringDraft } from "@/lib/scenarios/authoring";
 import { buildAuthoredScenarioConfig } from "@/lib/scenarios/authoring";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
@@ -56,20 +57,29 @@ describe("ScenarioBuilderScreen", () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     const created = savedRecord();
-    vi.mocked(createScenario).mockResolvedValue(created);
+    vi.mocked(createScenario).mockResolvedValue({
+      scenario: created,
+      usedLocalFallback: false,
+    });
 
-    render(<ScenarioBuilderScreen onSave={onSave} onCancel={vi.fn()} />);
+    render(
+      <ToastProvider>
+        <ScenarioBuilderScreen onSave={onSave} onCancel={vi.fn()} />
+      </ToastProvider>,
+    );
 
     await user.type(screen.getByPlaceholderText(/Laura Méndez/i), "Carlos Ruiz");
     await user.type(screen.getByPlaceholderText(/Gerente de sucursal/i), "Dueño");
     await user.type(
-      screen.getByPlaceholderText(/Cadena nacional de gimnasios/i),
+      screen.getByPlaceholderText(/Importadora del Norte/i),
       "Taller Norte",
     );
+    await user.selectOptions(screen.getByLabelText("Tipo de empresa / industria"), "Otro");
     await user.type(
-      screen.getByPlaceholderText(/sucursal bancaria/i),
+      screen.getByPlaceholderText(/Escribe tu valor/i),
       "taller de llantas",
     );
+    await user.selectOptions(screen.getByLabelText("¿Qué se vende?"), "Otro");
     await user.type(
       screen.getByPlaceholderText(/membresía premium/i),
       "llantas premium",
@@ -99,7 +109,10 @@ describe("ScenarioBuilderScreen", () => {
     expect(payload.language).toBe("es");
     expect(payload.rounds?.length).toBeGreaterThanOrEqual(3);
     expect(payload.dimensionGuides?.cierre_siguiente_paso).toBeTruthy();
-    expect(onSave).toHaveBeenCalledWith({ scenario: created });
+    expect(onSave).toHaveBeenCalledWith({
+      scenario: created,
+      usedLocalFallback: false,
+    });
   });
 
   it("edits an existing scenario and round-trips success criteria", async () => {
@@ -114,14 +127,19 @@ describe("ScenarioBuilderScreen", () => {
         winCriteria: "SPIN Advance: demo en piso el jueves a las 9",
       },
     };
-    vi.mocked(updateScenario).mockResolvedValue(updated);
+    vi.mocked(updateScenario).mockResolvedValue({
+      scenario: updated,
+      usedLocalFallback: false,
+    });
 
     render(
-      <ScenarioBuilderScreen
-        initialScenario={existing}
-        onSave={onSave}
-        onCancel={vi.fn()}
-      />,
+      <ToastProvider>
+        <ScenarioBuilderScreen
+          initialScenario={existing}
+          onSave={onSave}
+          onCancel={vi.fn()}
+        />
+      </ToastProvider>,
     );
 
     expect(screen.getByDisplayValue("Carlos Ruiz")).toBeInTheDocument();
@@ -141,6 +159,9 @@ describe("ScenarioBuilderScreen", () => {
     expect(payload.winCriteria).toBe(
       "SPIN Advance: demo en piso el jueves a las 9",
     );
-    expect(onSave).toHaveBeenCalledWith({ scenario: updated });
+    expect(onSave).toHaveBeenCalledWith({
+      scenario: updated,
+      usedLocalFallback: false,
+    });
   });
 });

@@ -9,9 +9,13 @@ describe("landing page", () => {
   it("renders Spanish hero copy and feature sections", () => {
     const html = renderToStaticMarkup(<LandingPage />);
 
+    expect(html).toContain("Simulador de Confianza");
+    expect(html).not.toContain("Simulador de Llamadas");
     expect(html).toContain(landingContent.eyebrow);
     expect(html).toContain(landingContent.headlineHighlight);
     expect(html).toContain(landingContent.headlineRest);
+    expect(html).not.toContain("Practica llamadas de venta");
+    expect(html).not.toContain("marcar de verdad");
     expect(html).toContain(landingContent.subheadline);
     expect(html).toContain(landingContent.ctaLabel);
     expect(html).toContain(landingContent.features[0].title);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withPgClient } from "@/lib/session";
+import { isDatabaseConfigured, withPgClient } from "@/lib/session";
 import {
   isServerTtsTier,
   resolveTtsTier,
@@ -204,69 +204,73 @@ export async function POST(request: Request) {
         { status: 401 },
       );
     }
-    if (!sessionUsageId) {
-      return NextResponse.json(
-        { error: "sessionUsageId required", fallbackToBrowser: true },
-        { status: 400 },
-      );
-    }
+    if (sessionUsageId && isDatabaseConfigured()) {
+      try {
+        const gate = await withPgClient(async (client) => {
+          const owned = await assertSessionOwnership(
+            client,
+            sessionUsageId,
+            auth.verifiedUserId,
+          );
+          if (!owned) {
+            return {
+              allowed: false,
+              reason: "session_forbidden",
+              fallbackToBrowser: true,
+              sessionExtraTtsRemaining: null as number | null,
+            };
+          }
 
-    const gate = await withPgClient(async (client) => {
-      const owned = await assertSessionOwnership(
-        client,
-        sessionUsageId,
-        auth.verifiedUserId,
-      );
-      if (!owned) {
-        return {
-          allowed: false,
-          reason: "session_forbidden",
-          fallbackToBrowser: true,
-          sessionExtraTtsRemaining: null as number | null,
-        };
-      }
+          const usage = await getSessionUsage(client, sessionUsageId);
+          const sessionExtraTtsRemaining = usage
+            ? sessionExtraTtsRemainingChars(usage)
+            : 0;
 
-      const usage = await getSessionUsage(client, sessionUsageId);
-      const sessionExtraTtsRemaining = usage
-        ? sessionExtraTtsRemainingChars(usage)
-        : 0;
+          const brake = await gateElevenLabsCall(
+            client,
+            tier,
+            {
+              sessionUsageId,
+              verifiedUserId: auth.verifiedUserId,
+            },
+            { ttsChars: sentChars },
+          );
 
-      const brake = await gateElevenLabsCall(
-        client,
-        tier,
-        {
-          sessionUsageId,
-          verifiedUserId: auth.verifiedUserId,
-        },
-        { ttsChars: sentChars },
-      );
+          return { ...brake, sessionExtraTtsRemaining };
+        });
 
-      return { ...brake, sessionExtraTtsRemaining };
-    });
+        sessionExtraTtsRemaining = gate.sessionExtraTtsRemaining;
 
-    sessionExtraTtsRemaining = gate.sessionExtraTtsRemaining;
-
-    if (!gate.allowed) {
-      logRouteTtsOutcome(baseTrace(), {
-        httpStatus: 429,
-        fallbackToBrowser: true,
-        reason: gate.reason,
-        durationMs: Date.now() - routeStartedAt,
-        billedCharsSent: 0,
-      });
-      return NextResponse.json(
-        { error: gate.reason, fallbackToBrowser: true },
-        {
-          status: 429,
-          headers: publicTraceHeader({
-            requestId,
+        if (!gate.allowed) {
+          logRouteTtsOutcome(baseTrace(), {
             httpStatus: 429,
             fallbackToBrowser: true,
-            languageCode: speakOptions?.language ?? "es",
-            failureReason: gate.reason,
-          }),
-        },
-      );
+            reason: gate.reason,
+            durationMs: Date.now() - routeStartedAt,
+            billedCharsSent: 0,
+          });
+          return NextResponse.json(
+            { error: gate.reason, fallbackToBrowser: true },
+            {
+              status: 429,
+              headers: publicTraceHeader({
+                requestId,
+                httpStatus: 429,
+                fallbackToBrowser: true,
+                languageCode: speakOptions?.language ?? "es",
+                failureReason: gate.reason,
+              }),
+            },
+          );
+        }
+      } catch (error) {
+        console.error("voice.tts.usage_gate_failed", {
+          requestId,
+          sessionUsageId,
+          turnId,
+          detail: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 

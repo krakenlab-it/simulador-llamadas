@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { withPgClient } from "@/lib/session";
+import { isDatabaseConfigured, withPgClient } from "@/lib/session";
 import {
   isVoiceAuthContext,
   resolveVoiceAuth,
@@ -31,6 +31,14 @@ export async function POST(request: Request) {
 
     const auth = await resolveVoiceAuth(request);
     if (!isVoiceAuthContext(auth)) return auth;
+
+    if (!isDatabaseConfigured()) {
+      return NextResponse.json({
+        fallbackToBrowser: false,
+        reason: "usage_db_unavailable",
+        verifiedUserId: auth.verifiedUserId,
+      });
+    }
 
     const body = (await request.json()) as { callAttemptId?: string };
 

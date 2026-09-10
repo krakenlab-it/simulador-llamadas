@@ -35,6 +35,21 @@ import {
   parseVoiceAgentSettings,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
+import {
+  loadLocalCustomScenarios,
+  upsertLocalCustomScenario,
+} from "@/lib/scenarios/local";
+import {
+  buildKrakenScenario,
+  enrichCohortWithPersonas,
+} from "@/lib/kraken-lab/generator";
+import { isValidCohort } from "@/lib/kraken-lab/validation";
+import type {
+  KrakenLabCohortConfig,
+  StartKrakenSessionResult,
+} from "@/lib/kraken-lab/types";
+import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
+import { mergeAgenticRuntime } from "@/lib/agentic/runtime";
 
 export interface CreateSessionRequest {
   scenarioSlug: string;
@@ -44,6 +59,7 @@ export interface CreateSessionRequest {
   traineeDisplayName?: string;
   traineeEmail?: string;
   traineeAuthUserId?: string;
+  agenticRuntime?: AgenticRuntimeConfig;
 }
 
 export interface HistoryEntry {
@@ -212,8 +228,20 @@ function withSavedVoiceAgent(record: ScenarioRecord): ScenarioRecord {
   return saved ? applyVoiceAgentToRecord(record, saved) : record;
 }
 
+function hydrateCustomScenario(slug: string): StubScenario | null {
+  const inMemory = customScenarios.get(slug);
+  if (inMemory) return inMemory;
+
+  const fromLocal = loadLocalCustomScenarios().find((record) => record.slug === slug);
+  if (!fromLocal) return null;
+
+  const scenario = { record: fromLocal };
+  customScenarios.set(slug, scenario);
+  return scenario;
+}
+
 function getScenario(slug: string): StubScenario | null {
-  const found = customScenarios.get(slug) ?? buildPresetScenario(slug);
+  const found = hydrateCustomScenario(slug) ?? buildPresetScenario(slug);
   if (!found) return null;
   return { record: withSavedVoiceAgent(found.record) };
 }
@@ -223,12 +251,16 @@ export function stubListScenarios(): ScenarioRecord[] {
     .map((slug) => buildPresetScenario(slug)?.record)
     .filter((s): s is ScenarioRecord => s !== undefined)
     .map(withSavedVoiceAgent);
-  return [
-    ...presets,
-    ...Array.from(customScenarios.values()).map((s) =>
-      withSavedVoiceAgent(s.record),
-    ),
-  ];
+
+  const customBySlug = new Map<string, ScenarioRecord>();
+  for (const record of loadLocalCustomScenarios()) {
+    customBySlug.set(record.slug, withSavedVoiceAgent(record));
+  }
+  for (const scenario of customScenarios.values()) {
+    customBySlug.set(scenario.record.slug, withSavedVoiceAgent(scenario.record));
+  }
+
+  return [...presets, ...customBySlug.values()];
 }
 
 export function stubSaveVoiceAgent(
@@ -244,6 +276,7 @@ export function stubSaveVoiceAgent(
   const record = applyVoiceAgentToRecord(scenario.record, parsed);
   if (!record.isPreset) {
     customScenarios.set(slug, { record });
+    upsertLocalCustomScenario(record);
   }
   return record;
 }
@@ -288,31 +321,48 @@ export function stubCreateScenario(
     generateId("scenario"),
   );
   customScenarios.set(record.slug, { record });
+  upsertLocalCustomScenario(record);
   return record;
 }
 
 export function stubUpdateScenario(
   input: UpdateCustomScenarioInput,
 ): ScenarioRecord {
-  const existing = customScenarios.get(input.slug);
-  if (!existing) {
-    throw new Error(`Escenario no encontrado: ${input.slug}`);
-  }
-  if (existing.record.isPreset) {
+  const existing = hydrateCustomScenario(input.slug);
+  if (existing?.record.isPreset) {
     throw new Error(`Clinic presets cannot be edited: ${input.slug}`);
   }
+
   const record = withSavedVoiceAgent(
-    recordFromInput(input, existing.record.slug, existing.record.id),
+    recordFromInput(
+      input,
+      existing?.record.slug ?? input.slug,
+      existing?.record.id ?? generateId("scenario"),
+    ),
   );
   customScenarios.set(record.slug, { record });
+  upsertLocalCustomScenario(record);
   return record;
 }
 
 export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
-  const scenario = getScenario(body.scenarioSlug);
-  if (!scenario) {
+  const baseScenario = getScenario(body.scenarioSlug);
+  if (!baseScenario) {
     throw new Error(`Cliente no encontrado: ${body.scenarioSlug}`);
   }
+
+  const scenario =
+    body.agenticRuntime && !baseScenario.record.isPreset
+      ? {
+          record: {
+            ...baseScenario.record,
+            config: mergeAgenticRuntime(
+              baseScenario.record.config,
+              body.agenticRuntime,
+            ),
+          },
+        }
+      : baseScenario;
 
   const callAttemptId = generateId("stub");
   const totalRounds = scoringPhaseCount(
@@ -610,6 +660,80 @@ export function stubGetOpeningLine(scenarioSlug: string): string {
 
 export function stubGetTurnSummaries(callAttemptId: string): TurnSummary[] {
   return [...(sessions.get(callAttemptId)?.turns ?? [])];
+}
+
+export function stubStartKrakenSession(input: {
+  cohort: KrakenLabCohortConfig;
+  mode: PracticeMode;
+  traineeId?: string;
+  traineeEmail?: string;
+  traineeDisplayName?: string;
+  agenticRuntime?: AgenticRuntimeConfig;
+}): StartKrakenSessionResult {
+  const enriched = enrichCohortWithPersonas(input.cohort);
+  if (!isValidCohort(enriched)) {
+    throw new Error("Configuración de cohorte incompleta o inválida");
+  }
+
+  const generated = buildKrakenScenario(enriched);
+  const record = recordFromInput(
+    {
+      industry: generated.config.industry,
+      productSold: generated.config.productSold,
+      clientName: generated.clientName,
+      clientTitle: generated.clientTitle,
+      companyContext: generated.companyContext,
+      temperament: generated.config.temperament,
+      difficultyLabel: generated.difficultyLabel,
+      clientProblem: generated.config.clientProblem,
+      objections: generated.config.objections,
+      winCriteria: generated.config.winCriteria,
+      language: "es",
+      callType: generated.config.callType,
+      rounds: generated.config.rounds,
+    },
+    generated.slug,
+    generateId("scenario"),
+  );
+  customScenarios.set(record.slug, {
+    record: {
+      ...record,
+      config: mergeAgenticRuntime(
+        {
+          ...record.config,
+          krakenLab: generated.config.krakenLab,
+          agentic: generated.config.agentic,
+        },
+        input.agenticRuntime,
+      ),
+    },
+  });
+
+  const session = stubCreateSession({
+    scenarioSlug: record.slug,
+    mode: input.mode,
+    difficultyLevel: enriched.difficultyLevel,
+    traineeId: input.traineeId,
+    traineeEmail: input.traineeEmail,
+    traineeDisplayName: input.traineeDisplayName,
+    agenticRuntime: input.agenticRuntime,
+  });
+
+  return {
+    cohortId: enriched.id ?? "stub-cohort",
+    callAttemptId: session.callAttemptId,
+    traineeId: session.traineeId,
+    scenarioSlug: session.scenarioSlug,
+    clientName: session.clientName,
+    totalRounds: session.totalRounds,
+    config: mergeAgenticRuntime(
+      {
+        ...generated.config,
+        krakenLab: generated.config.krakenLab,
+      },
+      input.agenticRuntime,
+    ) as StartKrakenSessionResult["config"],
+  };
 }
 
 export function resetStubSessions(): void {

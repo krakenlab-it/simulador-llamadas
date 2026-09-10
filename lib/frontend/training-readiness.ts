@@ -10,6 +10,27 @@ export interface TrainingReadinessInput {
   voiceAuthVerified?: boolean;
 }
 
+export interface BilledVoiceAuthGateInput {
+  mode: PracticeMode;
+  requiresVoiceAuth: boolean;
+  skipped: boolean;
+  verifiedUserId?: string | null;
+  hasValidSession: boolean;
+}
+
+/** Show the login card only when billed voice is on and nobody is signed in. */
+export function needsBilledVoiceAuthGate(
+  input: BilledVoiceAuthGateInput,
+): boolean {
+  if (input.mode !== "voz" || !input.requiresVoiceAuth || input.skipped) {
+    return false;
+  }
+  if (input.verifiedUserId || input.hasValidSession) {
+    return false;
+  }
+  return true;
+}
+
 export function canStartTraining(input: TrainingReadinessInput): boolean {
   if (input.isStarting || !input.scenarioSelected) return false;
   if (input.mode === "texto") return true;
@@ -27,7 +48,7 @@ export function startBlockedReason(
     return "Tu navegador no soporta voz. Usa modo texto o Chrome/Edge.";
   }
   if (input.mode === "voz" && input.needsVoiceAuth && !input.voiceAuthVerified) {
-    return "Verifica tu correo para usar voz con facturación.";
+    return "Inicia sesión para usar voz con facturación.";
   }
   if (input.mode === "voz" && !input.micVerified) {
     return "Verifica tu micrófono antes de iniciar.";

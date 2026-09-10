@@ -1,7 +1,9 @@
+import { HappyFaceIcon } from "./HappyFaceIcon";
+
 export function BrandMark() {
   return (
     <div className="brand-mark" aria-hidden="true">
-      <span className="brand-mark-glyph">☎</span>
+      <HappyFaceIcon size={28} />
     </div>
   );
 }

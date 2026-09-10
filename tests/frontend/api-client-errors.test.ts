@@ -1,12 +1,31 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createSession,
+  createScenario,
   listHistory,
+  loadHistory,
   listScenarios,
+  loadScenarioCatalog,
   saveScenarioVoiceAgent,
   submitTurn,
 } from "@/lib/api/client";
+import { resetStubSessions } from "@/lib/api/stubs";
+import { appendLocalHistory, clearLocalHistory } from "@/lib/history/local";
+import { clearLocalCustomScenarios } from "@/lib/scenarios/local";
 import { DEFAULT_VOICE_AGENT_SETTINGS } from "@/lib/voice/agent-settings";
+
+const sampleCreateInput = {
+  industry: "gimnasio",
+  productSold: "membresía anual",
+  clientName: "Laura Méndez",
+  clientTitle: "Gerente",
+  companyContext: "Cadena de gimnasios",
+  temperament: "Impaciente",
+  difficultyLabel: "Media",
+  clientProblem: "baja retención de socios",
+  objections: ["Muy caro"],
+  winCriteria: "SPIN Advance: visita con acción concreta",
+};
 
 function mockFetchOnce(status: number, body: unknown): void {
   vi.stubGlobal(
@@ -32,6 +51,9 @@ async function messageFromFailedTurn(): Promise<string> {
 describe("api client error messages", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    resetStubSessions();
+    clearLocalHistory();
+    clearLocalCustomScenarios();
   });
 
   it("surfaces the server message instead of the raw JSON envelope", async () => {
@@ -78,45 +100,107 @@ describe("api client error messages", () => {
     );
   });
 
-  it("does not start a stub call when POST /api/sessions returns 500", async () => {
+  it("falls back to a stub session when POST /api/sessions returns 500", async () => {
     mockFetchOnce(500, {
       error:
         "La base de datos no tiene la última migración aplicada. Avisa al equipo técnico.",
       code: "schema_outdated",
     });
 
-    await expect(
-      createSession({
-        scenarioSlug: "mariana",
-        mode: "texto",
-        difficultyLevel: 1,
-      }),
-    ).rejects.toThrow(
-      "La base de datos no tiene la última migración aplicada. Avisa al equipo técnico.",
-    );
+    const session = await createSession({
+      scenarioSlug: "mariana",
+      mode: "texto",
+      difficultyLevel: 1,
+    });
+
+    expect(session.scenarioSlug).toBe("mariana");
+    expect(session.callAttemptId).toBeTruthy();
+    expect(session.status).toBe("in_progress");
   });
 
-  it("does not hide a 500 behind the clinic stub list", async () => {
+  it("falls back to clinic stub presets when GET /api/scenarios returns 500", async () => {
     mockFetchOnce(500, { error: 'column "voice_agent" does not exist' });
 
-    await expect(listScenarios()).rejects.toThrow(
-      "No se pudo completar la acción. Intenta de nuevo.",
-    );
+    const scenarios = await listScenarios();
+
+    expect(scenarios.some((s) => s.slug === "mariana")).toBe(true);
+    expect(scenarios.filter((s) => s.isPreset)).toHaveLength(3);
   });
 
-  it("does not treat a history 500 as an empty inbox", async () => {
+  it("marks loadScenarioCatalog as local fallback when the API returns 500", async () => {
+    mockFetchOnce(500, { error: "relation \"scenarios\" does not exist" });
+
+    const catalog = await loadScenarioCatalog();
+
+    expect(catalog.usedLocalFallback).toBe(true);
+    expect(catalog.scenarios.filter((s) => s.isPreset)).toHaveLength(3);
+  });
+
+  it("falls back to local history when GET /api/history returns 500", async () => {
+    appendLocalHistory({
+      callAttemptId: "ca-local-1",
+      scenarioSlug: "mariana",
+      clientName: "Mariana Escobedo",
+      difficultyLevel: 1,
+      mode: "texto",
+      won: true,
+      totalScore: 71,
+      turnsCompleted: 5,
+      startedAt: "2026-09-01T10:00:00.000Z",
+      durationSeconds: 90,
+    });
+
     mockFetchOnce(500, { error: "relation \"call_history\" does not exist" });
 
-    await expect(
-      listHistory({ email: "seb@example.com" }),
-    ).rejects.toThrow("No se pudo completar la acción. Intenta de nuevo.");
+    const result = await loadHistory({ email: "seb@example.com" });
+
+    expect(result.usedLocalFallback).toBe(true);
+    expect(result.entries.some((e) => e.callAttemptId === "ca-local-1")).toBe(true);
+    expect(result.entries[0].clientName).toBe("Mariana Escobedo");
   });
 
-  it("does not silently stub a failed voice-agent persist", async () => {
+  it("returns empty history without throwing when GET /api/history returns 500 and local is empty", async () => {
+    mockFetchOnce(500, { error: "relation \"call_history\" does not exist" });
+
+    const result = await loadHistory({ email: "seb@example.com" });
+
+    expect(result.usedLocalFallback).toBe(true);
+    expect(result.entries).toHaveLength(0);
+    expect(await listHistory({ email: "seb@example.com" })).toHaveLength(0);
+  });
+
+  it("falls back to stub when POST /api/scenarios returns 500", async () => {
+    mockFetchOnce(500, { error: "No se pudo crear el escenario." });
+
+    const result = await createScenario({ ...sampleCreateInput });
+
+    expect(result.usedLocalFallback).toBe(true);
+    expect(result.scenario.clientName).toBe("Laura Méndez");
+    expect(result.scenario.isPreset).toBe(false);
+    expect(
+      (await loadScenarioCatalog()).scenarios.some(
+        (scenario) => scenario.slug === result.scenario.slug,
+      ),
+    ).toBe(true);
+  });
+
+  it("surfaces validation errors when POST /api/scenarios returns 400", async () => {
+    mockFetchOnce(400, { error: "Falta el nombre del cliente." });
+
+    await expect(createScenario({ ...sampleCreateInput })).rejects.toThrow(
+      "Falta el nombre del cliente.",
+    );
+  });
+
+  it("falls back to stub voice-agent settings when PATCH returns 500", async () => {
     mockFetchOnce(500, { error: 'column "voice_agent" does not exist' });
 
-    await expect(
-      saveScenarioVoiceAgent("mariana", DEFAULT_VOICE_AGENT_SETTINGS),
-    ).rejects.toThrow("No se pudo completar la acción. Intenta de nuevo.");
+    const result = await saveScenarioVoiceAgent(
+      "mariana",
+      DEFAULT_VOICE_AGENT_SETTINGS,
+    );
+
+    expect(result.usedLocalFallback).toBe(true);
+    expect(result.scenario.slug).toBe("mariana");
   });
 });
