@@ -245,32 +245,69 @@ body {
   width: 100%;
 }
 
+.select-with-other__select,
 .industry-type-select__select {
   appearance: none;
   -webkit-appearance: none;
   padding: 0.55rem 2.25rem 0.55rem 0.65rem;
-  border-radius: var(--radius-md);
-  border: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
-  background-color: color-mix(in srgb, var(--paper) 96%, transparent);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background-color: var(--surface-sunken);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%23d4a853' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.65rem center;
   background-size: 1rem;
   color: var(--paper);
   font: inherit;
+  font-size: 0.9rem;
   cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease),
+    box-shadow var(--duration-fast) var(--ease);
 }
 
-.industry-type-select__other {
+.select-with-other__select:focus,
+.industry-type-select__select:focus {
+  outline: none;
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 45%, transparent);
+}
+
+.industry-type-select__select option,
+.select-with-other__select option,
+.config-panel__select option {
+  background-color: #ffffff;
+  color: #141a22;
+}
+
+.industry-type-select__select option:checked,
+.select-with-other__select option:checked,
+.config-panel__select option:checked {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+.industry-type-select__other,
+.select-with-other__other {
   margin-top: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--paper);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.industry-type-select__other:focus,
+.select-with-other__other:focus {
+  outline: none;
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 45%, transparent);
 }
 
 .builder-form__industry-block {
   grid-column: 1 / -1;
-}
-
-.select-with-other__other {
-  margin-top: 0.5rem;
 }
 
 .wizard-actions-row {
