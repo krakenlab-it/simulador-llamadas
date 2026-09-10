@@ -111,5 +111,12 @@ describe("billed voice session gate", () => {
     await waitFor(() => {
       expect(onStart).toHaveBeenCalledTimes(1);
     });
+    expect(onStart.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({
+        mode: "voz",
+        scenarioSlug: marianaScenarioFixture.slug,
+      }),
+    );
+    expect(screen.queryByText(/sin facturación ElevenLabs/i)).not.toBeInTheDocument();
   });
 });

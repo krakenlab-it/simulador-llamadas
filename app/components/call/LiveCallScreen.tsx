@@ -170,15 +170,16 @@ export function LiveCallScreen({
 
   const synthesis = useSpeechSynthesis({
     sessionUsageId,
+    fallbackToBrowser: voiceSession.fallbackToBrowser,
     locale: resolveSpeechLocale({ language: agentSettings.language }),
     voiceAgent: agentSettings,
   });
   const busy = submitting || hangingUp || ending;
   const holdMic = busy || (synthesis.speaking && !agentSettings.bargeIn);
   const billedTtsActive =
-    Boolean(sessionUsageId) &&
     voiceConfig.serverTts &&
-    !voiceSession.fallbackToBrowser;
+    !voiceSession.fallbackToBrowser &&
+    voiceSession.resolved !== false;
   const billedTtsActiveRef = useRef(billedTtsActive);
   billedTtsActiveRef.current = billedTtsActive;
   const callDevices = useCallAudioDevices(
@@ -232,9 +233,7 @@ export function LiveCallScreen({
   // with the ElevenLabs voice when it is available, browser voice otherwise.
   const voiceOutputReady =
     voiceConfig.ready !== false &&
-    (!voiceConfig.requiresVoiceAuth ||
-      Boolean(sessionUsageId) ||
-      voiceSession.fallbackToBrowser);
+    (!voiceConfig.requiresVoiceAuth || voiceSession.resolved !== false);
 
   useEffect(() => {
     if (mode !== "voz" || !voiceOutputReady || openingSpokenRef.current) return;

@@ -1,11 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 
-vi.mock("@/lib/auth/voice-session", () => ({
-  startBilledVoiceSession: vi.fn().mockResolvedValue({
+const startBilledVoiceSession = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({
     sessionUsageId: "usage-1",
     verifiedUserId: "user-1",
   }),
+);
+
+vi.mock("@/lib/auth/voice-session", () => ({
+  startBilledVoiceSession,
   endBilledVoiceSession: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -39,6 +43,10 @@ function convaiTicks(): number {
 describe("billed voice session metering", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    startBilledVoiceSession.mockResolvedValue({
+      sessionUsageId: "usage-1",
+      verifiedUserId: "user-1",
+    });
     vi.mocked(voiceSessionFetch).mockResolvedValue(usageResponse());
   });
 
@@ -52,6 +60,22 @@ describe("billed voice session metering", () => {
       await vi.advanceTimersByTimeAsync(ms);
     });
   }
+
+  it("does not demote to browser when billed session start is unavailable", async () => {
+    startBilledVoiceSession.mockResolvedValueOnce({
+      fallbackToBrowser: false,
+      reason: "voice_session_unavailable",
+    });
+
+    const { result } = renderHook(() =>
+      useVoiceSession("user-1", "call-1", "voz"),
+    );
+
+    await settle();
+    expect(result.current.fallbackToBrowser).toBe(false);
+    expect(result.current.sessionUsageId).toBeNull();
+    expect(result.current.resolved).toBe(true);
+  });
 
   it("does not spend ConvAI seconds while the call runs on browser mic + TTS", async () => {
     const { result } = renderHook(() =>

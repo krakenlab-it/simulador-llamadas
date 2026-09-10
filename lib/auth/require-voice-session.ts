@@ -1,8 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { Client } from "pg";
-import { withPgClient } from "@/lib/session";
-import { resolveVoiceUserIdentity } from "@/lib/auth/voice-user";
+import { isDatabaseConfigured, withPgClient } from "@/lib/session";
+import {
+  resolveVoiceUserIdentity,
+  resolveVoiceUserIdentityFromJwt,
+} from "@/lib/auth/voice-user";
 import { getOrCreateVerifiedUser } from "@/lib/voice/usage";
 
 export interface VoiceAuthContext {
@@ -33,12 +36,19 @@ export async function verifySupabaseAccessToken(
   if (!url || !anonKey) return null;
 
   const supabase = createClient(url, anonKey);
-  const { data } = await supabase.auth.getUser(accessToken);
-  if (!data.user) return null;
+  const { data, error } = await supabase.auth.getUser(accessToken);
+  if (data.user) {
+    // A live session JWT is enough for billed TTS/STT. Do not require
+    // email_confirmed_at — Preview and some Supabase projects leave it null.
+    return resolveVoiceUserIdentity(data.user);
+  }
 
-  // A live session JWT is enough for billed TTS/STT. Do not require
-  // email_confirmed_at — Preview and some Supabase projects leave it null.
-  return resolveVoiceUserIdentity(data.user);
+  const message = error?.message?.toLowerCase() ?? "";
+  if (message.includes("email not confirmed")) {
+    return resolveVoiceUserIdentityFromJwt(accessToken);
+  }
+
+  return null;
 }
 
 export async function resolveVoiceAuth(
@@ -60,9 +70,18 @@ export async function resolveVoiceAuth(
     );
   }
 
-  const verifiedUserId = await withPgClient((client) =>
-    getOrCreateVerifiedUser(client, user.email, user.userId),
-  );
+  let verifiedUserId = user.userId;
+  if (isDatabaseConfigured()) {
+    try {
+      verifiedUserId = await withPgClient((client) =>
+        getOrCreateVerifiedUser(client, user.email, user.userId),
+      );
+    } catch {
+      // Usage DB down (Preview often lacks DATABASE_URL): keep the JWT identity
+      // so billed TTS/STT still run. Metering is skipped until Postgres is back.
+      verifiedUserId = user.userId;
+    }
+  }
 
   return {
     supabaseUserId: user.userId,

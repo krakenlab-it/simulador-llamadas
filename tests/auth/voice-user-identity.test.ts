@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveVoiceUserIdentity } from "@/lib/auth/voice-user";
+import {
+  resolveVoiceUserIdentity,
+  resolveVoiceUserIdentityFromJwt,
+} from "@/lib/auth/voice-user";
 
 describe("resolveVoiceUserIdentity — billed voice does not require email confirmation", () => {
   it("accepts a valid session user whose email is not confirmed", () => {
@@ -28,6 +31,34 @@ describe("resolveVoiceUserIdentity — billed voice does not require email confi
       userId: "user-2",
       email: "from.meta@example.com",
     });
+  });
+
+  it("reads identity from a live JWT when getUser omitted the user", () => {
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: "user-jwt",
+        email: "Sebastian@Krakenlab.it",
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    ).toString("base64url");
+    const token = `eyJhbGciOiJub25lIn0.${payload}.sig`;
+
+    expect(resolveVoiceUserIdentityFromJwt(token)).toEqual({
+      userId: "user-jwt",
+      email: "sebastian@krakenlab.it",
+    });
+  });
+
+  it("rejects an expired JWT payload", () => {
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: "user-jwt",
+        email: "sebastian@krakenlab.it",
+        exp: Math.floor(Date.now() / 1000) - 10,
+      }),
+    ).toString("base64url");
+
+    expect(resolveVoiceUserIdentityFromJwt(`x.${payload}.sig`)).toBeNull();
   });
 
   it("rejects tokens that have no user id or email", () => {
