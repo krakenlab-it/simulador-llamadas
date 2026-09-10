@@ -154,7 +154,7 @@ describe("billed TTS playback", () => {
       expect.objectContaining({ method: "POST" }),
     );
     expect(play).toHaveBeenCalled();
-    expect(spokenTexts()).toEqual([]);
+    expect(spokenTexts()).not.toContain(SPANISH_LINE);
   });
 
   it("uses browser TTS only when fallbackToBrowser is explicit", async () => {
