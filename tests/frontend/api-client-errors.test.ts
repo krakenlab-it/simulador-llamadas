@@ -100,22 +100,22 @@ describe("api client error messages", () => {
     );
   });
 
-  it("does not start a stub call when POST /api/sessions returns 500", async () => {
+  it("falls back to a stub session when POST /api/sessions returns 500", async () => {
     mockFetchOnce(500, {
       error:
         "La base de datos no tiene la última migración aplicada. Avisa al equipo técnico.",
       code: "schema_outdated",
     });
 
-    await expect(
-      createSession({
-        scenarioSlug: "mariana",
-        mode: "texto",
-        difficultyLevel: 1,
-      }),
-    ).rejects.toThrow(
-      "La base de datos no tiene la última migración aplicada. Avisa al equipo técnico.",
-    );
+    const session = await createSession({
+      scenarioSlug: "mariana",
+      mode: "texto",
+      difficultyLevel: 1,
+    });
+
+    expect(session.scenarioSlug).toBe("mariana");
+    expect(session.callAttemptId).toBeTruthy();
+    expect(session.status).toBe("in_progress");
   });
 
   it("falls back to clinic stub presets when GET /api/scenarios returns 500", async () => {

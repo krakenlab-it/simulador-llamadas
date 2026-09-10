@@ -91,7 +91,8 @@ async function tryFetch<T>(
       return null;
     }
     if (res.status >= 500) {
-      throw new Error(await readErrorMessage(res));
+      if (!stubAvailable) throw new Error(await readErrorMessage(res));
+      return null;
     }
     if (!res.ok) {
       throw new Error(await readErrorMessage(res));

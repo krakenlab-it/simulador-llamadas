@@ -689,9 +689,18 @@ body {
   }
 }
 
-.card--selected {
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow);
+.card.card--interactive.card--selected,
+.scenario-card-wrap .card.card--interactive.card--selected {
+  background: color-mix(in srgb, #e8f07a 16%, var(--surface));
+  border-color: #e8f07a;
+  box-shadow:
+    0 0 0 1px #e8f07a,
+    0 8px 24px color-mix(in srgb, #e8f07a 12%, transparent);
+}
+
+.card.card--interactive.card--selected h3,
+.scenario-card-wrap .card.card--interactive.card--selected .scenario-card__name {
+  color: #e8f07a;
 }
 
 /* ── Spinner ─────────────────────────────────────────── */
