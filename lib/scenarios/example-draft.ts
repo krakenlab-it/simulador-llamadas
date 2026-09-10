@@ -15,7 +15,7 @@ export function buildExampleAuthoringDraft(): ScenarioAuthoringDraft {
     clientName: "Valeria Soto",
     clientTitle: "Directora de Compras",
     companyContext: "Importadora del Norte · Monterrey",
-    temperament: "Escéptica, poco tiempo",
+    temperament: "Escéptico, poco tiempo",
     difficultyLabel: "Intermedia-alta",
     clientProblem:
       "Pedidos urgentes se atascan entre ventas y almacén; pierden entregas por falta de visibilidad del pipeline comercial.",

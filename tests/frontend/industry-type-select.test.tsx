@@ -1,8 +1,28 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { IndustryTypeSelect } from "@/app/components/ui/IndustryTypeSelect";
-import { INDUSTRY_OPTIONS } from "@/lib/scenarios/select-options";
+import { INDUSTRY_OPTIONS, OTHER_OPTION_VALUE } from "@/lib/scenarios/select-options";
+
+function IndustryHarness({
+  initialValue = "",
+  onChangeSpy,
+}: {
+  initialValue?: string;
+  onChangeSpy?: (value: string) => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+  return (
+    <IndustryTypeSelect
+      value={value}
+      onChange={(next) => {
+        onChangeSpy?.(next);
+        setValue(next);
+      }}
+    />
+  );
+}
 
 describe("IndustryTypeSelect", () => {
   afterEach(() => {
@@ -36,5 +56,28 @@ describe("IndustryTypeSelect", () => {
     );
 
     expect(onChange).toHaveBeenCalledWith("Logística y transporte");
+  });
+
+  it("reveals and focuses the custom input when Otro is selected", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(<IndustryHarness onChangeSpy={onChange} />);
+
+    await user.selectOptions(screen.getByLabelText("Tipo de empresa / industria"), "Otro");
+
+    expect(onChange).toHaveBeenCalledWith(OTHER_OPTION_VALUE);
+    const otherInput = screen.getByLabelText("Escribe tu valor");
+    expect(otherInput).toBeInTheDocument();
+    expect(otherInput).toHaveFocus();
+  });
+
+  it("reloads a saved custom industry as Otro plus textbox", () => {
+    render(<IndustryHarness initialValue="Taller de llantas" />);
+
+    expect(screen.getByLabelText("Tipo de empresa / industria")).toHaveValue(
+      OTHER_OPTION_VALUE,
+    );
+    expect(screen.getByLabelText("Escribe tu valor")).toHaveValue("Taller de llantas");
   });
 });

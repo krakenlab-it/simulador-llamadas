@@ -1,7 +1,11 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
-import { INDUSTRY_OPTIONS, OTHER_OPTION_VALUE } from "@/lib/scenarios/select-options";
+import { useEffect, useId, useMemo, useRef } from "react";
+import {
+  INDUSTRY_OPTIONS,
+  OTHER_OPTION_VALUE,
+  resolveSelectWithOtherValue,
+} from "@/lib/scenarios/select-options";
 
 export interface IndustryTypeSelectProps {
   value: string;
@@ -16,23 +20,20 @@ export function IndustryTypeSelect({
 }: IndustryTypeSelectProps) {
   const selectId = useId();
   const otherId = useId();
-  const [otherActive, setOtherActive] = useState(false);
+  const otherInputRef = useRef<HTMLInputElement>(null);
+  const prevShowOtherRef = useRef(false);
 
-  const { selectValue, customValue } = useMemo(() => {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      return {
-        selectValue: otherActive ? OTHER_OPTION_VALUE : "",
-        customValue: "",
-      };
-    }
-    if ((INDUSTRY_OPTIONS as readonly string[]).includes(trimmed)) {
-      return { selectValue: trimmed, customValue: "" };
-    }
-    return { selectValue: OTHER_OPTION_VALUE, customValue: trimmed };
-  }, [otherActive, value]);
+  const { selectValue, customValue, showOtherInput } = useMemo(
+    () => resolveSelectWithOtherValue(value, INDUSTRY_OPTIONS),
+    [value],
+  );
 
-  const showOtherInput = selectValue === OTHER_OPTION_VALUE;
+  useEffect(() => {
+    if (showOtherInput && !prevShowOtherRef.current) {
+      otherInputRef.current?.focus();
+    }
+    prevShowOtherRef.current = showOtherInput;
+  }, [showOtherInput]);
 
   return (
     <div className="field field--full industry-type-select">
@@ -46,11 +47,9 @@ export function IndustryTypeSelect({
         onChange={(event) => {
           const next = event.target.value;
           if (next === OTHER_OPTION_VALUE) {
-            setOtherActive(true);
-            onChange(customValue || "");
+            onChange(OTHER_OPTION_VALUE);
             return;
           }
-          setOtherActive(false);
           onChange(next);
         }}
       >
@@ -63,13 +62,22 @@ export function IndustryTypeSelect({
         <option value={OTHER_OPTION_VALUE}>Otro</option>
       </select>
       {showOtherInput ? (
-        <input
-          id={otherId}
-          className="industry-type-select__other"
-          value={customValue}
-          placeholder={otherPlaceholder}
-          onChange={(event) => onChange(event.target.value)}
-        />
+        <>
+          <label className="field__label" htmlFor={otherId}>
+            Escribe tu valor
+          </label>
+          <input
+            ref={otherInputRef}
+            id={otherId}
+            className="industry-type-select__other"
+            value={customValue}
+            placeholder={otherPlaceholder}
+            onChange={(event) => {
+              const next = event.target.value;
+              onChange(next === "" ? OTHER_OPTION_VALUE : next);
+            }}
+          />
+        </>
       ) : null}
     </div>
   );
