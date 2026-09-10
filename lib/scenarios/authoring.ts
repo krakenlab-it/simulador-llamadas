@@ -2,6 +2,7 @@ import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
 import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
 import { buildDefaultRounds, buildScenarioConfig } from "./defaults";
+import { normalizeSelectWithOtherStoredValue } from "./select-options";
 import type {
   CreateCustomScenarioInput,
   DimensionGuides,
@@ -405,7 +406,7 @@ export function validateAuthoringDraft(
 
   for (const [field, label] of required) {
     const value = draft[field];
-    if (typeof value === "string" && !value.trim()) {
+    if (typeof value === "string" && !normalizeSelectWithOtherStoredValue(value)) {
       return `Falta ${label}.`;
     }
   }
@@ -445,14 +446,17 @@ export function draftToCreateInput(
   });
 
   return {
-    industry: draft.industry.trim(),
-    productSold: draft.productSold.trim(),
+    industry: normalizeSelectWithOtherStoredValue(draft.industry),
+    productSold: normalizeSelectWithOtherStoredValue(draft.productSold),
     clientName: draft.clientName.trim(),
     clientTitle: draft.clientTitle.trim(),
     companyContext: draft.companyContext.trim(),
-    temperament: draft.temperament.trim() || defaultTemperament(draft.language),
+    temperament:
+      normalizeSelectWithOtherStoredValue(draft.temperament) ||
+      defaultTemperament(draft.language),
     difficultyLabel:
-      draft.difficultyLabel.trim() || defaultDifficultyLabel(draft.language),
+      normalizeSelectWithOtherStoredValue(draft.difficultyLabel) ||
+      defaultDifficultyLabel(draft.language),
     clientProblem: draft.clientProblem.trim(),
     objections: draft.objections.map((item) => item.trim()).filter(Boolean),
     winCriteria: draft.winCriteria.trim(),

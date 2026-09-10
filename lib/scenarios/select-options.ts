@@ -109,16 +109,36 @@ export function isListedOption(
   return options.includes(value.trim());
 }
 
+export function isSelectWithOtherPending(value: string): boolean {
+  return value.trim() === OTHER_OPTION_VALUE;
+}
+
+export function normalizeSelectWithOtherStoredValue(value: string): string {
+  const trimmed = value.trim();
+  return trimmed === OTHER_OPTION_VALUE ? "" : trimmed;
+}
+
 export function resolveSelectWithOtherValue(
   value: string,
   options: readonly string[],
-): { selectValue: string; customValue: string } {
+): { selectValue: string; customValue: string; showOtherInput: boolean } {
   const trimmed = value.trim();
+  if (trimmed === OTHER_OPTION_VALUE) {
+    return {
+      selectValue: OTHER_OPTION_VALUE,
+      customValue: "",
+      showOtherInput: true,
+    };
+  }
   if (!trimmed) {
-    return { selectValue: "", customValue: "" };
+    return { selectValue: "", customValue: "", showOtherInput: false };
   }
   if (isListedOption(trimmed, options)) {
-    return { selectValue: trimmed, customValue: "" };
+    return { selectValue: trimmed, customValue: "", showOtherInput: false };
   }
-  return { selectValue: OTHER_OPTION_VALUE, customValue: trimmed };
+  return {
+    selectValue: OTHER_OPTION_VALUE,
+    customValue: trimmed,
+    showOtherInput: true,
+  };
 }
