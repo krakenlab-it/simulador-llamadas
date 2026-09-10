@@ -168,6 +168,37 @@ function buildProblemForIndustry(
   return template;
 }
 
+export function buildClientProblemForIndustry(
+  industry: string,
+  productHint?: string,
+): string {
+  const trimmedIndustry = industry.trim();
+  if (!trimmedIndustry) return "";
+  return buildProblemForIndustry(
+    trimmedIndustry,
+    productHint?.trim() || undefined,
+    [],
+    undefined,
+  );
+}
+
+export function isIndustryDefaultClientProblem(problem: string, industry: string): boolean {
+  const trimmedProblem = problem.trim();
+  const trimmedIndustry = industry.trim();
+
+  if (!trimmedProblem) return true;
+  if (!trimmedIndustry) return false;
+
+  const template = INDUSTRY_PROBLEM_TEMPLATES[trimmedIndustry];
+  if (template) {
+    if (trimmedProblem === template) return true;
+    if (trimmedProblem.startsWith(template.replace(/\.$/, ""))) return true;
+  }
+
+  const generic = `En ${trimmedIndustry.toLowerCase()}, ventas y operaciones no comparten visibilidad; los pedidos urgentes se atascan y se pierden oportunidades.`;
+  return trimmedProblem === generic || trimmedProblem.startsWith(generic.replace(/\.$/, ""));
+}
+
 export function shouldConfirmIndustryBriefOverwrite(existingText: string): boolean {
   const parsed = parseStructuredBrief(existingText);
   return (parsed.problema?.trim().length ?? 0) > 100;

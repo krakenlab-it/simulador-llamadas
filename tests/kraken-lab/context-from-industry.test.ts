@@ -1,15 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { INDUSTRY_OPTIONS } from "@/lib/scenarios/select-options";
 import {
+  buildClientProblemForIndustry,
   buildIndustryAwareBrief,
+  isIndustryDefaultClientProblem,
   mergeScenarioContextUpload,
   parseStructuredBrief,
   savedFilesBannerMessage,
 } from "@/lib/kraken-lab/context-from-industry";
 
 describe("context-from-industry", () => {
-  it("exposes at least 30 LATAM industry options before Otro", () => {
-    expect(INDUSTRY_OPTIONS.length).toBeGreaterThanOrEqual(30);
+  it("exposes exactly 30 LATAM industry options", () => {
+    expect(INDUSTRY_OPTIONS).toHaveLength(30);
+  });
+
+  it("builds an industry-specific client problem for the scenario builder", () => {
+    const problem = buildClientProblemForIndustry("Logística y transporte");
+    expect(problem.length).toBeGreaterThanOrEqual(30);
+    expect(problem.toLowerCase()).toContain("entreg");
+    expect(isIndustryDefaultClientProblem(problem, "Logística y transporte")).toBe(true);
   });
 
   it("rewrites Industria and Problema while keeping Cliente and Producto", () => {

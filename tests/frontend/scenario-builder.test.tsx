@@ -71,10 +71,10 @@ describe("ScenarioBuilderScreen", () => {
     await user.type(screen.getByPlaceholderText(/Laura Méndez/i), "Carlos Ruiz");
     await user.type(screen.getByPlaceholderText(/Gerente de sucursal/i), "Dueño");
     await user.type(
-      screen.getByPlaceholderText(/Cadena nacional de gimnasios/i),
+      screen.getByPlaceholderText(/Importadora del Norte/i),
       "Taller Norte",
     );
-    await user.selectOptions(screen.getByLabelText("Industria / negocio"), "Otro");
+    await user.selectOptions(screen.getByLabelText("Tipo de empresa / industria"), "Otro");
     await user.type(
       screen.getByPlaceholderText(/taller de llantas/i),
       "taller de llantas",
