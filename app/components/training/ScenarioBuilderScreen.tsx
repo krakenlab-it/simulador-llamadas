@@ -16,7 +16,6 @@ import {
 } from "@/lib/scenarios/builder-draft-storage";
 import {
   DIFFICULTY_LABEL_OPTIONS,
-  INDUSTRY_OPTIONS,
   PRODUCT_SERVICE_OPTIONS,
   TEMPERAMENT_OPTIONS,
 } from "@/lib/scenarios/select-options";
@@ -40,9 +39,14 @@ import {
 import type { ScenarioLanguage, ScenarioRecord, ScenarioRoundDef } from "@/lib/scenarios/types";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
 import { Button } from "@/app/components/ui/Button";
+import { IndustryTypeSelect } from "@/app/components/ui/IndustryTypeSelect";
 import { SelectWithOther } from "@/app/components/ui/SelectWithOther";
 import { SegmentedControl } from "@/app/components/ui/Switch";
 import { useToast } from "@/components/ui/Toast";
+import {
+  buildClientProblemForIndustry,
+  isIndustryDefaultClientProblem,
+} from "@/lib/kraken-lab/context-from-industry";
 
 export interface ScenarioBuilderResult {
   scenario: ScenarioRecord;
@@ -158,6 +162,27 @@ export function ScenarioBuilderScreen({
   const handleLanguageChange = (value: string) => {
     const language = value as ScenarioLanguage;
     setDraft((prev) => applyLanguageDefaults(prev, language));
+  };
+
+  const handleIndustryChange = (nextIndustry: string) => {
+    setDraft((prev) => {
+      const shouldRefreshProblem =
+        !prev.clientProblem.trim() ||
+        isIndustryDefaultClientProblem(prev.clientProblem, prev.industry);
+
+      return {
+        ...prev,
+        industry: nextIndustry,
+        ...(shouldRefreshProblem && nextIndustry.trim()
+          ? {
+              clientProblem: buildClientProblemForIndustry(
+                nextIndustry,
+                prev.productSold,
+              ),
+            }
+          : {}),
+      };
+    });
   };
 
   const updateRound = (index: number, patch: Partial<ScenarioRoundDef>) => {
@@ -311,21 +336,15 @@ export function ScenarioBuilderScreen({
                   placeholder="Ej. Gerente de sucursal"
                 />
               </label>
+              <IndustryTypeSelect value={draft.industry} onChange={handleIndustryChange} />
               <label className="field field--full">
-                <span className="field__label">Empresa / contexto</span>
+                <span className="field__label">Nombre de la empresa / contexto</span>
                 <input
                   value={draft.companyContext}
                   onChange={(e) => setField("companyContext", e.target.value)}
-                  placeholder="Ej. Cadena nacional de gimnasios"
+                  placeholder="Ej. Importadora del Norte · Monterrey"
                 />
               </label>
-              <SelectWithOther
-                label="Industria / negocio"
-                value={draft.industry}
-                options={INDUSTRY_OPTIONS}
-                onChange={(value) => setField("industry", value)}
-                otherPlaceholder="Ej. taller de llantas, sucursal bancaria"
-              />
               <SelectWithOther
                 label="¿Qué se vende?"
                 value={draft.productSold}
