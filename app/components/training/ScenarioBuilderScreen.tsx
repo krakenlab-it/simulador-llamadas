@@ -42,6 +42,8 @@ import { AGENTIC_GROUNDING_PENDING_MESSAGE, hasMinimumAgenticGrounding } from "@
 import { isAgenticEnabledForSimulations } from "@/lib/agentic/settings";
 import type { ScenarioLanguage, ScenarioRecord, ScenarioRoundDef } from "@/lib/scenarios/types";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
+import { summarizeAuthoringStep } from "@/lib/scenarios/authoring-step-summaries";
+import { StepNavPopover } from "@/app/components/ui/StepNavPopover";
 import { Button } from "@/app/components/ui/Button";
 import { IndustryTypeSelect } from "@/app/components/ui/IndustryTypeSelect";
 import { SelectWithOther } from "@/app/components/ui/SelectWithOther";
@@ -312,23 +314,17 @@ export function ScenarioBuilderScreen({
           const state =
             item === step ? "current" : index < stepIndex ? "done" : "pending";
           return (
-            <li
+            <StepNavPopover
               key={item}
-              className={`builder-steps__item builder-steps__item--${state}`}
-            >
-              <button
-                type="button"
-                className="builder-steps__button"
-                aria-current={item === step ? "step" : undefined}
-                onClick={() => setStep(item)}
-              >
-                <span className="builder-steps__index">{index + 1}</span>
-                <span className="builder-steps__copy">
-                  <strong>{stepLabel(item)}</strong>
-                  <span>{stepHint(item)}</span>
-                </span>
-              </button>
-            </li>
+              variant="builder"
+              stepNumber={index + 1}
+              label={stepLabel(item)}
+              hint={stepHint(item)}
+              summary={summarizeAuthoringStep(item, draft)}
+              isActive={state === "current"}
+              isDone={state === "done"}
+              onSelect={() => setStep(item)}
+            />
           );
         })}
       </ol>

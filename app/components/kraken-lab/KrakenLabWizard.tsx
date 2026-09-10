@@ -75,6 +75,8 @@ import {
 } from "@/lib/scenarios/authoring";
 import { DEFAULT_VOICE_AGENT_SETTINGS } from "@/lib/voice/agent-settings";
 import type { SetupConfig } from "@/app/components/training/ScenarioHub";
+import { StepNavPopover } from "@/app/components/ui/StepNavPopover";
+import { summarizeKrakenWizardStep } from "@/lib/kraken-lab/wizard-step-summaries";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { SegmentedControl, Switch } from "@/app/components/ui/Switch";
@@ -860,16 +862,20 @@ export function KrakenLabWizard({
         </div>
       ) : null}
 
-      <nav className="wizard-steps" aria-label="Pasos del asistente">
+      <ol className="wizard-steps" aria-label="Pasos del asistente">
         {WIZARD_STEPS.map((s, index) => (
-          <span
+          <StepNavPopover
             key={s}
-            className={`wizard-steps__item ${index === currentIndex ? "wizard-steps__item--active" : ""} ${index < currentIndex ? "wizard-steps__item--done" : ""}`}
-          >
-            {index + 1}. {WIZARD_STEP_LABELS[s]}
-          </span>
+            variant="wizard"
+            stepNumber={index + 1}
+            label={WIZARD_STEP_LABELS[s]}
+            summary={summarizeKrakenWizardStep(s, draft, mode, activeProject)}
+            isActive={index === currentIndex}
+            isDone={index < currentIndex}
+            onSelect={() => setStep(s)}
+          />
         ))}
-      </nav>
+      </ol>
 
       <section className="wizard-body">{renderStep()}</section>
 

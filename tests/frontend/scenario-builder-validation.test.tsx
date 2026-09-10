@@ -30,7 +30,7 @@ describe("ScenarioBuilderScreen validation UX", () => {
     expect(
       screen.getByText("Pendiente: Falta qué se vende (escribe tu valor en Otro)."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Cliente")).toBeInTheDocument();
+    expect(screen.getByText("Cliente", { selector: "strong" })).toBeInTheDocument();
     expect(screen.queryByText("Fases de la llamada")).not.toBeInTheDocument();
   });
 
