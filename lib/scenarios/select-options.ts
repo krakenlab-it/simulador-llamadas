@@ -122,6 +122,17 @@ export function resolveSelectWithOtherValue(
   value: string,
   options: readonly string[],
 ): { selectValue: string; customValue: string; showOtherInput: boolean } {
+  if (value === OTHER_OPTION_VALUE) {
+    return {
+      selectValue: OTHER_OPTION_VALUE,
+      customValue: "",
+      showOtherInput: true,
+    };
+  }
+  if (value === "") {
+    return { selectValue: "", customValue: "", showOtherInput: false };
+  }
+
   const trimmed = value.trim();
   if (trimmed === OTHER_OPTION_VALUE) {
     return {
@@ -130,15 +141,14 @@ export function resolveSelectWithOtherValue(
       showOtherInput: true,
     };
   }
-  if (!trimmed) {
-    return { selectValue: "", customValue: "", showOtherInput: false };
-  }
-  if (isListedOption(trimmed, options)) {
+
+  if (options.includes(trimmed) && value === trimmed) {
     return { selectValue: trimmed, customValue: "", showOtherInput: false };
   }
+
   return {
     selectValue: OTHER_OPTION_VALUE,
-    customValue: trimmed,
+    customValue: value,
     showOtherInput: true,
   };
 }

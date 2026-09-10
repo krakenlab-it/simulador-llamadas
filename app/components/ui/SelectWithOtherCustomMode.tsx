@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useRef, type RefObject } from "react";
 import { OTHER_OPTION_VALUE } from "@/lib/scenarios/select-options";
 
 export interface SelectWithOtherCustomModeProps {
@@ -27,7 +27,7 @@ export function SelectWithOtherCustomMode({
 
   useEffect(() => {
     resolvedRef.current?.focus();
-  }, [resolvedRef]);
+  }, []);
 
   return (
     <div className="select-with-other__custom-mode">
