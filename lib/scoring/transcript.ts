@@ -12,6 +12,28 @@ export interface TurnTranscriptInput {
 }
 
 /** Prepends the call opening when prior transcript lines omit the first client line. */
+export function resolveCallOpeningLine(options: {
+  isPreset: boolean;
+  scenarioSlug: string;
+  config: ScenarioConfig | null;
+  sessionSeed: string;
+}): string | undefined {
+  if (options.isPreset && isClinicPreset(options.scenarioSlug)) {
+    const client = getClientBySlug(options.scenarioSlug);
+    if (client) {
+      return getClinicOpeningLine(client, options.sessionSeed);
+    }
+    return undefined;
+  }
+
+  return openingLineForCall(
+    options.config,
+    options.isPreset,
+    undefined,
+    options.sessionSeed,
+  );
+}
+
 export function enrichPriorTranscriptLines(
   lines: TranscriptLine[],
   options: {
@@ -25,20 +47,7 @@ export function enrichPriorTranscriptLines(
     return lines;
   }
 
-  let opening: string | undefined;
-  if (options.isPreset && isClinicPreset(options.scenarioSlug)) {
-    const client = getClientBySlug(options.scenarioSlug);
-    if (client) {
-      opening = getClinicOpeningLine(client, options.sessionSeed);
-    }
-  } else {
-    opening = openingLineForCall(
-      options.config,
-      options.isPreset,
-      undefined,
-      options.sessionSeed,
-    );
-  }
+  const opening = resolveCallOpeningLine(options);
 
   const trimmed = opening?.trim();
   if (!trimmed) return lines;

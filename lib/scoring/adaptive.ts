@@ -1,3 +1,4 @@
+import type { AgenticPersistence } from "@/lib/agentic/types";
 import type { DifficultyLevel, PracticeMode, RoundType } from "@/lib/db/types";
 import type { RichTurnFeedback, ScenarioConfig } from "@/lib/scenarios/types";
 import { utteranceHasDay, utteranceHasTime } from "@/lib/scoring/keywords";
@@ -25,6 +26,7 @@ export interface AdaptiveScoreInput {
   priorLines?: TranscriptLine[];
   voiceAgent?: VoiceAgentSettings;
   mode?: PracticeMode;
+  agenticPersistence?: AgenticPersistence | null;
 }
 
 export interface AdaptiveScoreResult {
@@ -38,6 +40,7 @@ export interface AdaptiveScoreResult {
   hasConcreteDayAndTime: boolean;
   won: boolean;
   richFeedback: RichTurnFeedback;
+  agenticPersistence?: AgenticPersistence;
 }
 
 function detectDayTime(utterance: string): { hasDay: boolean; hasTime: boolean } {
@@ -79,5 +82,6 @@ export async function scoreTurnAdaptive(
     hasConcreteDayAndTime: hasDay && hasTime,
     won: live.won,
     richFeedback,
+    agenticPersistence: live.agenticPersistence,
   };
 }
