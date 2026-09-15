@@ -12,6 +12,15 @@ import { defaultCohortDraft } from "./validation";
 
 export const KRAKEN_WIZARD_DRAFT_STORAGE_KEY = "kraken-simulacion:wizard-draft:v1";
 
+/** Default for new Kraken wizard sessions when no mode was saved in localStorage. */
+export const DEFAULT_KRAKEN_WIZARD_MODE: PracticeMode = "voz";
+
+export function resolveKrakenWizardPracticeMode(
+  storedMode: PracticeMode | undefined,
+): PracticeMode {
+  return storedMode ?? DEFAULT_KRAKEN_WIZARD_MODE;
+}
+
 export interface PersistedWizardDraft {
   version: 1;
   step: WizardStep;

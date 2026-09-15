@@ -49,8 +49,10 @@ import { AGENTIC_GROUNDING_PENDING_MESSAGE } from "@/lib/agentic/scenario-contex
 import { hasMinimumKrakenAgenticGrounding } from "@/lib/kraken-lab/context-anchors";
 import {
   clearWizardDraftFromStorage,
+  DEFAULT_KRAKEN_WIZARD_MODE,
   loadWizardDraftFromStorage,
   participantCountChangeNeedsConfirm,
+  resolveKrakenWizardPracticeMode,
   saveWizardDraftToStorage,
   wizardDraftHasSavedContent,
 } from "@/lib/kraken-lab/wizard-draft-storage";
@@ -68,7 +70,7 @@ import {
   updateActiveProjectIndustryPack,
   updateProjectScenarioContext,
 } from "@/lib/kraken-lab/project-context-packs";
-import { DIFFICULTY_LABELS, MODE_LABELS } from "@/lib/frontend/training-readiness";
+import { DIFFICULTY_LABELS } from "@/lib/frontend/training-readiness";
 import {
   openingLineForCall,
   phaseLabelsForCall,
@@ -132,7 +134,7 @@ function readInitialWizardState(): {
         inferContextIndustryFromBrief(prepared.scenarioContext?.text ?? ""),
     },
     step: stored?.step ?? "proyecto",
-    mode: stored?.mode ?? "texto",
+    mode: resolveKrakenWizardPracticeMode(stored?.mode),
     draftRecovered: Boolean(stored && wizardDraftHasSavedContent(stored.draft)),
     draftTrimmed: Boolean(stored?.trimmedFileBodies),
     contextSeeded: seeded.seeded,
@@ -256,7 +258,7 @@ export function KrakenLabWizard({
     clearWizardDraftFromStorage();
     setDraft(defaultCohortDraft());
     setStep("proyecto");
-    setMode("texto");
+    setMode(DEFAULT_KRAKEN_WIZARD_MODE);
     setDraftRecovered(false);
     setDraftTrimmed(false);
     showToast("Borrador eliminado", "info");
@@ -797,15 +799,15 @@ export function KrakenLabWizard({
           label="Modo voz"
           description={
             mode === "voz"
-              ? "Practica hablando (requiere micrófono)"
-              : "Modo texto — recomendado para la primera práctica"
+              ? "Practica hablando con micrófono (recomendado)"
+              : "Solo texto — sin micrófono en la llamada"
           }
           checked={mode === "voz"}
           onCheckedChange={(on) => setMode(on ? "voz" : "texto")}
         />
       </div>
       <p className="config-panel__hint">
-        Modo: {MODE_LABELS[mode]} · Proyecto:{" "}
+        {mode === "voz" ? "Voz activada" : "Modo texto"} · Proyecto:{" "}
         {draft.project ? KRAKEN_PROJECT_LABELS[draft.project] : "—"}
       </p>
     </div>
@@ -892,10 +894,34 @@ export function KrakenLabWizard({
       {error ? <p className="start-bar__blocked">{error}</p> : null}
 
       <div className="start-bar">
-        <Button variant="ghost" onClick={onCancel}>
-          Cancelar
-        </Button>
+        {isLast ? (
+          <div className="start-bar__meta">
+            <p>
+              {mode === "voz" ? "Voz activada" : "Solo texto"} ·{" "}
+              {DIFFICULTY_LABELS[(draft.difficultyLevel ?? 2) as DifficultyLevel]}
+            </p>
+            <Switch
+              label="Modo voz"
+              description={
+                mode === "voz"
+                  ? "Micrófono disponible en la llamada"
+                  : "Activa voz para usar micrófono"
+              }
+              checked={mode === "voz"}
+              onCheckedChange={(on) => setMode(on ? "voz" : "texto")}
+            />
+          </div>
+        ) : (
+          <Button variant="ghost" onClick={onCancel}>
+            Cancelar
+          </Button>
+        )}
         <div className="start-bar__actions">
+          {!isLast ? null : (
+            <Button variant="ghost" onClick={onCancel}>
+              Cancelar
+            </Button>
+          )}
           {currentIndex > 0 ? (
             <Button variant="secondary" onClick={() => setStep(prevStep(step))}>
               Atrás
