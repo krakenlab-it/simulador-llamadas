@@ -70,6 +70,8 @@ export interface AgenticSessionState {
   mode: AgenticSimulationMode;
   meters: EmotionalMeters;
   turnNumber: number;
+  /** Sticky once the client accepted the meeting/cita in this call. */
+  meetingAccepted?: boolean;
 }
 
 /** Persisted per call_attempt for serverless-safe agentic sessions. */

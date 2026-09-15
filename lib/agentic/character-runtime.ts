@@ -1,6 +1,10 @@
 import { callLlm, getLlmEnvHint, isLlmAvailable } from "@/lib/llm/provider";
 import { checkReplyGrounding } from "./grounding";
 import {
+  analyzeMeetingLogistics,
+  repairDateDemandAfterAccept,
+} from "./meeting-logistics";
+import {
   buildJaimeClientSystemPrompt,
   buildJaimeEvaluatorSystemPrompt,
   buildJaimeEvaluatorUserPrompt,
@@ -36,6 +40,7 @@ export function buildCharacterPrompt(input: CharacterReplyInput): string {
     meters: input.agenticState.meters,
     turnNumber: input.turnNumber,
     isCallEnding: input.isCallEnding,
+    meetingAccepted: input.agenticState.meetingAccepted,
   });
 }
 
@@ -136,6 +141,21 @@ function sanitizeClientLine(
     if (meterLeak.test(line)) {
       line = line.split("\n").find((part) => !meterLeak.test(part))?.trim() ?? line;
     }
+    const logistics = analyzeMeetingLogistics(
+      input.recentTurns ?? [],
+      input.traineeUtterance,
+      input.agenticState.meetingAccepted,
+    );
+    if (logistics.meetingAccepted) {
+      const repaired = repairDateDemandAfterAccept(
+        line,
+        input.turnNumber + input.traineeUtterance.length,
+      );
+      if (repaired) {
+        line = repaired;
+      }
+    }
+
     line = normalizeMotorClientLine(line, input.pack, input.clientName);
     if (input.channel === "voz" && VOICE_WRITE_FORBIDDEN.test(line)) {
       return "";

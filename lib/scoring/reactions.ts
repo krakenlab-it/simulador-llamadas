@@ -5,6 +5,11 @@ import {
   SCENARIO_REACTION_BANKS,
 } from "./reaction-banks";
 import {
+  DATE_DEMAND_AFTER_ACCEPT,
+  EMAIL_COLLABORATION_LINES,
+  meetingAcceptedFromPriorLines,
+} from "@/lib/agentic/meeting-logistics";
+import {
   pickVariedLine,
   priorClientTexts,
 } from "@/lib/simulation/session-variation";
@@ -78,6 +83,13 @@ export function getClientReply(
         "En el teléfono no reviso correo; resúmalo en voz alta.",
         "No mande nada por escrito ahorita; vaya al punto.",
       ];
+    }
+  }
+
+  if (meetingAcceptedFromPriorLines(options?.priorLines)) {
+    pool = pool.filter((line) => !DATE_DEMAND_AFTER_ACCEPT.test(line));
+    if (pool.length === 0) {
+      pool = [...EMAIL_COLLABORATION_LINES];
     }
   }
 
