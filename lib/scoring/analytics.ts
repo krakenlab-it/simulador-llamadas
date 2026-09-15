@@ -109,6 +109,34 @@ export function computeCallAnalytics(lines: TranscriptLine[]): CallAnalytics {
   };
 }
 
+/**
+ * Talk share for the current exchange (last client line vs this trainee turn).
+ * Avoids false 100% monologue warnings when the opening client line is missing
+ * from priorLines or the trainee is answering right after the client spoke.
+ */
+export function computeTurnExchangeTalkPercent(
+  utterance: string,
+  priorLines: TranscriptLine[],
+): number {
+  const traineeWords = countWords(utterance);
+  let lastClientText = "";
+  for (let i = priorLines.length - 1; i >= 0; i -= 1) {
+    if (priorLines[i].role === "client") {
+      lastClientText = priorLines[i].text;
+      break;
+    }
+  }
+
+  const clientWords = countWords(lastClientText);
+  if (clientWords === 0) {
+    if (traineeWords === 0) return 0;
+    return traineeWords > 90 ? 78 : 55;
+  }
+
+  const total = traineeWords + clientWords;
+  return Math.round((traineeWords / total) * 100);
+}
+
 export function computeTurnAnalytics(input: {
   utterance: string;
   priorLines: TranscriptLine[];
@@ -117,5 +145,9 @@ export function computeTurnAnalytics(input: {
     ...input.priorLines,
     { role: "trainee", text: input.utterance },
   ];
-  return computeCallAnalytics(lines);
+  const analytics = computeCallAnalytics(lines);
+  return {
+    ...analytics,
+    talkPercent: computeTurnExchangeTalkPercent(input.utterance, input.priorLines),
+  };
 }

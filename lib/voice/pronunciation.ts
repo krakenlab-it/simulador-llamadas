@@ -4,8 +4,9 @@
  */
 const CLINIC_PRONUNCIATIONS: ReadonlyArray<readonly [string, RegExp]> = [
   ["caseta", /\bcasetas?\b/gi],
-  ["metro cuadrado", /\bm\s*²\b/gi],
+  ["metro cuadrado", /m\s*²/gi],
   ["metro cuadrado", /\bm2\b/gi],
+  ["por metro cuadrado", /\bpor\s+m\s*²\b/gi],
   ["showroom", /\bshowrooms?\b/gi],
   ["KPI", /\bKPIs?\b/gi],
   ["ROI", /\bROI\b/gi],

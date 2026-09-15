@@ -26,6 +26,8 @@ import { utteranceHasConcreteDayAndTime } from "@/lib/scoring/keywords";
 import { getClientReply } from "@/lib/scoring/reactions";
 import { isClinicPreset } from "@/lib/scenarios/types";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
+import type { ConversationTurn } from "@/lib/agentic/types";
+import { enrichPriorTranscriptLines } from "./transcript";
 import { computeTurnAnalytics } from "./analytics";
 import type { CallAnalytics, TranscriptLine } from "./types";
 import type { ClientReaction } from "./rondas";
@@ -165,6 +167,22 @@ function resolveSessionSeed(input: LiveTurnInput): string {
   );
 }
 
+function resolvePriorLines(input: LiveTurnInput): TranscriptLine[] {
+  return enrichPriorTranscriptLines(input.priorLines, {
+    isPreset: input.isPreset,
+    scenarioSlug: input.scenarioSlug,
+    config: input.config,
+    sessionSeed: resolveSessionSeed(input),
+  });
+}
+
+function toRecentTurns(priorLines: TranscriptLine[]): ConversationTurn[] {
+  return priorLines.map((line) => ({
+    role: line.role,
+    text: line.text,
+  }));
+}
+
 function resolveClinicConfig(input: LiveTurnInput): ScenarioConfig | null {
   const base =
     input.config ??
@@ -206,6 +224,7 @@ async function runAgenticReply(
     roundLabel: input.roundLabel,
     reaction: clientReaction,
     fallbackText: fallbackReply,
+    recentTurns: toRecentTurns(input.priorLines),
   });
 
   const coachingNote = await generateCoachNote({
@@ -219,12 +238,15 @@ async function runAgenticReply(
 }
 
 export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
+  const priorLines = resolvePriorLines(input);
+  const scoredInput: LiveTurnInput = { ...input, priorLines };
+
   const analytics = computeTurnAnalytics({
     utterance: input.utterance,
-    priorLines: input.priorLines,
+    priorLines,
   });
 
-  const clientReaction = reactionFromAnalytics(analytics, input.utterance, input);
+  const clientReaction = reactionFromAnalytics(analytics, input.utterance, scoredInput);
   let coachingNote = buildCoachingNote(
     analytics,
     input.roundLabel,
@@ -235,21 +257,21 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   const sessionSeed = resolveSessionSeed(input);
   const turnNumber = resolveTurnNumber(input);
 
-  if (input.isPreset && isClinicPreset(input.scenarioSlug)) {
+  if (scoredInput.isPreset && isClinicPreset(scoredInput.scenarioSlug)) {
     const roundType = resolveScoringRoundType(input);
     if (!roundType) {
       throw new Error(`Unknown clinic round for key ${input.roundKey}`);
     }
 
-    const effectiveConfig = resolveClinicConfig(input);
+    const effectiveConfig = resolveClinicConfig(scoredInput);
     const templatedReply = getClientReply(
-      input.scenarioSlug,
+      scoredInput.scenarioSlug,
       roundType,
       clientReaction,
       {
         sessionSeed,
         turnNumber,
-        priorLines: input.priorLines,
+        priorLines,
       },
     );
 
@@ -267,12 +289,12 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     if (effectiveConfig && isAgenticSessionActive(effectiveConfig)) {
       const agentic = await runAgenticReply(
         effectiveConfig,
-        input,
+        scoredInput,
         roundDef,
         clientReaction,
         fallbackReply,
         analytics,
-        input.roundLabel,
+        scoredInput.roundLabel,
       );
       clientReply = agentic.clientReply;
       coachingNote = agentic.coachingNote;
@@ -317,12 +339,12 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     if (isAgenticSessionActive(effectiveConfig)) {
       const agentic = await runAgenticReply(
         effectiveConfig,
-        input,
+        scoredInput,
         round,
         clientReaction,
         fallbackReply,
         analytics,
-        input.roundLabel,
+        scoredInput.roundLabel,
       );
       clientReply = agentic.clientReply;
       coachingNote = agentic.coachingNote;

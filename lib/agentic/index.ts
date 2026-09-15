@@ -41,6 +41,8 @@ export {
 export {
   buildCharacterPrompt,
   generateCharacterReply,
+  getCharacterReplyEnvHint,
+  templateCharacterReply,
 } from "./character-runtime";
 export {
   buildCoachNotePrompt,

@@ -40,7 +40,8 @@ export function TurnFeedbackRail({ entries, onToggle }: TurnFeedbackRailProps) {
               {expanded ? (
                 <div className="turn-feedback__body" role="status">
                   <p className="coaching-card__why">{entry.whyScore}</p>
-                  {entry.strongerLine ? (
+                  {entry.strongerLine &&
+                  entry.strongerLine.trim() !== entry.whyScore.trim() ? (
                     <p className="coaching-card__line">{entry.strongerLine}</p>
                   ) : null}
                   {entry.analytics ? (
