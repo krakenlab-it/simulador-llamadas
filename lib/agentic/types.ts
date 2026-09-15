@@ -106,6 +106,8 @@ export interface CharacterReplyInput {
   agenticState: AgenticSessionState;
   isCallEnding?: boolean;
   forceEvaluator?: boolean;
+  /** When true, never silently fall back to template banks if LLM is missing or fails. */
+  agenticRequired?: boolean;
 }
 
 export interface CharacterReplyResult {
@@ -113,6 +115,7 @@ export interface CharacterReplyResult {
   grounded: boolean;
   usedLlm: boolean;
   evaluatorMode?: boolean;
+  agenticError?: boolean;
 }
 
 export interface CoachNoteInput {

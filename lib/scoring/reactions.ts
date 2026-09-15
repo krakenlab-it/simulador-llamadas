@@ -16,7 +16,8 @@ export interface ClientReplyOptions {
   channel?: PracticeMode;
 }
 
-const VOICE_CORREO_FORBIDDEN = /puede escribir|máximo un párrafo|mande su correo/i;
+const VOICE_WRITE_FORBIDDEN =
+  /puede escribir|máximo un párrafo|mande un párrafo|por escrito ahora|envíe un pdf|mande un pdf|adjunte un pdf/i;
 
 /**
  * Legacy single-line map (first variant per tier) for backwards compatibility.
@@ -69,8 +70,8 @@ export function getClientReply(
   options?: ClientReplyOptions,
 ): string {
   let pool = reactionPool(scenarioSlug, roundType, reaction);
-  if (options?.channel === "voz" && roundType === "correo") {
-    pool = pool.filter((line) => !VOICE_CORREO_FORBIDDEN.test(line));
+  if (options?.channel === "voz") {
+    pool = pool.filter((line) => !VOICE_WRITE_FORBIDDEN.test(line));
     if (pool.length === 0) {
       pool = [
         "Dígamelo en una frase, no tengo tiempo para correos ahorita.",

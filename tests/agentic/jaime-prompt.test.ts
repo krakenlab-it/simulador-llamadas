@@ -31,12 +31,18 @@ describe("Jaime client system prompt", () => {
     companyContext: "Taquería Los Arcos, tres sucursales",
   });
 
-  it("loads the full authoritative template from lib/agentic", () => {
+  it("loads the full authoritative v3 template from lib/agentic", () => {
     const template = loadJaimePromptTemplate();
     expect(template).toContain("SIMULADOR DE ENTRENAMIENTO DE VENTAS - KRAKEN SIMULACIÓN");
+    expect(template).toContain("Capa agéntica del cliente · versión 3");
+    expect(template).toContain("A) DENTRO DEL MOTOR");
+    expect(template).toContain("B) BOT AUTÓNOMO");
+    expect(template).toContain("ESTADO EN VIVO");
     expect(template).toContain("CANAL VOZ");
     expect(template).toContain('Nunca digas "puede escribir" ni "máximo un párrafo"');
+    expect(template).toContain("empieza tus oraciones con minúscula");
     expect(template).toContain("MODO EVALUADOR");
+    expect(template).not.toContain("Instrucciones de sistema para un bot autónomo (sin motor externo)");
   });
 
   it("maps app difficulty 1-3 to Jaime scale 1-5", () => {
@@ -81,9 +87,11 @@ describe("Jaime client system prompt", () => {
     });
 
     expect(prompt).toContain('Nunca digas "puede escribir" ni "máximo un párrafo"');
+    expect(prompt).toContain("ESTADO EN VIVO (no lo reveles al alumno)");
     expect(prompt).toContain("Mesas vacías entre semana");
     expect(prompt).toContain("VENDEDOR: Buenos días");
     expect(prompt).toContain("videollamada de 20 minutos");
+    expect(prompt).toContain("No vuelvas a contestar el teléfono");
   });
 
   it("buildCharacterPrompt uses Jaime instructions instead of the legacy thin prompt", () => {

@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import { buildScenarioPack } from "@/lib/agentic/scenario-pack";
 import { buildScenarioConfig } from "@/lib/scenarios/defaults";
 import {
+  AGENTIC_LLM_UNAVAILABLE_REPLY,
   buildCharacterPrompt,
+  generateCharacterReply,
+  normalizeMotorClientLine,
   templateCharacterReply,
 } from "@/lib/agentic/character-runtime";
+import * as llmProvider from "@/lib/llm/provider";
 import { getToneById } from "@/lib/agentic/tone-bank";
 import { getAgenticSessionState, clearAllAgenticSessionStates } from "@/lib/agentic/agentic-session-store";
 
@@ -91,6 +95,49 @@ describe("agentic character runtime", () => {
 
     expect(replyA).not.toBe(replyB);
     expect(replyA.toLowerCase()).toMatch(/mire|oiga/);
+    clearAllAgenticSessionStates();
+  });
+
+  it("lowercases motor sentence starts except pack proper names", () => {
+    const normalized = normalizeMotorClientLine(
+      "Ahorita no puedo. Rodrigo Nava está en reunión.",
+      pack,
+      "Rodrigo Nava",
+    );
+    expect(normalized).toMatch(/^ahorita no puedo/i);
+    expect(normalized).toContain("Rodrigo Nava");
+  });
+
+  it("fails visibly when agentic is required but no LLM key is configured", async () => {
+    vi.spyOn(llmProvider, "isLlmAvailable").mockReturnValue(false);
+
+    const result = await generateCharacterReply({
+      pack,
+      config,
+      tone,
+      clientName: "Rodrigo Nava",
+      traineeUtterance: "Le llamo por su tráfico a tienda.",
+      roundLabel: "Apertura",
+      reaction: "medio",
+      fallbackText: "plantilla clínica",
+      recentTurns: [{ role: "client", text: "¿Quién habla?" }],
+      channel: "voz",
+      difficultyLevel: 2,
+      maxTurns: 10,
+      turnNumber: 2,
+      callAttemptId: "runtime-test-3",
+      agenticState: getAgenticSessionState("runtime-test-3", 2),
+      agenticRequired: true,
+    });
+
+    expect(result.agenticError).toBe(true);
+    expect(result.reply).toContain(AGENTIC_LLM_UNAVAILABLE_REPLY);
+    expect(result.reply).not.toContain("plantilla clínica");
+    clearAllAgenticSessionStates();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
     clearAllAgenticSessionStates();
   });
 });
