@@ -1,4 +1,4 @@
-import type { RoundType } from "@/lib/db/types";
+import type { PracticeMode, RoundType } from "@/lib/db/types";
 import type { ClientReaction } from "./rondas";
 import {
   DEFAULT_REACTION_BANKS,
@@ -13,7 +13,10 @@ export interface ClientReplyOptions {
   sessionSeed?: string;
   turnNumber?: number;
   priorLines?: readonly { role: string; text: string }[];
+  channel?: PracticeMode;
 }
+
+const VOICE_CORREO_FORBIDDEN = /puede escribir|máximo un párrafo|mande su correo/i;
 
 /**
  * Legacy single-line map (first variant per tier) for backwards compatibility.
@@ -65,7 +68,18 @@ export function getClientReply(
   reaction: ClientReaction,
   options?: ClientReplyOptions,
 ): string {
-  const pool = reactionPool(scenarioSlug, roundType, reaction);
+  let pool = reactionPool(scenarioSlug, roundType, reaction);
+  if (options?.channel === "voz" && roundType === "correo") {
+    pool = pool.filter((line) => !VOICE_CORREO_FORBIDDEN.test(line));
+    if (pool.length === 0) {
+      pool = [
+        "Dígamelo en una frase, no tengo tiempo para correos ahorita.",
+        "En el teléfono no reviso correo; resúmalo en voz alta.",
+        "No mande nada por escrito ahorita; vaya al punto.",
+      ];
+    }
+  }
+
   const sessionSeed = options?.sessionSeed?.trim();
   if (!sessionSeed) {
     return pool[0] ?? DEFAULT_REACTIONS[roundType][reaction];

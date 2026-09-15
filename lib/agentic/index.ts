@@ -55,6 +55,22 @@ export {
   resolveAgenticSeed,
 } from "./runtime";
 export {
+  buildJaimeClientSystemPrompt,
+  buildJaimeScenarioPackBlock,
+  loadJaimePromptTemplate,
+  mapDifficultyToJaime,
+} from "./jaime-prompt";
+export {
+  initialEmotionalMeters,
+  shouldHangUpForPatience,
+  updateEmotionalMeters,
+} from "./emotional-meters";
+export {
+  clearAgenticSessionState,
+  getAgenticSessionState,
+  resetAgenticSessionState,
+} from "./agentic-session-store";
+export {
   AGENTIC_DEMO_PASSWORD,
   AGENTIC_ENABLED_STORAGE_KEY,
   AGENTIC_TONE_PREVIEW_KEY,

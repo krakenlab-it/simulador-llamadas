@@ -78,6 +78,7 @@ export class SessionService {
         sessionSeed: input.callAttemptId,
         priorLines,
         voiceAgent: session.voiceAgent,
+        mode: session.mode,
       });
 
       return await this.repository.completeTurn(

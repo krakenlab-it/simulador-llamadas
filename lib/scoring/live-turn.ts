@@ -18,6 +18,14 @@ import {
   pickTone,
   resolveAgenticSeed,
 } from "@/lib/agentic";
+import {
+  getAgenticSessionState,
+  resetAgenticSessionState,
+  saveAgenticSessionState,
+} from "@/lib/agentic/agentic-session-store";
+import { updateEmotionalMeters, shouldHangUpForPatience } from "@/lib/agentic/emotional-meters";
+import type { PracticeMode } from "@/lib/db/types";
+import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
 import { templateClientReply } from "@/lib/feedback/evaluation";
 import { getClientBySlug } from "@/lib/clients";
 import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
@@ -50,6 +58,7 @@ export interface LiveTurnInput {
   sessionSeed?: string;
   priorLines: TranscriptLine[];
   voiceAgent?: VoiceAgentSettings;
+  mode?: PracticeMode;
 }
 
 export interface LiveTurnCoaching {
@@ -192,6 +201,17 @@ function resolveClinicConfig(input: LiveTurnInput): ScenarioConfig | null {
   return applyVoiceAgentPersonality(base, input.voiceAgent);
 }
 
+const EVALUATE_COMMAND = "/evaluar";
+const RESTART_COMMAND = "/reiniciar";
+
+function resolvePracticeMode(input: LiveTurnInput): PracticeMode {
+  return input.mode ?? "voz";
+}
+
+function resolveMaxTurns(): number {
+  return SESSION_MAX_TURN_ALLOCATIONS;
+}
+
 async function runAgenticReply(
   effectiveConfig: ScenarioConfig,
   input: LiveTurnInput,
@@ -201,6 +221,36 @@ async function runAgenticReply(
   analytics: CallAnalytics,
   roundLabel: string,
 ): Promise<{ clientReply: string; coachingNote: string }> {
+  const callAttemptId = input.sessionSeed?.trim() || input.scenarioSlug;
+  const utterance = input.utterance.trim();
+  const channel = resolvePracticeMode(input);
+  const maxTurns = resolveMaxTurns();
+  const turnNumber = resolveTurnNumber(input) || (input.priorLines.length / 2) + 1;
+  const isEvaluate = utterance === EVALUATE_COMMAND;
+  const isRestart = utterance === RESTART_COMMAND;
+
+  let agenticState = isRestart
+    ? resetAgenticSessionState(callAttemptId, input.difficultyLevel)
+    : getAgenticSessionState(callAttemptId, input.difficultyLevel);
+
+  if (!isRestart && !isEvaluate) {
+    agenticState = {
+      ...agenticState,
+      turnNumber: agenticState.turnNumber + 1,
+      meters: updateEmotionalMeters(agenticState.meters, {
+        utterance,
+        analytics,
+        temperament: effectiveConfig.temperament,
+        turnNumber: agenticState.turnNumber + 1,
+        priorTurnNumber: agenticState.turnNumber,
+      }),
+    };
+  }
+
+  if (isEvaluate) {
+    agenticState = { ...agenticState, mode: "evaluador" };
+  }
+
   const presetClient = getClientBySlug(input.scenarioSlug);
   const pack = buildScenarioPack(
     effectiveConfig,
@@ -216,23 +266,47 @@ async function runAgenticReply(
     ? getToneById(effectiveConfig.agentic.toneId)
     : pickTone(seed, input.difficultyLevel);
 
+  const recentTurns = toRecentTurns(input.priorLines);
+  const patienceExhausted = shouldHangUpForPatience(agenticState.meters);
+  const isCallEnding = turnNumber >= maxTurns || patienceExhausted;
+  const forceEvaluator = isEvaluate || isCallEnding;
+
   const character = await generateCharacterReply({
     pack,
+    config: effectiveConfig,
     tone,
     clientName: input.clientName,
-    traineeUtterance: input.utterance,
+    traineeUtterance: isRestart ? "" : utterance,
     roundLabel: input.roundLabel,
     reaction: clientReaction,
     fallbackText: fallbackReply,
-    recentTurns: toRecentTurns(input.priorLines),
+    recentTurns: isRestart ? [] : recentTurns,
+    channel,
+    difficultyLevel: input.difficultyLevel,
+    maxTurns,
+    turnNumber,
+    callAttemptId,
+    agenticState,
+    isCallEnding,
+    forceEvaluator,
   });
 
-  const coachingNote = await generateCoachNote({
-    pack,
-    traineeUtterance: input.utterance,
-    roundLabel,
-    analyticsSummary: `talk ${analytics.talkPercent}%, preguntas abiertas ${analytics.questionTypes.open}`,
-  });
+  if (isRestart) {
+    agenticState = { ...agenticState, mode: "cliente" };
+  } else if (character.evaluatorMode) {
+    agenticState = { ...agenticState, mode: "evaluador" };
+  }
+
+  saveAgenticSessionState(agenticState);
+
+  const coachingNote = character.evaluatorMode
+    ? "Evaluación generada. Escribe /reiniciar para practicar de nuevo."
+    : await generateCoachNote({
+        pack,
+        traineeUtterance: utterance,
+        roundLabel,
+        analyticsSummary: `talk ${analytics.talkPercent}%, preguntas abiertas ${analytics.questionTypes.open}`,
+      });
 
   return { clientReply: character.reply, coachingNote };
 }
@@ -272,6 +346,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
         sessionSeed,
         turnNumber,
         priorLines,
+        channel: resolvePracticeMode(scoredInput),
       },
     );
 
