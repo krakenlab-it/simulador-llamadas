@@ -10,6 +10,9 @@ export interface MeetingLogisticsState {
 const CLIENT_ACCEPTANCE =
   /\b(?:va|sale|listo|de acuerdo|perfecto|agendado|quedamos|nos vemos|le espero|ahí nos vemos|está bien|me parece bien|adelante|ok)\b|acepto|agendemos/i;
 
+const STRONG_CLIENT_COMMITMENT =
+  /\b(?:agendado|quedamos|nos vemos|le espero|ahí nos vemos|agendemos|acepto)\b/i;
+
 const CLIENT_MEETING_CONTEXT =
   /\b(?:cita|reuni[oó]n|videollamada|llamada|demo|junta|agenda|calendario|invitaci[oó]n)\b/i;
 
@@ -17,7 +20,7 @@ const SELLER_CONTACT_ASK =
   /\b(?:correo|e-?mail|whatsapp|whats\s*app|calendario|invitaci[oó]n|mandar(?:le)?\s+la\s+cita|enviar(?:le)?\s+la\s+invitaci[oó]n)\b/i;
 
 export const DATE_DEMAND_AFTER_ACCEPT =
-  /sin fecha|no hay reun[ió]n|fecha en (?:la )?agenda|sin d[ií]a y hora|d[ií]a y hora concret|qué d[ií]a|a qué hora|primero d[ií]game qué d[ií]a/i;
+  /sin fecha|no hay reuni[oó]n|fecha en (?:la )?agenda|sin d[ií]a y hora|d[ií]a y hora concret|qué d[ií]a|a qué hora|primero d[ií]game qué d[ií]a/i;
 
 export const EMAIL_COLLABORATION_LINES = [
   "sí, mándela al correo de la empresa, ahorita se lo paso por mensaje.",
@@ -42,18 +45,19 @@ export function clientAcceptedMeeting(turns: readonly ConversationTurn[]): boole
     const lower = line.toLowerCase();
     if (!CLIENT_ACCEPTANCE.test(lower)) return false;
     if (CLIENT_MEETING_CONTEXT.test(lower)) return true;
-    // Short affirmations after scheduling talk in the thread count as acceptance.
-    const thread = transcriptText(turns).toLowerCase();
-    return CLIENT_MEETING_CONTEXT.test(thread) && /\b(?:sí|si|va|listo|de acuerdo|perfecto)\b/.test(lower);
+    return STRONG_CLIENT_COMMITMENT.test(lower);
   });
 }
 
-export function transcriptMentionsDayTime(turns: readonly ConversationTurn[]): boolean {
-  const corpus = transcriptText(turns);
+function utteranceMentionsDayTime(text: string): boolean {
   return (
-    utteranceHasConcreteDayAndTime(corpus) ||
-    (utteranceHasDay(corpus) && utteranceHasTime(corpus))
+    utteranceHasConcreteDayAndTime(text) ||
+    (utteranceHasDay(text) && utteranceHasTime(text))
   );
+}
+
+export function transcriptMentionsDayTime(turns: readonly ConversationTurn[]): boolean {
+  return utteranceMentionsDayTime(transcriptText(turns));
 }
 
 export function sellerAskingForContact(utterance: string): boolean {
@@ -68,7 +72,8 @@ export function analyzeMeetingLogistics(
   const meetingAccepted = persistedAccepted || clientAcceptedMeeting(turns);
   return {
     meetingAccepted,
-    dayTimeMentioned: transcriptMentionsDayTime(turns),
+    dayTimeMentioned:
+      transcriptMentionsDayTime(turns) || utteranceMentionsDayTime(traineeUtterance),
     sellerAskingContact: sellerAskingForContact(traineeUtterance),
   };
 }
