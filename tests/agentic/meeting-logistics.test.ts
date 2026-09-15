@@ -12,7 +12,6 @@ import { buildScenarioConfig } from "@/lib/scenarios/defaults";
 import { initialEmotionalMeters } from "@/lib/agentic/emotional-meters";
 import { getClientReply } from "@/lib/scoring/reactions";
 import { normalizeMotorClientLine } from "@/lib/agentic/character-runtime";
-import { clearAllAgenticSessionStates } from "@/lib/agentic/agentic-session-store";
 
 describe("meeting logistics after acceptance", () => {
   const acceptedTurns = [
@@ -102,7 +101,6 @@ describe("meeting logistics after acceptance", () => {
       clientName: "Rodrigo Nava",
     });
     const pack = buildScenarioPack(config, undefined, { clientName: "Rodrigo Nava" });
-    const agenticState = getAgenticSessionState("logistics-test", 2);
 
     const normalized = normalizeMotorClientLine(
       repairDateDemandAfterAccept("Sin día y hora concretos no hay reunión.", 1) ?? "",
@@ -112,7 +110,6 @@ describe("meeting logistics after acceptance", () => {
 
     expect(normalized.toLowerCase()).not.toContain("sin fecha");
     expect(normalized.toLowerCase()).not.toContain("no hay reunión");
-    clearAllAgenticSessionStates();
   });
 
   it("builds live block that forbids re-asking date after accept", () => {
