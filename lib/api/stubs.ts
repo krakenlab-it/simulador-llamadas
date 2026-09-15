@@ -48,7 +48,7 @@ import type {
   KrakenLabCohortConfig,
   StartKrakenSessionResult,
 } from "@/lib/kraken-lab/types";
-import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
+import type { AgenticPersistence, AgenticRuntimeConfig } from "@/lib/agentic/types";
 import { mergeAgenticRuntime } from "@/lib/agentic/runtime";
 import { mergePresetAgenticRuntime } from "@/lib/scenarios/preset-config";
 import { isClinicPreset } from "@/lib/scenarios/types";
@@ -182,6 +182,7 @@ interface StubSession {
   evaluation?: SessionEvaluationSummary;
   /** Merged preset config when agentic is enabled for Clínica. */
   sessionConfig?: ScenarioConfig | null;
+  agenticPersistence?: AgenticPersistence | null;
   transcriptLines: TranscriptLine[];
 }
 
@@ -507,7 +508,12 @@ export async function stubSubmitTurn(
     priorLines: session.transcriptLines,
     voiceAgent: session.scenario.record.voiceAgent,
     mode: session.mode,
+    agenticPersistence: session.agenticPersistence ?? null,
   });
+
+  if (score.agenticPersistence) {
+    session.agenticPersistence = score.agenticPersistence;
+  }
 
   const summary: TurnSummary = {
     roundKey,

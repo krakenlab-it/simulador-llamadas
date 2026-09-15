@@ -72,6 +72,13 @@ export interface AgenticSessionState {
   turnNumber: number;
 }
 
+/** Persisted per call_attempt for serverless-safe agentic sessions. */
+export interface AgenticPersistence {
+  state: AgenticSessionState;
+  /** Number of raw transcript lines to skip after /reiniciar. */
+  transcriptOffset: number;
+}
+
 export interface SessionMemory {
   sessionId: string;
   turns: TurnLogEntry[];

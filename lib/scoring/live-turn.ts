@@ -34,8 +34,11 @@ import { utteranceHasConcreteDayAndTime } from "@/lib/scoring/keywords";
 import { getClientReply } from "@/lib/scoring/reactions";
 import { isClinicPreset } from "@/lib/scenarios/types";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
-import type { ConversationTurn } from "@/lib/agentic/types";
-import { enrichPriorTranscriptLines } from "./transcript";
+import type { AgenticPersistence, AgenticSessionState, ConversationTurn } from "@/lib/agentic/types";
+import {
+  AGENTIC_LLM_GENERATION_FAILED_REPLY,
+} from "@/lib/agentic/character-runtime";
+import { enrichPriorTranscriptLines, resolveCallOpeningLine } from "./transcript";
 import { computeTurnAnalytics } from "./analytics";
 import type { CallAnalytics, TranscriptLine } from "./types";
 import type { ClientReaction } from "./rondas";
@@ -59,6 +62,7 @@ export interface LiveTurnInput {
   priorLines: TranscriptLine[];
   voiceAgent?: VoiceAgentSettings;
   mode?: PracticeMode;
+  agenticPersistence?: AgenticPersistence | null;
 }
 
 export interface LiveTurnCoaching {
@@ -74,6 +78,7 @@ export interface LiveTurnResult {
   /** Interim engagement score 0-100 for storage; not keyword-derived. */
   engagementScore: number;
   won: boolean;
+  agenticPersistence?: AgenticPersistence;
 }
 
 function applyVoiceAgentPersonality(
@@ -177,7 +182,9 @@ function resolveSessionSeed(input: LiveTurnInput): string {
 }
 
 function resolvePriorLines(input: LiveTurnInput): TranscriptLine[] {
-  return enrichPriorTranscriptLines(input.priorLines, {
+  const offset = input.agenticPersistence?.transcriptOffset ?? 0;
+  const sliced = input.priorLines.slice(offset);
+  return enrichPriorTranscriptLines(sliced, {
     isPreset: input.isPreset,
     scenarioSlug: input.scenarioSlug,
     config: input.config,
@@ -212,6 +219,18 @@ function resolveMaxTurns(): number {
   return SESSION_MAX_TURN_ALLOCATIONS;
 }
 
+function hydrateAgenticState(
+  callAttemptId: string,
+  difficultyLevel: DifficultyLevel,
+  persisted: AgenticPersistence | null | undefined,
+): AgenticSessionState {
+  if (persisted?.state) {
+    saveAgenticSessionState(persisted.state);
+    return persisted.state;
+  }
+  return getAgenticSessionState(callAttemptId, difficultyLevel);
+}
+
 async function runAgenticReply(
   effectiveConfig: ScenarioConfig,
   input: LiveTurnInput,
@@ -220,7 +239,11 @@ async function runAgenticReply(
   fallbackReply: string,
   analytics: CallAnalytics,
   roundLabel: string,
-): Promise<{ clientReply: string; coachingNote: string }> {
+): Promise<{
+  clientReply: string;
+  coachingNote: string;
+  agenticPersistence: AgenticPersistence;
+}> {
   const callAttemptId = input.sessionSeed?.trim() || input.scenarioSlug;
   const utterance = input.utterance.trim();
   const channel = resolvePracticeMode(input);
@@ -228,12 +251,43 @@ async function runAgenticReply(
   const turnNumber = resolveTurnNumber(input) || (input.priorLines.length / 2) + 1;
   const isEvaluate = utterance === EVALUATE_COMMAND;
   const isRestart = utterance === RESTART_COMMAND;
+  let transcriptOffset = input.agenticPersistence?.transcriptOffset ?? 0;
 
   let agenticState = isRestart
     ? resetAgenticSessionState(callAttemptId, input.difficultyLevel)
-    : getAgenticSessionState(callAttemptId, input.difficultyLevel);
+    : hydrateAgenticState(
+        callAttemptId,
+        input.difficultyLevel,
+        input.agenticPersistence,
+      );
 
-  if (!isRestart && !isEvaluate) {
+  if (isRestart) {
+    transcriptOffset = input.priorLines.length;
+    const opening =
+      resolveCallOpeningLine({
+        isPreset: input.isPreset,
+        scenarioSlug: input.scenarioSlug,
+        config: effectiveConfig,
+        sessionSeed: callAttemptId,
+      })?.trim() ?? "¿Bueno?";
+    agenticState = { ...agenticState, mode: "cliente" };
+    saveAgenticSessionState(agenticState);
+    return {
+      clientReply: opening,
+      coachingNote: "Llamada reiniciada. El cliente contestó de nuevo.",
+      agenticPersistence: { state: agenticState, transcriptOffset },
+    };
+  }
+
+  if (agenticState.mode === "evaluador" && !isEvaluate) {
+    return {
+      clientReply: "Ya tiene la evaluación arriba. Escribe /reiniciar para practicar de nuevo.",
+      coachingNote: "Modo evaluador activo. Use /reiniciar para otra práctica.",
+      agenticPersistence: { state: agenticState, transcriptOffset },
+    };
+  }
+
+  if (!isEvaluate) {
     agenticState = {
       ...agenticState,
       turnNumber: agenticState.turnNumber + 1,
@@ -292,9 +346,7 @@ async function runAgenticReply(
     agenticRequired: true,
   });
 
-  if (isRestart) {
-    agenticState = { ...agenticState, mode: "cliente" };
-  } else if (character.evaluatorMode) {
+  if (character.evaluatorMode) {
     agenticState = { ...agenticState, mode: "evaluador" };
   }
 
@@ -309,7 +361,11 @@ async function runAgenticReply(
         analyticsSummary: `talk ${analytics.talkPercent}%, preguntas abiertas ${analytics.questionTypes.open}`,
       });
 
-  return { clientReply: character.reply, coachingNote };
+  return {
+    clientReply: character.reply,
+    coachingNote,
+    agenticPersistence: { state: agenticState, transcriptOffset },
+  };
 }
 
 export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
@@ -329,8 +385,10 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   );
 
   let clientReply: string;
+  let agenticPersistence: AgenticPersistence | undefined;
   const sessionSeed = resolveSessionSeed(input);
   const turnNumber = resolveTurnNumber(input);
+  const agenticActive = isAgenticSessionActive(input.config);
 
   if (scoredInput.isPreset && isClinicPreset(scoredInput.scenarioSlug)) {
     const roundType = resolveScoringRoundType(input);
@@ -374,6 +432,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       );
       clientReply = agentic.clientReply;
       coachingNote = agentic.coachingNote;
+      agenticPersistence = agentic.agenticPersistence;
     } else {
       clientReply = templatedReply;
       if (isGroqAvailable() && effectiveConfig) {
@@ -424,6 +483,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       );
       clientReply = agentic.clientReply;
       coachingNote = agentic.coachingNote;
+      agenticPersistence = agentic.agenticPersistence;
     } else {
       clientReply = await generateClientReply({
         config: effectiveConfig,
@@ -439,14 +499,18 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   }
 
   if (!clientReply) {
-    clientReply = input.config
-      ? templateClientReply(
-          input.config,
-          input.config.rounds[0],
-          clientReaction,
-          input.clientName,
-        )
-      : "Entiendo.";
+    if (agenticActive) {
+      clientReply = AGENTIC_LLM_GENERATION_FAILED_REPLY;
+    } else {
+      clientReply = input.config
+        ? templateClientReply(
+            input.config,
+            input.config.rounds[0],
+            clientReaction,
+            input.clientName,
+          )
+        : "Entiendo.";
+    }
   }
 
   return {
@@ -456,5 +520,6 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     clientReply,
     engagementScore: engagementScore(analytics, input.utterance),
     won: false,
+    agenticPersistence,
   };
 }

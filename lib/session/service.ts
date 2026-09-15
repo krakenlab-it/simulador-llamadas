@@ -79,7 +79,15 @@ export class SessionService {
         priorLines,
         voiceAgent: session.voiceAgent,
         mode: session.mode,
+        agenticPersistence: session.agenticPersistence ?? null,
       });
+
+      if (score.agenticPersistence) {
+        await this.repository.saveAgenticPersistence(
+          input.callAttemptId,
+          score.agenticPersistence,
+        );
+      }
 
       return await this.repository.completeTurn(
         slot.turnId,
