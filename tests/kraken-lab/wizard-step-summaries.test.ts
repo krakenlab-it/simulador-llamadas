@@ -93,6 +93,7 @@ describe("summarizeKrakenWizardStep", () => {
     expect(summarizeKrakenWizardStep("dificultad", draft, "texto")).toContain(
       "Intermedio",
     );
+    expect(summarizeKrakenWizardStep("dificultad", draft, "voz")).toContain("Voz");
   });
 
   it("returns empty summary for incomplete steps", () => {

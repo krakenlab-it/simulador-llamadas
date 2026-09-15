@@ -1,6 +1,5 @@
 import type { PracticeMode } from "@/lib/db/types";
 import {
-  DIFFICULTY_DESCRIPTIONS,
   KRAKEN_PROJECT_LABELS,
   SIMULATION_FOCUS_LABELS,
   SIMULATOR_ROLE_LABELS,
@@ -111,8 +110,9 @@ export function summarizeKrakenWizardStep(
     }
     case "dificultad": {
       const level = draft.difficultyLevel;
-      if (!level) return "";
-      return `${DIFFICULTY_LABELS[level]} · ${DIFFICULTY_DESCRIPTIONS[level]}`;
+      const modeLabel = MODE_LABELS[mode];
+      if (!level) return modeLabel;
+      return `${DIFFICULTY_LABELS[level]} · ${modeLabel}`;
     }
     default: {
       const _exhaustive: never = step;

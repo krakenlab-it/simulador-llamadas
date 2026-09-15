@@ -1806,6 +1806,13 @@ body {
   font-size: 0.8rem;
 }
 
+.call-screen__text-only {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
 .call-screen__note--warn {
   color: var(--warn);
 }
