@@ -24,6 +24,11 @@ import {
   saveAgenticSessionState,
 } from "@/lib/agentic/agentic-session-store";
 import { updateEmotionalMeters, shouldHangUpForPatience } from "@/lib/agentic/emotional-meters";
+import {
+  analyzeMeetingLogistics,
+  clientAcceptedMeeting,
+  sellerAskingForContact,
+} from "@/lib/agentic/meeting-logistics";
 import type { PracticeMode } from "@/lib/db/types";
 import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
 import { templateClientReply } from "@/lib/feedback/evaluation";
@@ -116,6 +121,9 @@ function reactionFromAnalytics(
 ): ClientReaction {
   const trimmed = utterance.trim();
   if (trimmed.length < 12) return "mal";
+  if (clientAcceptedMeeting(toRecentTurns(input.priorLines)) && sellerAskingForContact(trimmed)) {
+    return "bien";
+  }
   if (
     isCierreLikeRound(input) &&
     utteranceHasConcreteDayAndTime(trimmed)
@@ -288,9 +296,16 @@ async function runAgenticReply(
   }
 
   if (!isEvaluate) {
+    const recentTurns = toRecentTurns(input.priorLines);
+    const logistics = analyzeMeetingLogistics(
+      recentTurns,
+      utterance,
+      agenticState.meetingAccepted,
+    );
     agenticState = {
       ...agenticState,
       turnNumber: agenticState.turnNumber + 1,
+      meetingAccepted: logistics.meetingAccepted,
       meters: updateEmotionalMeters(agenticState.meters, {
         utterance,
         analytics,

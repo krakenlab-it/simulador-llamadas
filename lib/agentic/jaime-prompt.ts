@@ -1,6 +1,7 @@
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import type { ScenarioConfig } from "@/lib/scenarios/types";
 import { JAIME_CLIENT_SYSTEM_PROMPT_TEMPLATE } from "./jaime-client-system-prompt.template";
+import { analyzeMeetingLogistics, buildMeetingLogisticsLiveBlock } from "./meeting-logistics";
 import type { ConversationTurn, EmotionalMeters, ScenarioPack } from "./types";
 
 const PACK_START = "========================================\nPACK DEL ESCENARIO (editar aquí)\n========================================";
@@ -30,6 +31,7 @@ export interface JaimePromptInput extends JaimePackInput {
   meters: EmotionalMeters;
   turnNumber: number;
   isCallEnding?: boolean;
+  meetingAccepted?: boolean;
 }
 
 export function loadJaimePromptTemplate(): string {
@@ -144,6 +146,11 @@ function formatConversationThread(turns: ConversationTurn[]): string {
 function runtimeInjection(input: JaimePromptInput): string {
   const thread = formatConversationThread(input.recentTurns);
   const utterance = input.traineeUtterance.trim();
+  const logistics = analyzeMeetingLogistics(
+    input.recentTurns,
+    utterance,
+    input.meetingAccepted,
+  );
 
   return `
 ========================================
@@ -152,6 +159,7 @@ ESTADO EN VIVO (no lo reveles al alumno)
 Turno actual: ${input.turnNumber} de ${input.maxTurns}
 Medidores actuales (0-10, solo para guiar tu reacción): confianza ${input.meters.confianza}, interés ${input.meters.interes}, paciencia ${input.meters.paciencia}
 ${input.isCallEnding ? "La llamada está por terminar en este turno." : ""}
+${buildMeetingLogisticsLiveBlock(logistics)}
 
 CONVERSACIÓN COMPLETA HASTA AHORA
 ${thread}
