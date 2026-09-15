@@ -25,8 +25,8 @@ import {
 const TTS_MODEL = "eleven_flash_v2_5";
 const CONVAI_TTS_MODEL = "eleven_flash_v2_5";
 const SCRIBE_MODEL = "scribe_v2";
-/** ISO 639-1; required for Flash v2.5 Spanish enforcement. */
-const TTS_LANGUAGE = "es";
+/** BCP-47; Mexican Spanish for natural clinic/client playback. */
+const TTS_LANGUAGE = "es-MX";
 const STT_LANGUAGE = "es-MX";
 /** Documented default; sent explicitly so a plan change cannot silently alter it. */
 const TTS_OUTPUT_FORMAT = "mp3_44100_128";
@@ -39,9 +39,25 @@ export const CONVAI_AGENT_KEY = "simulador-patient";
  * @see https://elevenlabs.io/docs/overview/capabilities/voices
  */
 export const ELEVENLABS_DEFAULT_PREMADE_VOICE = {
-  id: "EXAVITQu4vr4xnSDxMaL",
-  name: "Sarah",
+  id: "FGY2WhTYpPnrIDTdsKH5",
+  name: "Laura",
 } as const;
+
+/** Conversational defaults — less announcer, more phone call. */
+const TTS_VOICE_SETTINGS = {
+  stability: 0.45,
+  similarity_boost: 0.78,
+  style: 0.35,
+  use_speaker_boost: true,
+} as const;
+
+function resolveTtsLanguageCode(language?: string): string {
+  const value = language?.trim().toLowerCase();
+  if (!value || value === "es" || value.startsWith("es-")) {
+    return TTS_LANGUAGE;
+  }
+  return language!.trim();
+}
 
 export const CONVAI_CLIENT_EVENTS = [
   "user_transcript",
@@ -160,16 +176,17 @@ async function requestElevenLabsSpeech(
 
   const body: Record<string, unknown> = { text, model_id: TTS_MODEL };
   if (withLanguageCode) {
-    const language = speakOptions?.language?.trim();
-    body.language_code = language || TTS_LANGUAGE;
+    body.language_code = resolveTtsLanguageCode(speakOptions?.language);
   }
+  const voiceSettings: Record<string, number | boolean> = { ...TTS_VOICE_SETTINGS };
   if (
     speakOptions?.speakingRate !== undefined &&
     Number.isFinite(speakOptions.speakingRate) &&
     speakOptions.speakingRate !== 1
   ) {
-    body.voice_settings = { speed: clampSpeakingRate(speakOptions.speakingRate) };
+    voiceSettings.speed = clampSpeakingRate(speakOptions.speakingRate);
   }
+  body.voice_settings = voiceSettings;
 
   try {
     const response = await fetch(buildTtsUrl(kind, voiceId), {

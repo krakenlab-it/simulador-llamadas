@@ -10,6 +10,18 @@ export function isLlmAvailable(): boolean {
   return getLlmProvider() !== null;
 }
 
+/** Human-readable hint for preview/deploy when agentic replies need an LLM key. */
+export function getLlmEnvHint(): string {
+  const provider = getLlmProvider();
+  if (provider === "groq") {
+    return "GROQ_API_KEY configurada (Groq).";
+  }
+  if (provider === "gemini") {
+    return "GOOGLE_API_KEY configurada (Gemini).";
+  }
+  return "Configura GROQ_API_KEY o GOOGLE_API_KEY en el entorno para réplicas humanas con LLM; sin clave se usan plantillas conversacionales.";
+}
+
 export async function callLlm(
   prompt: string,
   options: { maxTokens?: number; temperature?: number } = {},

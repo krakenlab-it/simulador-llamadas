@@ -67,6 +67,11 @@ export interface GroundingResult {
   reason?: string;
 }
 
+export interface ConversationTurn {
+  role: "trainee" | "client";
+  text: string;
+}
+
 export interface CharacterReplyInput {
   pack: ScenarioPack;
   tone: ToneProfile;
@@ -75,6 +80,8 @@ export interface CharacterReplyInput {
   roundLabel: string;
   reaction: "bien" | "medio" | "mal";
   fallbackText: string;
+  /** Recent trainee+client lines so the persona continues the live thread. */
+  recentTurns?: ConversationTurn[];
 }
 
 export interface CharacterReplyResult {

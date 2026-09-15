@@ -82,7 +82,7 @@ export function VoiceAgentControls({
             >
               {PREMADE_VOICES.map((voice) => (
                 <option key={voice.id} value={voice.id}>
-                  {voice.name}
+                  {voice.label}
                 </option>
               ))}
             </select>

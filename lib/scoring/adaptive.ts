@@ -61,7 +61,7 @@ export async function scoreTurnAdaptive(
     score: live.engagementScore,
     utterance: input.utterance,
     whyScore: live.coaching.note,
-    strongerLine: live.coaching.note,
+    strongerLine: "",
     missedCriteria: [],
     roundLabel: input.roundLabel,
     analytics: live.analytics,

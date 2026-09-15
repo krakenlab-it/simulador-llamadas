@@ -1,9 +1,48 @@
+import { getClientBySlug } from "@/lib/clients";
+import { openingLineForCall } from "@/lib/scenarios/authoring";
+import { isClinicPreset } from "@/lib/scenarios/types";
+import type { ScenarioConfig } from "@/lib/scenarios/types";
+import { getClinicOpeningLine } from "@/lib/simulation/openings";
 import type { TranscriptLine } from "./types";
 
 export interface TurnTranscriptInput {
   utterance: string;
   clientReply?: string;
   roundLabel?: string;
+}
+
+/** Prepends the call opening when prior transcript lines omit the first client line. */
+export function enrichPriorTranscriptLines(
+  lines: TranscriptLine[],
+  options: {
+    isPreset: boolean;
+    scenarioSlug: string;
+    config: ScenarioConfig | null;
+    sessionSeed: string;
+  },
+): TranscriptLine[] {
+  if (lines.some((line) => line.role === "client")) {
+    return lines;
+  }
+
+  let opening: string | undefined;
+  if (options.isPreset && isClinicPreset(options.scenarioSlug)) {
+    const client = getClientBySlug(options.scenarioSlug);
+    if (client) {
+      opening = getClinicOpeningLine(client, options.sessionSeed);
+    }
+  } else {
+    opening = openingLineForCall(
+      options.config,
+      options.isPreset,
+      undefined,
+      options.sessionSeed,
+    );
+  }
+
+  const trimmed = opening?.trim();
+  if (!trimmed) return lines;
+  return [{ role: "client", text: trimmed }, ...lines];
 }
 
 export function buildTranscriptFromTurns(

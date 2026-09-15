@@ -62,7 +62,7 @@ describe("synthesizeWithElevenLabs", () => {
     vi.resetModules();
   });
 
-  it("still sends language_code es for a last-phase Spanish clinic line", async () => {
+  it("still sends language_code es-MX for a last-phase Spanish clinic line", async () => {
     const { synthesizeWithElevenLabs } = await loadProvider();
     const lastPhaseLine = "Si no hay fecha en la agenda, no hay reunión.";
 
@@ -72,11 +72,17 @@ describe("synthesizeWithElevenLabs", () => {
     expect(calledBody(0)).toEqual({
       text: lastPhaseLine,
       model_id: "eleven_flash_v2_5",
-      language_code: "es",
+      language_code: "es-MX",
+      voice_settings: {
+        stability: 0.45,
+        similarity_boost: 0.78,
+        style: 0.35,
+        use_speaker_boost: true,
+      },
     });
   });
 
-  it("records language_code es on voice.tts.attempt for the last phase", async () => {
+  it("records language_code es-MX on voice.tts.attempt for the last phase", async () => {
     const infoSpy = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const { synthesizeWithElevenLabs } = await loadProvider();
 
@@ -98,7 +104,7 @@ describe("synthesizeWithElevenLabs", () => {
       })
       .find((entry) => entry?.event === "voice.tts.attempt");
 
-    expect(attempt?.languageCode).toBe("es");
+    expect(attempt?.languageCode).toBe("es-MX");
     infoSpy.mockRestore();
   });
 
@@ -113,9 +119,15 @@ describe("synthesizeWithElevenLabs", () => {
       "https://api.elevenlabs.io/v1/text-to-speech/voice-123?output_format=mp3_44100_128",
     );
     expect(calledBody(0)).toEqual({
-      text: "Eso no mueve venta por m².",
+      text: "Eso no mueve venta por metro cuadrado.",
       model_id: "eleven_flash_v2_5",
-      language_code: "es",
+      language_code: "es-MX",
+      voice_settings: {
+        stability: 0.45,
+        similarity_boost: 0.78,
+        style: 0.35,
+        use_speaker_boost: true,
+      },
     });
     if (result.ok) {
       expect(result.endpoint).toBe("convert");
@@ -177,7 +189,13 @@ describe("synthesizeWithElevenLabs", () => {
     expect(calledBody(1)).toEqual({
       text: "Hola, soy Mariana.",
       model_id: "eleven_flash_v2_5",
-      language_code: "es",
+      language_code: "es-MX",
+      voice_settings: {
+        stability: 0.45,
+        similarity_boost: 0.78,
+        style: 0.35,
+        use_speaker_boost: true,
+      },
     });
     expect(warnSpy).toHaveBeenCalledWith(
       "voice.tts.elevenlabs_premade_fallback",
@@ -226,7 +244,7 @@ describe("synthesizeWithElevenLabs", () => {
   });
 
   it("does not retry premade when the configured voice is already premade", async () => {
-    vi.stubEnv("ELEVENLABS_VOICE_ID", "EXAVITQu4vr4xnSDxMaL");
+    vi.stubEnv("ELEVENLABS_VOICE_ID", "FGY2WhTYpPnrIDTdsKH5");
     vi.mocked(fetch).mockResolvedValue(
       errorResponse(
         402,
@@ -259,6 +277,12 @@ describe("synthesizeWithElevenLabs", () => {
     expect(calledBody(1)).toEqual({
       text: "Hola Rodrigo.",
       model_id: "eleven_flash_v2_5",
+      voice_settings: {
+        stability: 0.45,
+        similarity_boost: 0.78,
+        style: 0.35,
+        use_speaker_boost: true,
+      },
     });
     if (result.ok) {
       expect(result.endpoint).toBe("stream");
@@ -364,12 +388,18 @@ describe("synthesizeWithElevenLabs", () => {
       text: "Hola, soy Laura.",
       model_id: "eleven_flash_v2_5",
       language_code: "en",
-      voice_settings: { speed: 0.85 },
+      voice_settings: {
+        stability: 0.45,
+        similarity_boost: 0.78,
+        style: 0.35,
+        use_speaker_boost: true,
+        speed: 0.85,
+      },
     });
     expect(PREMADE_VOICES[1].id).not.toBe(ELEVENLABS_DEFAULT_PREMADE_VOICE.id);
   });
 
-  it("refuses a library voice id and bills Sarah instead", async () => {
+  it("refuses a library voice id and bills the default premade voice instead", async () => {
     const { synthesizeWithElevenLabs, ELEVENLABS_DEFAULT_PREMADE_VOICE } =
       await loadProvider();
 

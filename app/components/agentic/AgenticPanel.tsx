@@ -133,6 +133,11 @@ export function AgenticPanel({ onClose }: AgenticPanelProps) {
           Las respuestas en vivo usan solo hechos del pack: documentación subida y campos del
           escenario (producto, problema, objeciones, rondas).
         </p>
+        <p className="config-panel__hint">
+          En preview o deploy, configura <code>GROQ_API_KEY</code> o{" "}
+          <code>GOOGLE_API_KEY</code> para que el cliente suene humano con LLM; sin clave se
+          usan plantillas conversacionales en español mexicano.
+        </p>
       </section>
     </div>
   );

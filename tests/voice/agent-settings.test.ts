@@ -16,7 +16,7 @@ import {
 } from "@/lib/voice/brakes";
 
 describe("trainer voice-agent settings", () => {
-  it("defaults to Spanish, Sarah, normal rate, and barge-in off", () => {
+  it("defaults to Spanish, Laura, normal rate, and barge-in off", () => {
     expect(DEFAULT_VOICE_AGENT_SETTINGS).toEqual({
       language: "es",
       voiceId: ELEVENLABS_DEFAULT_PREMADE_VOICE.id,
@@ -39,7 +39,7 @@ describe("trainer voice-agent settings", () => {
     expect(isPremadeVoiceId("library-paid-voice")).toBe(false);
   });
 
-  it("falls back to Sarah when a library or unknown voice is requested", () => {
+  it("falls back to Laura when a library or unknown voice is requested", () => {
     expect(resolvePremadeVoiceId("library-paid-voice")).toBe(
       ELEVENLABS_DEFAULT_PREMADE_VOICE.id,
     );

@@ -22,7 +22,7 @@ export interface ScenarioSpeechLanguage {
 
 const KNOWN_LANGUAGES: Record<string, ScenarioSpeechLanguage> = {
   es: {
-    iso639: "es",
+    iso639: "es-MX",
     locale: "es-MX",
     promptName: DEFAULT_SCENARIO_LANGUAGE_NAME,
   },
