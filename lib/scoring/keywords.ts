@@ -55,4 +55,18 @@ export const KEYWORD_MATCHERS: readonly KeywordMatcher[] = [
 export const DAY_PATTERN =
   /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s+de)/i;
 
-export const TIME_PATTERN = /\d{1,2}[:h]\d{2}|\d{1,2}\s*(am|pm|hrs?)/i;
+/** Clock time in Spanish scheduling: 10:00, 10am, a las 10, 10 de la mañana/tarde/noche. */
+export const TIME_PATTERN =
+  /\d{1,2}[:h]\d{2}|\d{1,2}\s+de\s+la\s+(?:mañana|tarde|noche)|\d{1,2}\s*(?:am|pm|hrs?)|(?:a\s+las?)\s+\d{1,2}/i;
+
+export function utteranceHasDay(utterance: string): boolean {
+  return DAY_PATTERN.test(utterance);
+}
+
+export function utteranceHasTime(utterance: string): boolean {
+  return TIME_PATTERN.test(utterance);
+}
+
+export function utteranceHasConcreteDayAndTime(utterance: string): boolean {
+  return utteranceHasDay(utterance) && utteranceHasTime(utterance);
+}
