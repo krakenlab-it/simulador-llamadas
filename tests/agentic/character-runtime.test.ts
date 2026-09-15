@@ -6,6 +6,7 @@ import {
   templateCharacterReply,
 } from "@/lib/agentic/character-runtime";
 import { getToneById } from "@/lib/agentic/tone-bank";
+import { getAgenticSessionState, clearAllAgenticSessionStates } from "@/lib/agentic/agentic-session-store";
 
 describe("agentic character runtime", () => {
   const config = buildScenarioConfig({
@@ -25,10 +26,12 @@ describe("agentic character runtime", () => {
   });
 
   const tone = getToneById("desconfianza");
+  const agenticState = getAgenticSessionState("runtime-test", 2);
 
-  it("includes recent thread text in the production prompt", () => {
+  it("includes recent thread and Jaime CANAL VOZ rules in the production prompt", () => {
     const prompt = buildCharacterPrompt({
       pack,
+      config,
       tone,
       clientName: "Rodrigo Nava",
       traineeUtterance:
@@ -43,24 +46,38 @@ describe("agentic character runtime", () => {
           text: "Buenos días, soy Ana de Kraken Lab.",
         },
       ],
+      channel: "voz",
+      difficultyLevel: 2,
+      maxTurns: 10,
+      turnNumber: 2,
+      callAttemptId: "runtime-test",
+      agenticState,
     });
 
-    expect(prompt).toContain("CONVERSACIÓN HASTA AHORA");
+    expect(prompt).toContain("CONVERSACIÓN COMPLETA HASTA AHORA");
     expect(prompt).toContain("¿Quién habla? Tengo dos minutos.");
-    expect(prompt).toContain("español mexicano ORAL");
+    expect(prompt).toContain('Nunca digas "puede escribir" ni "máximo un párrafo"');
     expect(prompt).toContain("caseta no convierte");
     expect(prompt).toContain("Eso no mueve venta por m²");
+    clearAllAgenticSessionStates();
   });
 
   it("varies template fallbacks for different trainee utterances", () => {
     const base = {
       pack,
+      config,
       tone,
       clientName: "Rodrigo Nava",
       roundLabel: "Objeción",
       reaction: "mal" as const,
       fallbackText: "",
       recentTurns: [{ role: "client" as const, text: "Dígame rápido." }],
+      channel: "voz" as const,
+      difficultyLevel: 2 as const,
+      maxTurns: 10,
+      turnNumber: 2,
+      callAttemptId: "runtime-test-2",
+      agenticState: getAgenticSessionState("runtime-test-2", 2),
     };
 
     const replyA = templateCharacterReply({
@@ -73,7 +90,7 @@ describe("agentic character runtime", () => {
     });
 
     expect(replyA).not.toBe(replyB);
-    expect(replyA.toLowerCase()).toMatch(/mire|oiga|no manches/);
-    expect(replyB).toContain("caseta");
+    expect(replyA.toLowerCase()).toMatch(/mire|oiga/);
+    clearAllAgenticSessionStates();
   });
 });

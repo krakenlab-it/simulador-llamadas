@@ -1,4 +1,4 @@
-import type { DifficultyLevel, RoundType } from "@/lib/db/types";
+import type { DifficultyLevel, PracticeMode, RoundType } from "@/lib/db/types";
 import type { RichTurnFeedback, ScenarioConfig } from "@/lib/scenarios/types";
 import { utteranceHasDay, utteranceHasTime } from "@/lib/scoring/keywords";
 import { scoreLiveTurn, type LiveTurnInput } from "./live-turn";
@@ -24,6 +24,7 @@ export interface AdaptiveScoreInput {
   sessionSeed?: string;
   priorLines?: TranscriptLine[];
   voiceAgent?: VoiceAgentSettings;
+  mode?: PracticeMode;
 }
 
 export interface AdaptiveScoreResult {

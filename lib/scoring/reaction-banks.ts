@@ -65,9 +65,9 @@ export const SCENARIO_REACTION_BANKS: Record<string, ReactionBank> = {
         "Ok, envíe algo breve y lo reviso.",
       ],
       medio: [
-        "Mande su correo, pero sea breve.",
-        "Puede escribir, pero máximo un párrafo.",
-        "Correo sí, pero sin adjuntos pesados.",
+        "Dígamelo en una frase, no tengo tiempo para correos ahorita.",
+        "En el teléfono no reviso correo; resúmalo en voz alta.",
+        "No mande nada por escrito ahorita; vaya al punto.",
       ],
       mal: [
         "No quiero más PDFs sin contexto.",
@@ -152,9 +152,9 @@ export const SCENARIO_REACTION_BANKS: Record<string, ReactionBank> = {
         "Correo corto y lo reviso.",
       ],
       medio: [
-        "Mande su correo, pero sea breve.",
-        "Puede escribir, pero corto.",
-        "Correo sí, sin rodeos.",
+        "Dígamelo en una frase, no tengo tiempo para correos ahorita.",
+        "En el teléfono no reviso correo; resúmalo en voz alta.",
+        "No mande nada por escrito ahorita; vaya al punto.",
       ],
       mal: [
         "No abro adjuntos largos.",
@@ -239,9 +239,9 @@ export const SCENARIO_REACTION_BANKS: Record<string, ReactionBank> = {
         "Ok, algo breve por correo.",
       ],
       medio: [
-        "Mande su correo, pero sea breve.",
-        "Correo sí, pero corto.",
-        "Puede escribir, sin rodeos.",
+        "Dígamelo en una frase, no tengo tiempo para correos ahorita.",
+        "En el teléfono no reviso correo; resúmalo en voz alta.",
+        "No mande nada por escrito ahorita; vaya al punto.",
       ],
       mal: [
         "No quiero spam.",

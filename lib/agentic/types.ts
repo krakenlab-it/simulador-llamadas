@@ -57,6 +57,21 @@ export interface TurnLogEntry {
   timestamp: string;
 }
 
+export type AgenticSimulationMode = "cliente" | "evaluador";
+
+export interface EmotionalMeters {
+  confianza: number;
+  interes: number;
+  paciencia: number;
+}
+
+export interface AgenticSessionState {
+  callAttemptId: string;
+  mode: AgenticSimulationMode;
+  meters: EmotionalMeters;
+  turnNumber: number;
+}
+
 export interface SessionMemory {
   sessionId: string;
   turns: TurnLogEntry[];
@@ -74,6 +89,7 @@ export interface ConversationTurn {
 
 export interface CharacterReplyInput {
   pack: ScenarioPack;
+  config: import("@/lib/scenarios/types").ScenarioConfig;
   tone: ToneProfile;
   clientName: string;
   traineeUtterance: string;
@@ -82,12 +98,21 @@ export interface CharacterReplyInput {
   fallbackText: string;
   /** Recent trainee+client lines so the persona continues the live thread. */
   recentTurns?: ConversationTurn[];
+  channel: import("@/lib/db/types").PracticeMode;
+  difficultyLevel: import("@/lib/db/types").DifficultyLevel;
+  maxTurns: number;
+  turnNumber: number;
+  callAttemptId: string;
+  agenticState: AgenticSessionState;
+  isCallEnding?: boolean;
+  forceEvaluator?: boolean;
 }
 
 export interface CharacterReplyResult {
   reply: string;
   grounded: boolean;
   usedLlm: boolean;
+  evaluatorMode?: boolean;
 }
 
 export interface CoachNoteInput {

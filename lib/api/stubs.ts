@@ -506,6 +506,7 @@ export async function stubSubmitTurn(
     sessionSeed: session.callAttemptId,
     priorLines: session.transcriptLines,
     voiceAgent: session.scenario.record.voiceAgent,
+    mode: session.mode,
   });
 
   const summary: TurnSummary = {
