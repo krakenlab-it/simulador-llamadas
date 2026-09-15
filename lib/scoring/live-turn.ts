@@ -269,7 +269,7 @@ async function runAgenticReply(
   const recentTurns = toRecentTurns(input.priorLines);
   const patienceExhausted = shouldHangUpForPatience(agenticState.meters);
   const isCallEnding = turnNumber >= maxTurns || patienceExhausted;
-  const forceEvaluator = isEvaluate || isCallEnding;
+  const forceEvaluator = isEvaluate;
 
   const character = await generateCharacterReply({
     pack,
@@ -289,6 +289,7 @@ async function runAgenticReply(
     agenticState,
     isCallEnding,
     forceEvaluator,
+    agenticRequired: true,
   });
 
   if (isRestart) {

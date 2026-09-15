@@ -20,7 +20,7 @@ export function initialEmotionalMeters(difficultyLevel: DifficultyLevel): Emotio
       return { confianza: 2, interes: 2, paciencia: 5 };
     case 5:
     default:
-      return { confianza: 1, interes: 2, paciencia: 4 };
+      return { confianza: 2, interes: 2, paciencia: 5 };
   }
 }
 

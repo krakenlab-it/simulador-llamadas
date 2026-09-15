@@ -131,7 +131,7 @@ function replacePackBlock(template: string, packBlock: string): string {
 
 function formatConversationThread(turns: ConversationTurn[]): string {
   if (!turns.length) {
-    return "(La llamada acaba de empezar; tu primer mensaje es contestar el teléfono.)";
+    return "(El motor ya contestó el teléfono; la primera línea del cliente aparecerá en la conversación. No vuelvas a contestar.)";
   }
   return turns
     .map((turn) => {
@@ -157,7 +157,7 @@ CONVERSACIÓN COMPLETA HASTA AHORA
 ${thread}
 
 ÚLTIMO MENSAJE DEL VENDEDOR (responde directamente a esto)
-"${utterance || "(inicio de llamada — contesta el teléfono)"}"
+"${utterance || "(el motor ya inició la llamada; responde al vendedor sin volver a contestar el teléfono)"}"
 `.trim();
 }
 
