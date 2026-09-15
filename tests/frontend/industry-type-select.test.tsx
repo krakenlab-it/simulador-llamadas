@@ -3,7 +3,11 @@ import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { IndustryTypeSelect } from "@/app/components/ui/IndustryTypeSelect";
-import { INDUSTRY_OPTIONS, OTHER_OPTION_VALUE } from "@/lib/scenarios/select-options";
+import {
+  INDUSTRY_OPTIONS,
+  MEXICO_PRIORITY_INDUSTRIES,
+  OTHER_OPTION_VALUE,
+} from "@/lib/scenarios/select-options";
 
 function IndustryHarness({
   initialValue = "",
@@ -29,7 +33,7 @@ describe("IndustryTypeSelect", () => {
     cleanup();
   });
 
-  it("shows 30 industry options plus Otro in the native select", () => {
+  it("shows Mexico-priority industries first plus Otro in the native select", () => {
     render(<IndustryTypeSelect value="" onChange={vi.fn()} />);
 
     const select = screen.getByLabelText("Tipo de empresa / industria");
@@ -37,7 +41,9 @@ describe("IndustryTypeSelect", () => {
       (option) => option.textContent,
     );
 
-    expect(INDUSTRY_OPTIONS).toHaveLength(30);
+    expect(INDUSTRY_OPTIONS.slice(0, MEXICO_PRIORITY_INDUSTRIES.length)).toEqual([
+      ...MEXICO_PRIORITY_INDUSTRIES,
+    ]);
     for (const option of INDUSTRY_OPTIONS) {
       expect(optionLabels).toContain(option);
     }
@@ -52,10 +58,10 @@ describe("IndustryTypeSelect", () => {
 
     await user.selectOptions(
       screen.getByLabelText("Tipo de empresa / industria"),
-      "Logística y transporte",
+      "Empresa de eventos",
     );
 
-    expect(onChange).toHaveBeenCalledWith("Logística y transporte");
+    expect(onChange).toHaveBeenCalledWith("Empresa de eventos");
   });
 
   it("replaces the select with a typeable textbox when Otro is selected", async () => {

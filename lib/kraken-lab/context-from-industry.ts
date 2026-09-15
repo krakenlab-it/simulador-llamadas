@@ -45,66 +45,72 @@ export function parseStructuredBrief(text: string): ParsedStructuredBrief {
 }
 
 const INDUSTRY_PROBLEM_TEMPLATES: Record<string, string> = {
-  "Banca y servicios financieros":
+  "Retail & Supermercados":
+    "Inventario desalineado con demanda genera quiebres de stock, mermas y promociones mal ejecutadas en piso de venta.",
+  "Consumo Masivo & Bebidas":
+    "Pedidos y mermas se disparan cuando rutas, inventario y fuerza de ventas no comparten el mismo dato en tiempo real.",
+  Automotriz:
+    "Refacciones urgentes se pierden entre taller, almacén y proveedor; aumentan tiempos muertos y reclamos de garantía.",
+  "Fast Food & Restaurantes":
+    "Picos de demanda saturan cocina y delivery; pedidos se retrasan por falta de visibilidad entre sucursales y proveedores.",
+  "Moda, Belleza & Luxury":
+    "Temporadas y colecciones se desincronizan entre tienda, e-commerce y almacén; se pierden ventas por falta de stock omnicanal.",
+  "Entretenimiento, Gaming & Eventos":
+    "Patrocinios y activaciones se ejecutan tarde porque ventas, producción y medios no comparten un solo tablero de avance.",
+  "Empresa de eventos":
+    "Cotizaciones y montajes urgentes chocan cuando ventas, operaciones y proveedores no tienen visibilidad del timeline del evento.",
+  "Empresas de eventos (turismo, alimentos, tecnología y otros)":
+    "Ferias y congresos de turismo, alimentos y tecnología compiten por recursos; ventas y operaciones no comparten un pipeline único entre verticales de eventos.",
+  "Banca, Finanzas & Seguros":
     "Originación y seguimiento manual retrasan cierres, elevan riesgo operativo y frustran a clientes corporativos.",
-  Seguros:
+  "Compañías de Seguros":
     "Renovaciones y siniestros se traban entre canales; falta visibilidad del pipeline y se pierden primas recuperables.",
-  "Retail y tiendas departamentales":
-    "Inventario desalineado con demanda genera quiebres de stock, mermas y promociones mal ejecutadas en piso.",
+  "Telecomunicaciones & Tecnología":
+    "Activaciones y portabilidades se retrasan por procesos desconectados entre ventas, técnica y cobranza.",
+  "Turismo, Viajes & Real Estate":
+    "Leads, reservas y apartados se enfrían por seguimiento lento entre ventas, brokers y operaciones.",
+  "Empresas ESG / Sostenibilidad":
+    "Reportes de sostenibilidad y métricas ESG se retrasan por datos dispersos entre proveedores, operaciones y compliance.",
+  "Clínicas y salud privada":
+    "Agenda, autorizaciones y cobranza se estancan en llamadas y papeles; pacientes esperan demasiado.",
   "SaaS B2B":
     "Equipos de ventas y CS operan en hojas sueltas; no hay una sola vista del pipeline ni adopción post-venta.",
   Farmacéuticas:
     "Distribución y cumplimiento regulatorio se complican cuando ventas y logística no comparten el mismo dato.",
-  "Automotriz y refacciones":
-    "Refacciones urgentes se pierden entre taller, almacén y proveedor; aumentan tiempos muertos y reclamos.",
-  "Vivienda y desarrollo inmobiliario":
-    "Leads y apartados se enfrían por seguimiento lento entre brokers, legal y cobranza.",
   "Educación privada":
     "Inscripciones y cobranza escolar compiten con procesos manuales que retrasan cierres de ciclo.",
-  "Hospitalidad y hoteles":
-    "Ocupación y upsell dependen de coordinación manual entre recepción, revenue y operaciones.",
   "Logística y transporte":
     "Entregas urgentes se atascan por falta de visibilidad entre ventas, tráfico y almacén.",
-  "Alimentos y bebidas":
-    "Pedidos y mermas se disparan cuando rutas, inventario y ventas no hablan el mismo idioma.",
-  Telecomunicaciones:
-    "Activaciones y portabilidades se retrasan por procesos desconectados entre ventas, técnica y cobranza.",
-  "Energía y utilities":
-    "Contratos y consumos corporativos se gestionan con datos tardíos; cuesta detectar fugas y oportunidades.",
-  Agroindustria:
-    "Cosecha y comercialización se desincronizan; ventas promete lo que almacén y campo no pueden cumplir.",
-  "Clínicas y salud privada":
-    "Agenda, autorizaciones y cobranza se estancan en llamadas y papeles; pacientes esperan demasiado.",
-  "Gimnasios y wellness":
-    "Renovaciones y leads se enfrían por seguimiento manual entre recepción, ventas y entrenadores.",
-  "Belleza y estética":
-    "Citas y recompra dependen de recordatorios manuales; se pierden upsells por falta de seguimiento.",
-  "Construcción e infraestructura":
-    "Avance de obra y compras urgentes chocan cuando ventas, compras y obra no comparten prioridades.",
-  "Servicios profesionales":
-    "Propuestas y entregables se retrasan por falta de visibilidad entre ventas, operaciones y facturación.",
   "E-commerce y marketplaces":
     "Picos de demanda saturan almacén y atención; promesas de entrega se rompen por mala coordinación.",
   Manufactura:
     "Pedidos urgentes chocan con producción y almacén; ventas promete fechas que planta no ve a tiempo.",
   "Importación y distribución":
     "Pedidos urgentes se atascan entre ventas y almacén; pierden entregas por falta de visibilidad del pipeline comercial.",
+  "Hospitalidad y hoteles":
+    "Ocupación y upsell dependen de coordinación manual entre recepción, revenue y operaciones.",
+  "Construcción e infraestructura":
+    "Avance de obra y compras urgentes chocan cuando ventas, compras y obra no comparten prioridades.",
+  "Servicios profesionales":
+    "Propuestas y entregables se retrasan por falta de visibilidad entre ventas, operaciones y facturación.",
+  "Energía y utilities":
+    "Contratos y consumos corporativos se gestionan con datos tardíos; cuesta detectar fugas y oportunidades.",
+  Agroindustria:
+    "Cosecha y comercialización se desincronizan; ventas promete lo que almacén y campo no pueden cumplir.",
+  "Gimnasios y wellness":
+    "Renovaciones y leads se enfrían por seguimiento manual entre recepción, ventas y entrenadores.",
   "Tecnología industrial":
     "Mantenimiento y repuestos críticos se demoran por procesos manuales entre ventas, almacén y planta.",
   "Medios y publicidad":
     "Campañas y pauta se ejecutan tarde porque ventas, creativos y tráfico no comparten un solo tablero.",
-  "Minería y recursos naturales":
-    "Compras críticas y seguridad operativa se complican cuando proveedores y almacén no están alineados.",
-  "Textil y confección":
-    "Temporadas y pedidos urgentes se pierden entre diseño, producción y distribución.",
-  "Turismo y viajes":
-    "Reservas grupales y cambios de última hora saturan ventas y operaciones sin un flujo único.",
   "Legal y compliance":
     "Contratos y vencimientos se escapan cuando ventas, legal y operaciones trabajan en silos.",
   "Call center y BPO":
     "Rotación y calidad caen cuando capacitación, operaciones y ventas no comparten indicadores en tiempo real.",
   "Cooperativas y sector social":
     "Socios y beneficiarios esperan respuestas lentas porque ventas, operaciones y cobranza no están conectadas.",
+  "Minería y recursos naturales":
+    "Compras críticas y seguridad operativa se complican cuando proveedores y almacén no están alineados.",
 };
 
 function extractProductHint(existingText: string, fileTexts: string[]): string | undefined {
