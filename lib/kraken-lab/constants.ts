@@ -92,11 +92,18 @@ export const RECEIVER_ROLES = [
 ] as const;
 
 export const RECEIVER_INDUSTRIES = [
+  "Retail & Supermercados",
+  "Consumo Masivo & Bebidas",
+  "Automotriz",
+  "Fast Food & Restaurantes",
+  "Empresa de eventos",
+  "Empresas de eventos (turismo, alimentos, tecnología y otros)",
+  "Banca, Finanzas & Seguros",
+  "Compañías de Seguros",
+  "Telecomunicaciones & Tecnología",
+  "Turismo, Viajes & Real Estate",
+  "Empresas ESG / Sostenibilidad",
+  "Logística y transporte",
   "Manufactura",
-  "Retail",
-  "Servicios",
-  "Alimentos y bebidas",
-  "Tecnología",
-  "Construcción",
-  "Salud",
+  "Clínicas y salud privada",
 ] as const;
