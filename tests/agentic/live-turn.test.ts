@@ -4,7 +4,7 @@ import { scoreLiveTurn } from "@/lib/scoring/live-turn";
 import { mergeAgenticRuntime } from "@/lib/agentic/runtime";
 
 describe("agentic live turn path", () => {
-  it("uses agentic runtime for enabled custom sessions without affecting clinic presets", async () => {
+  it("uses agentic runtime for enabled custom sessions", async () => {
     const base = buildScenarioConfig({
       industry: "Logística",
       productSold: "WMS cloud",

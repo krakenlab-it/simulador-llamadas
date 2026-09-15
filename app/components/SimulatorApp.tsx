@@ -151,9 +151,7 @@ function SimulatorShell() {
           traineeEmail: traineeEmail ?? undefined,
           traineeAuthUserId: session?.user.id,
           traineeDisplayName: shellUser?.displayName,
-          agenticRuntime: setup.isPreset
-            ? undefined
-            : readAgenticRuntimeForSession(setup.scenarioSlug),
+          agenticRuntime: readAgenticRuntimeForSession(),
         });
         setTraineeId(created.traineeId);
         setCallAttemptId(created.callAttemptId);

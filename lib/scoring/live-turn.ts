@@ -19,6 +19,7 @@ import {
   resolveAgenticSeed,
 } from "@/lib/agentic";
 import { templateClientReply } from "@/lib/feedback/evaluation";
+import { getClientBySlug } from "@/lib/clients";
 import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
 import { isClinicRoundType, phaseKeyFromPersistenceKey } from "@/lib/simulation/round-keys";
 import { utteranceHasConcreteDayAndTime } from "@/lib/scoring/keywords";
@@ -43,6 +44,8 @@ export interface LiveTurnInput {
   isLastRound: boolean;
   /** 1-based call turn (1–10). Overflow cierre is 6–10. */
   roundNumber?: number;
+  /** Per-call seed for varied dialogue (typically callAttemptId). */
+  sessionSeed?: string;
   priorLines: TranscriptLine[];
   voiceAgent?: VoiceAgentSettings;
 }
@@ -154,6 +157,67 @@ function resolveScoringRoundType(input: LiveTurnInput): RoundType | null {
   return isClinicRoundType(phaseKey) ? phaseKey : null;
 }
 
+function resolveSessionSeed(input: LiveTurnInput): string {
+  return (
+    input.sessionSeed?.trim() ||
+    input.config?.agentic?.sessionSeed?.trim() ||
+    input.scenarioSlug
+  );
+}
+
+function resolveClinicConfig(input: LiveTurnInput): ScenarioConfig | null {
+  const base =
+    input.config ??
+    (input.isPreset && isClinicPreset(input.scenarioSlug)
+      ? buildPresetScenarioConfig(input.scenarioSlug)
+      : null);
+  return applyVoiceAgentPersonality(base, input.voiceAgent);
+}
+
+async function runAgenticReply(
+  effectiveConfig: ScenarioConfig,
+  input: LiveTurnInput,
+  round: ScenarioRoundDef,
+  clientReaction: ClientReaction,
+  fallbackReply: string,
+  analytics: CallAnalytics,
+  roundLabel: string,
+): Promise<{ clientReply: string; coachingNote: string }> {
+  const presetClient = getClientBySlug(input.scenarioSlug);
+  const pack = buildScenarioPack(
+    effectiveConfig,
+    effectiveConfig.agentic?.scenarioContextText,
+    {
+      clientName: input.clientName,
+      clientTitle: presetClient?.title,
+      companyContext: presetClient?.company ?? effectiveConfig.industry,
+    },
+  );
+  const seed = resolveAgenticSeed(effectiveConfig, input.scenarioSlug);
+  const tone = effectiveConfig.agentic?.toneId
+    ? getToneById(effectiveConfig.agentic.toneId)
+    : pickTone(seed, input.difficultyLevel);
+
+  const character = await generateCharacterReply({
+    pack,
+    tone,
+    clientName: input.clientName,
+    traineeUtterance: input.utterance,
+    roundLabel: input.roundLabel,
+    reaction: clientReaction,
+    fallbackText: fallbackReply,
+  });
+
+  const coachingNote = await generateCoachNote({
+    pack,
+    traineeUtterance: input.utterance,
+    roundLabel,
+    analyticsSummary: `talk ${analytics.talkPercent}%, preguntas abiertas ${analytics.questionTypes.open}`,
+  });
+
+  return { clientReply: character.reply, coachingNote };
+}
+
 export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
   const analytics = computeTurnAnalytics({
     utterance: input.utterance,
@@ -168,41 +232,61 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   );
 
   let clientReply: string;
+  const sessionSeed = resolveSessionSeed(input);
+  const turnNumber = resolveTurnNumber(input);
 
   if (input.isPreset && isClinicPreset(input.scenarioSlug)) {
     const roundType = resolveScoringRoundType(input);
     if (!roundType) {
       throw new Error(`Unknown clinic round for key ${input.roundKey}`);
     }
+
+    const effectiveConfig = resolveClinicConfig(input);
     const templatedReply = getClientReply(
       input.scenarioSlug,
       roundType,
       clientReaction,
+      {
+        sessionSeed,
+        turnNumber,
+        priorLines: input.priorLines,
+      },
     );
 
-    clientReply = templatedReply;
-    if (isGroqAvailable()) {
-      const presetConfig = applyVoiceAgentPersonality(
-        buildPresetScenarioConfig(input.scenarioSlug),
-        input.voiceAgent,
+    const roundDef: ScenarioRoundDef = {
+      key: roundType,
+      label: ROUND_LABELS[roundType] ?? input.roundLabel,
+      goal: ROUND_EXPECTED[roundType],
+      clientPrompt: templatedReply,
+      positiveCriteria: [],
+      negativeCriteria: [],
+    };
+
+    const fallbackReply = templatedReply;
+
+    if (effectiveConfig && isAgenticSessionActive(effectiveConfig)) {
+      const agentic = await runAgenticReply(
+        effectiveConfig,
+        input,
+        roundDef,
+        clientReaction,
+        fallbackReply,
+        analytics,
+        input.roundLabel,
       );
-      if (presetConfig) {
-        const roundDef: ScenarioRoundDef = {
-          key: roundType,
-          label: ROUND_LABELS[roundType] ?? input.roundLabel,
-          goal: ROUND_EXPECTED[roundType],
-          clientPrompt: templatedReply,
-          positiveCriteria: [],
-          negativeCriteria: [],
-        };
+      clientReply = agentic.clientReply;
+      coachingNote = agentic.coachingNote;
+    } else {
+      clientReply = templatedReply;
+      if (isGroqAvailable() && effectiveConfig) {
         clientReply = await generateGroqClientReply(
           {
-            config: presetConfig,
+            config: effectiveConfig,
             round: roundDef,
             reaction: clientReaction,
             clientName: input.clientName,
             traineeUtterance: input.utterance,
-            roundNumber: resolveTurnNumber(input),
+            roundNumber: turnNumber,
           },
           templatedReply,
         );
@@ -230,40 +314,18 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       input.clientName,
     );
 
-    if (
-      isAgenticSessionActive(
+    if (isAgenticSessionActive(effectiveConfig)) {
+      const agentic = await runAgenticReply(
         effectiveConfig,
-        input.isPreset,
-        input.scenarioSlug,
-      )
-    ) {
-      const pack = buildScenarioPack(
-        effectiveConfig,
-        effectiveConfig.agentic?.scenarioContextText,
+        input,
+        round,
+        clientReaction,
+        fallbackReply,
+        analytics,
+        input.roundLabel,
       );
-      const seed = resolveAgenticSeed(effectiveConfig, input.scenarioSlug);
-      const tone = effectiveConfig.agentic?.toneId
-        ? getToneById(effectiveConfig.agentic.toneId)
-        : pickTone(seed, input.difficultyLevel);
-
-      const character = await generateCharacterReply({
-        pack,
-        tone,
-        clientName: input.clientName,
-        traineeUtterance: input.utterance,
-        roundLabel: input.roundLabel,
-        reaction: clientReaction,
-        fallbackText: fallbackReply,
-      });
-      clientReply = character.reply;
-
-      const coachPack = pack;
-      coachingNote = await generateCoachNote({
-        pack: coachPack,
-        traineeUtterance: input.utterance,
-        roundLabel: input.roundLabel,
-        analyticsSummary: `talk ${analytics.talkPercent}%, preguntas abiertas ${analytics.questionTypes.open}`,
-      });
+      clientReply = agentic.clientReply;
+      coachingNote = agentic.coachingNote;
     } else {
       clientReply = await generateClientReply({
         config: effectiveConfig,
@@ -271,7 +333,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
         reaction: clientReaction,
         clientName: input.clientName,
         traineeUtterance: input.utterance,
-        roundNumber: resolveTurnNumber(input),
+        roundNumber: turnNumber,
       });
     }
   } else {

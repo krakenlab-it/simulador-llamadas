@@ -26,6 +26,7 @@ describe("utteranceHasDay / utteranceHasTime", () => {
 
 describe("scoreLiveTurn cierre scheduling", () => {
   it("does not loop mal when trainee proposes concrete day and time on cierre", async () => {
+    const sessionSeed = "utterance-schedule-cierre";
     const result = await scoreLiveTurn({
       utterance: SPANISH_CLOSE_UTTERANCE,
       roundKey: "cierre",
@@ -38,16 +39,17 @@ describe("scoreLiveTurn cierre scheduling", () => {
       config: null,
       clientName: "Mariana",
       isLastRound: true,
+      sessionSeed,
       priorLines: [],
     });
 
     expect(result.clientReaction).not.toBe("mal");
     expect(result.clientReply).not.toBe(
-      getClientReply("mariana", "cierre", "mal"),
+      getClientReply("mariana", "cierre", "mal", { sessionSeed }),
     );
     expect(result.clientReaction).toBe("bien");
     expect(result.clientReply).toBe(
-      getClientReply("mariana", "cierre", "bien"),
+      getClientReply("mariana", "cierre", "bien", { sessionSeed }),
     );
   });
 });

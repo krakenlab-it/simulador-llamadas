@@ -393,7 +393,12 @@ export function KrakenLabWizard({
           difficultyLevel: cohort.difficultyLevel,
           totalRounds: remote.totalRounds,
           phaseLabels: phaseLabelsForCall(remote.config, false),
-          openingLine: openingLineForCall(remote.config, false),
+          openingLine: openingLineForCall(
+            remote.config,
+            false,
+            undefined,
+            remote.callAttemptId,
+          ),
           voiceAgent: {
             ...DEFAULT_VOICE_AGENT_SETTINGS,
             difficultyLevel: cohort.difficultyLevel,
