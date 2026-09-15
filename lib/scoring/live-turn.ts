@@ -21,6 +21,7 @@ import {
 import { templateClientReply } from "@/lib/feedback/evaluation";
 import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
 import { isClinicRoundType, phaseKeyFromPersistenceKey } from "@/lib/simulation/round-keys";
+import { utteranceHasConcreteDayAndTime } from "@/lib/scoring/keywords";
 import { getClientReply } from "@/lib/scoring/reactions";
 import { isClinicPreset } from "@/lib/scenarios/types";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
@@ -83,9 +84,25 @@ const ROUND_LABELS: Record<string, string> = {
   cierre: "Cierre",
 };
 
-function reactionFromAnalytics(analytics: CallAnalytics, utterance: string): ClientReaction {
+function isCierreLikeRound(input: LiveTurnInput): boolean {
+  const roundType = resolveScoringRoundType(input);
+  if (roundType === "cierre") return true;
+  return input.isLastRound && !input.isPreset;
+}
+
+function reactionFromAnalytics(
+  analytics: CallAnalytics,
+  utterance: string,
+  input: LiveTurnInput,
+): ClientReaction {
   const trimmed = utterance.trim();
   if (trimmed.length < 12) return "mal";
+  if (
+    isCierreLikeRound(input) &&
+    utteranceHasConcreteDayAndTime(trimmed)
+  ) {
+    return "bien";
+  }
   if (analytics.questionTypes.open + analytics.questionTypes.clarifying >= 1) return "bien";
   if (analytics.talkPercent > 85) return "mal";
   if (trimmed.length > 80) return "medio";
@@ -143,7 +160,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     priorLines: input.priorLines,
   });
 
-  const clientReaction = reactionFromAnalytics(analytics, input.utterance);
+  const clientReaction = reactionFromAnalytics(analytics, input.utterance, input);
   let coachingNote = buildCoachingNote(
     analytics,
     input.roundLabel,
