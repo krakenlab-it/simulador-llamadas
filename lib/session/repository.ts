@@ -28,6 +28,8 @@ import {
 } from "@/lib/voice/agent-settings";
 import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
 import { mergeAgenticRuntime } from "@/lib/agentic/runtime";
+import { mergePresetAgenticRuntime } from "@/lib/scenarios/preset-config";
+import { isClinicPreset } from "@/lib/scenarios/types";
 
 export interface CreateSessionInput {
   traineeId: string;
@@ -224,13 +226,6 @@ export class SessionRepository {
     const scenario = await this.loadScenario(input.scenarioSlug);
 
     let config = scenario.config;
-    if (input.agenticRuntime && config && !scenario.isPreset) {
-      config = mergeAgenticRuntime(config, input.agenticRuntime);
-      await this.client.query(`UPDATE scenarios SET config = $2::jsonb WHERE id = $1`, [
-        scenario.id,
-        JSON.stringify(config),
-      ]);
-    }
 
     const attempt = await this.client.query<{ id: string }>(
       `INSERT INTO call_attempts (trainee_id, scenario_id, difficulty_level, mode)
@@ -239,8 +234,29 @@ export class SessionRepository {
       [input.traineeId, scenario.id, input.difficultyLevel, input.mode],
     );
 
+    const callAttemptId = attempt.rows[0].id;
+
+    if (input.agenticRuntime) {
+      if (config && !scenario.isPreset) {
+        config = mergeAgenticRuntime(config, {
+          ...input.agenticRuntime,
+          sessionSeed: callAttemptId,
+        });
+        await this.client.query(`UPDATE scenarios SET config = $2::jsonb WHERE id = $1`, [
+          scenario.id,
+          JSON.stringify(config),
+        ]);
+      } else if (scenario.isPreset && isClinicPreset(scenario.slug)) {
+        config = mergePresetAgenticRuntime(
+          scenario.slug,
+          input.agenticRuntime,
+          callAttemptId,
+        );
+      }
+    }
+
     return {
-      callAttemptId: attempt.rows[0].id,
+      callAttemptId,
       traineeId: input.traineeId,
       scenarioSlug: scenario.slug,
       clientName: scenario.clientName,

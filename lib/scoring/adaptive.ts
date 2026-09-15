@@ -20,6 +20,8 @@ export interface AdaptiveScoreInput {
   isLastRound: boolean;
   /** 1-based call turn (1–10). Overflow cierre is 6–10. */
   roundNumber?: number;
+  /** Per-call seed for varied dialogue (typically callAttemptId). */
+  sessionSeed?: string;
   priorLines?: TranscriptLine[];
   voiceAgent?: VoiceAgentSettings;
 }

@@ -50,6 +50,10 @@ import type {
 } from "@/lib/kraken-lab/types";
 import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
 import { mergeAgenticRuntime } from "@/lib/agentic/runtime";
+import { mergePresetAgenticRuntime } from "@/lib/scenarios/preset-config";
+import { isClinicPreset } from "@/lib/scenarios/types";
+import { getClinicOpeningLine } from "@/lib/simulation/openings";
+import type { TranscriptLine } from "@/lib/scoring/types";
 
 export interface CreateSessionRequest {
   scenarioSlug: string;
@@ -176,6 +180,9 @@ interface StubSession {
   endedAt?: string;
   totalScore?: number;
   evaluation?: SessionEvaluationSummary;
+  /** Merged preset config when agentic is enabled for Clínica. */
+  sessionConfig?: ScenarioConfig | null;
+  transcriptLines: TranscriptLine[];
 }
 
 const sessions = new Map<string, StubSession>();
@@ -351,20 +358,31 @@ export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
     throw new Error(`Cliente no encontrado: ${body.scenarioSlug}`);
   }
 
-  const scenario =
-    body.agenticRuntime && !baseScenario.record.isPreset
-      ? {
-          record: {
-            ...baseScenario.record,
-            config: mergeAgenticRuntime(
-              baseScenario.record.config,
-              body.agenticRuntime,
-            ),
-          },
-        }
-      : baseScenario;
-
   const callAttemptId = generateId("stub");
+
+  let scenario = baseScenario;
+  let sessionConfig: ScenarioConfig | null = null;
+
+  if (body.agenticRuntime) {
+    if (!baseScenario.record.isPreset) {
+      scenario = {
+        record: {
+          ...baseScenario.record,
+          config: mergeAgenticRuntime(baseScenario.record.config, {
+            ...body.agenticRuntime,
+            sessionSeed: callAttemptId,
+          }),
+        },
+      };
+    } else if (isClinicPreset(body.scenarioSlug)) {
+      sessionConfig = mergePresetAgenticRuntime(
+        body.scenarioSlug,
+        body.agenticRuntime,
+        callAttemptId,
+      );
+    }
+  }
+
   const totalRounds = scoringPhaseCount(
     scenario.record.config,
     scenario.record.isPreset,
@@ -376,6 +394,12 @@ export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
     (email ? traineeIdByEmail.get(email) : undefined) ??
     generateId("trainee");
   if (email) traineeIdByEmail.set(email, traineeId);
+
+  const presetClient = getClientBySlug(body.scenarioSlug);
+  const transcriptLines: TranscriptLine[] =
+    baseScenario.record.isPreset && presetClient
+      ? [{ role: "client", text: getClinicOpeningLine(presetClient, callAttemptId) }]
+      : [];
 
   const session: StubSession = {
     callAttemptId,
@@ -389,6 +413,8 @@ export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
     turns: [],
     won: false,
     startedAt: new Date().toISOString(),
+    sessionConfig,
+    transcriptLines,
   };
   sessions.set(callAttemptId, session);
 
@@ -462,11 +488,6 @@ export async function stubSubmitTurn(
     roundType = customRound;
   }
 
-  const priorLines = session.turns.flatMap((turn) => {
-    const lines = [{ role: "trainee" as const, text: turn.utterance }];
-    return lines;
-  });
-
   const score = await scoreTurnAdaptive({
     utterance: trimmed,
     roundKey,
@@ -476,10 +497,15 @@ export async function stubSubmitTurn(
     difficultyLevel: session.difficultyLevel,
     scenarioSlug: session.scenario.record.slug,
     isPreset: session.scenario.record.isPreset,
-    config: session.scenario.record.isPreset ? null : session.scenario.record.config,
+    config:
+      session.sessionConfig ??
+      (session.scenario.record.isPreset ? null : session.scenario.record.config),
     clientName: session.scenario.record.clientName,
     isLastRound: roundNumber === phaseCount,
-    priorLines,
+    roundNumber,
+    sessionSeed: session.callAttemptId,
+    priorLines: session.transcriptLines,
+    voiceAgent: session.scenario.record.voiceAgent,
   });
 
   const summary: TurnSummary = {
@@ -493,6 +519,10 @@ export async function stubSubmitTurn(
   };
 
   session.turns.push(summary);
+  session.transcriptLines.push(
+    { role: "trainee", text: trimmed },
+    { role: "client", text: score.clientReply },
+  );
   session.currentRound = roundNumber + 1;
   if (score.won) session.won = true;
 

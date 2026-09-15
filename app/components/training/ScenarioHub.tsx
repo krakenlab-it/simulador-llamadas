@@ -37,7 +37,6 @@ import {
   phaseLabelsForCall,
   scoringPhaseCount,
 } from "@/lib/scenarios/authoring";
-import { getClientLine } from "@/lib/simulation/rounds";
 import { NUEVA_SIMULACION_CTA_LABEL } from "@/lib/kraken-lab/constants";
 import { AgenticGate } from "@/app/components/agentic/AgenticGate";
 import { isAgenticUnlocked } from "@/lib/agentic/settings";
@@ -223,10 +222,6 @@ export function ScenarioHub({
       return;
     }
     setSavingVoiceAgent(false);
-    const presetLine =
-      selected.isPreset && selectedClient
-        ? getClientLine(selectedClient, 0)
-        : undefined;
     onStart({
       scenarioSlug: selected.slug,
       clientName: selected.clientName,
@@ -235,11 +230,9 @@ export function ScenarioHub({
       difficultyLevel: level,
       totalRounds: scoringPhaseCount(selected.config, selected.isPreset),
       phaseLabels: phaseLabelsForCall(selected.config, selected.isPreset),
-      openingLine: openingLineForCall(
-        selected.config,
-        selected.isPreset,
-        presetLine,
-      ),
+      openingLine: selected.isPreset
+        ? undefined
+        : openingLineForCall(selected.config, false),
       client: selectedClient ?? undefined,
       verifiedUserId: verifiedUserId ?? undefined,
       verifiedEmail: verifiedEmail ?? undefined,

@@ -1,6 +1,7 @@
 import { buildAgenticScenarioContextText } from "@/lib/agentic/scenario-context-text";
 import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
 import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
+import { pickVariedLine } from "@/lib/simulation/session-variation";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
 import { buildDefaultRounds, buildScenarioConfig } from "./defaults";
 import { normalizeSelectWithOtherStoredValue, isSelectWithOtherPending } from "./select-options";
@@ -260,11 +261,17 @@ export function openingLineForCall(
   config: ScenarioConfig | null | undefined,
   isPreset: boolean,
   presetLine?: string,
+  sessionSeed?: string,
 ): string {
   if (isPreset && presetLine) return presetLine;
+  const lines = (config?.openingLines ?? [])
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length > 1 && sessionSeed?.trim()) {
+    return pickVariedLine(lines, { sessionSeed, salt: "opening" });
+  }
   const authored =
-    config?.openingLines?.[0]?.trim() ||
-    config?.rounds?.[0]?.clientPrompt?.trim();
+    lines[0] || config?.rounds?.[0]?.clientPrompt?.trim();
   return authored || "¿Quién habla?";
 }
 

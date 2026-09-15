@@ -216,14 +216,13 @@ export function LiveCallScreen({
     speakRef.current = synthesis.speak;
   }, [synthesis.speak]);
 
-  const openingLine = useMemo(
-    () =>
-      authoredOpeningLine ??
-      (isPreset && client
-        ? getClientLine(client, 0)
-        : stubGetOpeningLine(scenarioSlug)),
-    [authoredOpeningLine, client, isPreset, scenarioSlug],
-  );
+  const openingLine = useMemo(() => {
+    if (isPreset && client && callAttemptId) {
+      return getClientLine(client, 0, callAttemptId);
+    }
+    if (authoredOpeningLine) return authoredOpeningLine;
+    return stubGetOpeningLine(scenarioSlug);
+  }, [authoredOpeningLine, callAttemptId, client, isPreset, scenarioSlug]);
 
   useEffect(() => {
     setDialogue([{ role: "client", text: openingLine }]);

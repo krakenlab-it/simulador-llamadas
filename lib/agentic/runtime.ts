@@ -1,5 +1,4 @@
 import type { ScenarioConfig } from "@/lib/scenarios/types";
-import { isClinicPreset } from "@/lib/scenarios/types";
 import type { AgenticRuntimeConfig } from "./types";
 
 export function mergeAgenticRuntime(
@@ -19,12 +18,7 @@ export function mergeAgenticRuntime(
   };
 }
 
-export function isAgenticSessionActive(
-  config: ScenarioConfig | null,
-  isPreset: boolean,
-  scenarioSlug: string,
-): boolean {
-  if (isPreset && isClinicPreset(scenarioSlug)) return false;
+export function isAgenticSessionActive(config: ScenarioConfig | null): boolean {
   if (!config) return false;
   return config.agentic?.enabled === true;
 }

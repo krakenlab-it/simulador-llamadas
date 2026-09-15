@@ -75,6 +75,7 @@ export class SessionService {
         clientName: session.clientName,
         isLastRound,
         roundNumber: slot.roundNumber,
+        sessionSeed: input.callAttemptId,
         priorLines,
         voiceAgent: session.voiceAgent,
       });
