@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { ShellUser } from "@/lib/frontend/auth-shell";
 
-export type ShellTab = "home" | "train";
+export type ShellTab = "home" | "train" | "agent";
 
 interface AppShellProps {
   user: ShellUser;
@@ -57,6 +57,14 @@ export function AppShell({
               aria-current={activeTab === "train" ? "page" : undefined}
             >
               Entrenar
+            </button>
+            <button
+              type="button"
+              className={`app-nav__tab ${activeTab === "agent" ? "app-nav__tab--active" : ""}`}
+              onClick={() => onTabChange("agent")}
+              aria-current={activeTab === "agent" ? "page" : undefined}
+            >
+              Agente
             </button>
           </nav>
         ) : null}

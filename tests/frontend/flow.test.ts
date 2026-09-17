@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   beginStarting,
   canNavigateTo,
+  closeAgent,
   closeBuilder,
   enterCall,
   enterDetail,
   enterResults,
   initialFlowState,
   navigate,
+  openAgent,
   openBuilder,
   resetToHome,
   resetToTrain,
@@ -82,5 +84,19 @@ describe("app flow state machine", () => {
     const reset = resetToTrain();
     expect(reset.view).toBe("train");
     expect(reset.phase).toBe("idle");
+  });
+
+  it("opens the agent harness from an idle train view", () => {
+    const train = navigate(initialFlowState(), "train");
+    const agent = openAgent(train);
+    expect(agent.view).toBe("agent");
+    expect(closeAgent(agent).view).toBe("train");
+    expect(canNavigateTo(train, "agent")).toBe(true);
+  });
+
+  it("cannot open the agent harness during an active call", () => {
+    const inCall = enterCall();
+    expect(openAgent(inCall)).toEqual(inCall);
+    expect(canNavigateTo(inCall, "agent")).toBe(false);
   });
 });

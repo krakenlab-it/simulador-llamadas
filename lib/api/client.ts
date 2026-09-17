@@ -1,3 +1,8 @@
+import type {
+  AgentChatRequest,
+  AgentChatResponse,
+  AgentHarnessCatalog,
+} from "@/lib/agent/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import type {
   CreateCustomScenarioInput,
@@ -10,6 +15,8 @@ import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
 import {
   stubCreateSession,
   stubCreateScenario,
+  stubGetAgentHarness,
+  stubRunAgentChat,
   stubSaveVoiceAgent,
   stubEndSession,
   stubGetSessionDetail,
@@ -188,6 +195,21 @@ export async function listHistory(query: {
   );
   if (remote) return remote.history;
   return stubListHistory(query.traineeId ?? undefined, query.email ?? undefined);
+}
+
+export async function getAgentHarness(): Promise<AgentHarnessCatalog> {
+  const remote = await tryFetch<AgentHarnessCatalog>("/api/agent/harness");
+  return remote ?? stubGetAgentHarness();
+}
+
+export async function runAgentChat(
+  body: AgentChatRequest,
+): Promise<AgentChatResponse> {
+  const remote = await tryFetch<AgentChatResponse>("/api/agent/chat", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return remote ?? (await stubRunAgentChat(body));
 }
 
 export async function getSessionDetail(

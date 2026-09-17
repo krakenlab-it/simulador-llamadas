@@ -1,3 +1,18 @@
+import { AGENT_ENV_NAMES } from "@/lib/agent/availability";
+import { packAgentContext } from "@/lib/agent/context";
+import { runLocalAgentTurn } from "@/lib/agent/local-fallback";
+import { AGENT_PRESETS } from "@/lib/agent/presets";
+import { composeRuntimeSystemPrompt } from "@/lib/agent/prompts";
+import {
+  DEFAULT_AGENT_SETTINGS,
+  parseAgentHarnessSettings,
+} from "@/lib/agent/settings";
+import { AGENT_TOOL_CATALOG } from "@/lib/agent/tools";
+import type {
+  AgentChatRequest,
+  AgentChatResponse,
+  AgentHarnessCatalog,
+} from "@/lib/agent/types";
 import type {
   CallStatus,
   DifficultyLevel,
@@ -610,6 +625,54 @@ export function stubGetOpeningLine(scenarioSlug: string): string {
 
 export function stubGetTurnSummaries(callAttemptId: string): TurnSummary[] {
   return [...(sessions.get(callAttemptId)?.turns ?? [])];
+}
+
+export function stubGetAgentHarness(): AgentHarnessCatalog {
+  return {
+    defaultSettings: DEFAULT_AGENT_SETTINGS,
+    presets: AGENT_PRESETS,
+    tools: AGENT_TOOL_CATALOG,
+    availability: { groq: false, gemini: false, gateway: false },
+    envNames: [...AGENT_ENV_NAMES],
+  };
+}
+
+export async function stubRunAgentChat(
+  body: AgentChatRequest,
+): Promise<AgentChatResponse> {
+  const settings = parseAgentHarnessSettings({
+    ...body.settings,
+    runtime: "local",
+  });
+  const session = {
+    draft: body.draft ?? null,
+    catalog: body.catalog ?? [],
+    settings,
+    appliedInput: null,
+  };
+  const local = runLocalAgentTurn({
+    messages: body.messages,
+    session,
+  });
+  const contextPack = packAgentContext({
+    settings,
+    catalog: session.catalog,
+    draft: session.draft,
+  });
+  return {
+    assistantMessage: {
+      id: `stub-${Date.now()}`,
+      role: "assistant",
+      content: local.text,
+    },
+    draft: session.draft,
+    traces: local.traces,
+    runtime: "local",
+    provider: "local",
+    systemPromptUsed: composeRuntimeSystemPrompt(settings, contextPack),
+    contextPack,
+    appliedInput: session.appliedInput,
+  };
 }
 
 export function resetStubSessions(): void {

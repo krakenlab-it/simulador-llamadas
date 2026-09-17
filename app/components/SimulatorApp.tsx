@@ -33,6 +33,7 @@ import {
   type SetupConfig,
 } from "@/app/components/training/ScenarioHub";
 import { ScenarioBuilderScreen } from "@/app/components/training/ScenarioBuilderScreen";
+import { AgentHarnessScreen } from "@/app/components/agent/AgentHarnessScreen";
 import { LiveCallScreen } from "@/app/components/call/LiveCallScreen";
 import { ResultsScreen } from "@/app/components/results/ResultsScreen";
 import { HistoryView } from "@/app/components/history/HistoryView";
@@ -58,6 +59,8 @@ function shellTabFromView(view: AppView): ShellTab {
     case "builder":
     case "call":
       return "train";
+    case "agent":
+      return "agent";
     default: {
       const _exhaustive: never = view;
       return _exhaustive;
@@ -71,6 +74,8 @@ function tabToView(tab: ShellTab): AppView {
       return "home";
     case "train":
       return "train";
+    case "agent":
+      return "agent";
     default: {
       const _exhaustive: never = tab;
       return _exhaustive;
@@ -318,6 +323,20 @@ function SimulatorShell() {
             onEditScenario={(scenario) => {
               setBuilderScenario(scenario);
               setFlow((prev) => openBuilder(prev));
+            }}
+          />
+        )}
+
+        {flow.view === "agent" && (
+          <AgentHarnessScreen
+            onScenarioSaved={(slug) => {
+              setScenarioRefresh((k) => k + 1);
+              setSelectedSlugOnLoad(slug);
+              setFlow(resetToTrain);
+              showToast(
+                "Escenario guardado. Selecciónalo e inicia la llamada.",
+                "success",
+              );
             }}
           />
         )}

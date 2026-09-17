@@ -80,6 +80,9 @@ Ver `.env.example`. Nunca commitear valores reales.
 | `DATABASE_URL` | Postgres directo (tests de migración en CI) |
 | `ELEVENLABS_CONVAI_ENABLED` | Opt-in del agente ConvAI (vacío = llamada con micrófono del navegador + TTS) |
 | `NEXT_PUBLIC_APP_URL` | URL base de la app |
+| `GROQ_API_KEY` | LLM (réplicas + harness AI SDK). Vacío = fallback local |
+| `GOOGLE_API_KEY` | Alternativa Gemini para el mismo harness |
+| `AI_GATEWAY_API_KEY` | Opcional, Vercel AI Gateway (solo el nombre en el repo) |
 
 ### Esquema de base de datos
 
@@ -105,6 +108,18 @@ call_history (vista) → historial agregado (reemplaza localStorage clinicav2:hi
 3. Salida de voz: TTS de ElevenLabs por `/api/voice/tts` cuando la sesión de voz facturada está activa; voz del navegador si no.
 
 El agente ConvAI es opcional (`ELEVENLABS_CONVAI_ENABLED=true`) y solo se hace cargo del audio mientras está conectado. Apagado, la llamada funciona igual.
+
+### Agente (Vercel AI SDK, pestaña Agente)
+
+El harness de `ai` arma escenarios desde la conversación. Toda la config (preset, system prompt, tools, contexto, visibilidad, voz) vive en **Ajustes del agente**.
+
+1. Abre **Agente** (no hace falta tocar Entrenar).
+2. El preset **Coach comercial** y su system prompt ya están listos — edita el prompt si quieres otro ángulo.
+3. Escribe algo como «Crea un gerente de banco que no quiere pauta digital».
+4. Revisa el borrador y pulsa **Guardar escenario** (o di «guárdalo»).
+5. Vuelve a **Entrenar** y lanza la llamada.
+
+Sin `GROQ_API_KEY` / `GOOGLE_API_KEY` el runtime Auto usa un fallback local: el caso igual se arma. Con clave, el camino principal es `generateText` + tools del AI SDK. Este trabajo es **independiente** del PR #35 / KAN-45.
 
 ### Puntos de extensión
 
