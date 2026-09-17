@@ -256,7 +256,6 @@ async function runAgenticReply(
   const utterance = input.utterance.trim();
   const channel = resolvePracticeMode(input);
   const maxTurns = resolveMaxTurns();
-  const turnNumber = resolveTurnNumber(input) || (input.priorLines.length / 2) + 1;
   const isEvaluate = utterance === EVALUATE_COMMAND;
   const isRestart = utterance === RESTART_COMMAND;
   let transcriptOffset = input.agenticPersistence?.transcriptOffset ?? 0;
@@ -337,7 +336,11 @@ async function runAgenticReply(
 
   const recentTurns = toRecentTurns(input.priorLines);
   const patienceExhausted = shouldHangUpForPatience(agenticState.meters);
-  const isCallEnding = turnNumber >= maxTurns || patienceExhausted;
+  const liveTurnNumber =
+    agenticState.turnNumber > 0
+      ? agenticState.turnNumber
+      : resolveTurnNumber(input) || input.priorLines.length / 2 + 1;
+  const isCallEnding = liveTurnNumber >= maxTurns || patienceExhausted;
   const forceEvaluator = isEvaluate;
 
   const character = await generateCharacterReply({
@@ -353,7 +356,7 @@ async function runAgenticReply(
     channel,
     difficultyLevel: input.difficultyLevel,
     maxTurns,
-    turnNumber,
+    turnNumber: liveTurnNumber,
     callAttemptId,
     agenticState,
     isCallEnding,

@@ -314,6 +314,7 @@ export function LiveCallScreen({
         const response = await submitTurn(callAttemptId, {
           utterance: text,
           clientTurnId,
+          mode: effectiveMode,
         });
 
         clientTurnIdRef.current = null;

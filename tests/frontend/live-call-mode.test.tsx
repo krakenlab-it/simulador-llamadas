@@ -4,6 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { LiveCallScreen } from "@/app/components/call/LiveCallScreen";
 import { ToastProvider } from "@/components/ui/Toast";
 
+import { submitTurn } from "@/lib/api/client";
+
 vi.mock("@/lib/api/client", () => ({
   submitTurn: vi.fn(),
   saveScenarioVoiceAgent: vi.fn(),
@@ -142,5 +144,47 @@ describe("LiveCallScreen practice mode UI", () => {
     expect(
       screen.queryByText(/Esta práctica está en modo solo texto/i),
     ).not.toBeInTheDocument();
+  });
+
+  it("submits turns with voice mode after enabling the mic mid-call", async () => {
+    const user = userEvent.setup();
+    vi.mocked(submitTurn).mockResolvedValue({
+      turnId: "turn-1",
+      roundNumber: 1,
+      roundType: "apertura",
+      roundKey: "apertura-1",
+      roundLabel: "Apertura",
+      traineeUtterance: "Hola",
+      roundScore: 80,
+      keywordHits: {},
+      clientReaction: "medio",
+      clientReply: "¿Sí?",
+      feedback: "ok",
+      richFeedback: {
+        score: 80,
+        utterance: "Hola",
+        whyScore: "",
+        strongerLine: "",
+        missedCriteria: [],
+        roundLabel: "Apertura",
+      },
+      hasConcreteDayAndTime: false,
+      won: false,
+    });
+
+    renderCall("texto");
+    await user.click(
+      screen.getByRole("button", { name: "Usar micrófono en esta llamada" }),
+    );
+
+    const textarea = screen.getByLabelText("Tu respuesta");
+    await user.type(textarea, "Hola");
+    await user.click(screen.getByRole("button", { name: "Enviar turno" }));
+
+    expect(submitTurn).toHaveBeenCalledWith("call-1", {
+      utterance: "Hola",
+      clientTurnId: expect.any(String),
+      mode: "voz",
+    });
   });
 });

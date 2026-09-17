@@ -251,10 +251,10 @@ export class SessionRepository {
           ...input.agenticRuntime,
           sessionSeed: callAttemptId,
         });
-        await this.client.query(`UPDATE scenarios SET config = $2::jsonb WHERE id = $1`, [
-          scenario.id,
-          JSON.stringify(config),
-        ]);
+        await this.client.query(
+          `UPDATE call_attempts SET session_config = $2::jsonb WHERE id = $1`,
+          [callAttemptId, JSON.stringify(config)],
+        );
       } else if (scenario.isPreset && isClinicPreset(scenario.slug)) {
         config = mergePresetAgenticRuntime(
           scenario.slug,
@@ -329,9 +329,10 @@ export class SessionRepository {
     if (result.rows.length === 0) return null;
 
     const row = result.rows[0];
+    const sessionOverlay = parseConfig(row.session_config);
     const config = row.is_preset
-      ? parseConfig(row.session_config)
-      : parseConfig(row.config);
+      ? sessionOverlay
+      : sessionOverlay ?? parseConfig(row.config);
     const totalRounds = getScoringPhaseCount(config, row.is_preset);
 
     return {
@@ -359,6 +360,23 @@ export class SessionRepository {
       `UPDATE call_attempts SET agentic_state = $2::jsonb WHERE id = $1`,
       [callAttemptId, JSON.stringify(persistence)],
     );
+  }
+
+  async updatePracticeMode(
+    callAttemptId: string,
+    mode: PracticeMode,
+  ): Promise<void> {
+    await this.client.query(
+      `UPDATE call_attempts SET mode = $2 WHERE id = $1 AND status = 'in_progress'`,
+      [callAttemptId, mode],
+    );
+  }
+
+  /** Clears scored turns so /reiniciar can allocate from round 1 again. */
+  async clearCallTurnsForAgenticRestart(callAttemptId: string): Promise<void> {
+    await this.client.query(`DELETE FROM call_turns WHERE call_attempt_id = $1`, [
+      callAttemptId,
+    ]);
   }
 
   /**

@@ -5,6 +5,7 @@ import { logTurnSubmit } from "@/lib/voice/turn-trace";
 interface SubmitTurnBody {
   utterance?: string;
   clientTurnId?: string;
+  mode?: "voz" | "texto";
 }
 
 const UUID_PATTERN =
@@ -40,6 +41,7 @@ export async function POST(
         callAttemptId: id,
         utterance: body.utterance!,
         clientTurnId,
+        mode: body.mode,
       });
     });
 

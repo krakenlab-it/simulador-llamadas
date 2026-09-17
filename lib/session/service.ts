@@ -1,4 +1,6 @@
 import type { Client } from "pg";
+import { isAgenticSessionActive } from "@/lib/agentic/runtime";
+import type { PracticeMode } from "@/lib/db/types";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
 import { scoreTurnAdaptive } from "@/lib/scoring/adaptive";
 import { SessionError, toSessionError } from "./errors";
@@ -18,7 +20,11 @@ export interface SubmitTurnInput {
   utterance: string;
   /** Idempotency key for one user submit action; a retry reuses it. */
   clientTurnId?: string | null;
+  /** When the trainee switches channel mid-call (e.g. text → voice). */
+  mode?: PracticeMode;
 }
+
+const AGENTIC_RESTART_COMMAND = "/reiniciar";
 
 export class SessionService {
   private readonly repository: SessionRepository;
@@ -43,6 +49,18 @@ export class SessionService {
 
     const session = await this.repository.getSession(input.callAttemptId);
     if (!session) throw new SessionError("session_not_found");
+
+    if (
+      trimmed === AGENTIC_RESTART_COMMAND &&
+      isAgenticSessionActive(session.config)
+    ) {
+      await this.repository.clearCallTurnsForAgenticRestart(input.callAttemptId);
+    }
+
+    if (input.mode && input.mode !== session.mode) {
+      await this.repository.updatePracticeMode(input.callAttemptId, input.mode);
+      session.mode = input.mode;
+    }
 
     let slot: TurnSlot;
     try {

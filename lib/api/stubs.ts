@@ -99,6 +99,7 @@ export interface TurnRequest {
   utterance: string;
   /** Idempotency key for one submit action; a retry of the same turn reuses it. */
   clientTurnId?: string;
+  mode?: PracticeMode;
 }
 
 export interface TurnResponse {
@@ -445,6 +446,10 @@ export async function stubSubmitTurn(
   const session = sessions.get(callAttemptId);
   if (!session) throw new Error("Sesión no encontrada");
   if (session.status !== "in_progress") throw new Error("La sesión ya terminó");
+
+  if (body.mode) {
+    session.mode = body.mode;
+  }
 
   const phaseCount = scoringPhaseCount(
     session.scenario.record.config,
