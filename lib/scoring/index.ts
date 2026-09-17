@@ -1,5 +1,12 @@
 export { analizar, type AnalisisResult } from "./analizar";
-export { KEYWORD_MATCHERS, DAY_PATTERN, TIME_PATTERN } from "./keywords";
+export {
+  KEYWORD_MATCHERS,
+  DAY_PATTERN,
+  TIME_PATTERN,
+  utteranceHasConcreteDayAndTime,
+  utteranceHasDay,
+  utteranceHasTime,
+} from "./keywords";
 export {
   puntua,
   ROUND_EXPECTED,

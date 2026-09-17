@@ -1,3 +1,5 @@
+import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
+import { mergeAgenticRuntime } from "@/lib/agentic/runtime";
 import { getClientBySlug } from "@/lib/clients";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
 import { ROUNDS } from "@/lib/simulation/rounds";
@@ -34,4 +36,17 @@ export function buildPresetScenarioConfig(slug: string): ScenarioConfig | null {
     callType: "fria",
     dimensionGuides: {},
   };
+}
+
+export function mergePresetAgenticRuntime(
+  slug: string,
+  runtime: AgenticRuntimeConfig,
+  sessionSeed: string,
+): ScenarioConfig | null {
+  const preset = buildPresetScenarioConfig(slug);
+  if (!preset) return null;
+  return mergeAgenticRuntime(preset, {
+    ...runtime,
+    sessionSeed,
+  });
 }

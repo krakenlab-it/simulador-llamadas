@@ -6,16 +6,47 @@ import type { ScenarioRecord } from "@/lib/scenarios/types";
  * free_users_allowed). Library voices return 402 on the free plan — never
  * offer those here.
  *
- * Sarah is the same fallback already used by billed TTS.
+ * Laura is the default billed fallback — warmer for Latin American Spanish
+ * than the English-leaning Sarah premade.
  * @see https://elevenlabs.io/docs/overview/capabilities/voices
  */
 export const PREMADE_VOICES = [
-  { id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", gender: "female" },
-  { id: "FGY2WhTYpPnrIDTdsKH5", name: "Laura", gender: "female" },
-  { id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", gender: "male" },
-  { id: "JBFqnCBsd6RMkjVDRZzb", name: "George", gender: "male" },
-  { id: "SAz9YHcvj6GT2YYXdXww", name: "River", gender: "neutral" },
-  { id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", gender: "female" },
+  {
+    id: "FGY2WhTYpPnrIDTdsKH5",
+    name: "Laura",
+    gender: "female",
+    label: "Español MX — mujer",
+  },
+  {
+    id: "IKne3meq5aSn9XLyUdCD",
+    name: "Charlie",
+    gender: "male",
+    label: "Español MX — hombre",
+  },
+  {
+    id: "JBFqnCBsd6RMkjVDRZzb",
+    name: "George",
+    gender: "male",
+    label: "Español MX — hombre (grave)",
+  },
+  {
+    id: "Xb7hH8MSUJpSbSDYk0k2",
+    name: "Alice",
+    gender: "female",
+    label: "Español MX — mujer (suave)",
+  },
+  {
+    id: "EXAVITQu4vr4xnSDxMaL",
+    name: "Sarah",
+    gender: "female",
+    label: "Inglés — mujer",
+  },
+  {
+    id: "SAz9YHcvj6GT2YYXdXww",
+    name: "River",
+    gender: "neutral",
+    label: "Neutro",
+  },
 ] as const;
 
 export type PremadeVoiceId = (typeof PREMADE_VOICES)[number]["id"];
@@ -39,7 +70,7 @@ export interface VoiceAgentSettings {
   advancedOpen: boolean;
 }
 
-export const DEFAULT_PREMADE_VOICE_ID: PremadeVoiceId = "EXAVITQu4vr4xnSDxMaL";
+export const DEFAULT_PREMADE_VOICE_ID: PremadeVoiceId = "FGY2WhTYpPnrIDTdsKH5";
 
 export const DEFAULT_VOICE_AGENT_SETTINGS: VoiceAgentSettings = {
   language: "es",
@@ -76,6 +107,11 @@ export function isPremadeVoiceId(voiceId: string): boolean {
 export function resolvePremadeVoiceId(voiceId: string | undefined | null): string {
   if (voiceId && isPremadeVoiceId(voiceId)) return voiceId;
   return DEFAULT_PREMADE_VOICE_ID;
+}
+
+export function premadeVoiceLabel(voiceId: string): string {
+  const match = PREMADE_VOICES.find((voice) => voice.id === voiceId);
+  return match?.label ?? voiceId;
 }
 
 export function speakingRateToNumber(preset: SpeakingRatePreset): number {
@@ -183,12 +219,12 @@ export function applyVoiceAgentToRecord(
 
 export function voiceAgentToTtsOptions(settings: VoiceAgentSettings): {
   voiceId: string;
-  language: AgentLanguage;
+  language: string;
   speakingRate: number;
 } {
   return {
     voiceId: resolvePremadeVoiceId(settings.voiceId),
-    language: settings.language,
+    language: settings.language === "en" ? "en" : "es-MX",
     speakingRate: clampSpeakingRate(speakingRateToNumber(settings.speakingRate)),
   };
 }

@@ -7,7 +7,7 @@ import { marianaScenarioFixture } from "@/tests/frontend/fixtures";
 import type { SessionResponse } from "@/lib/api/stubs";
 
 vi.mock("@/lib/api/client", () => ({
-  listScenarios: vi.fn(),
+  loadScenarioCatalog: vi.fn(),
   createSession: vi.fn(),
   submitTurn: vi.fn(),
   endSession: vi.fn(),
@@ -66,12 +66,18 @@ vi.mock("@/lib/hooks/useVoiceConfig", () => ({
   }),
 }));
 
-import { createSession, listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
+import { createSession, loadScenarioCatalog, saveScenarioVoiceAgent } from "@/lib/api/client";
 
 describe("session start failure", () => {
   beforeEach(() => {
-    vi.mocked(listScenarios).mockResolvedValue([marianaScenarioFixture]);
-    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(marianaScenarioFixture);
+    vi.mocked(loadScenarioCatalog).mockResolvedValue({
+      scenarios: [marianaScenarioFixture],
+      usedLocalFallback: false,
+    });
+    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue({
+      scenario: marianaScenarioFixture,
+      usedLocalFallback: false,
+    });
     vi.mocked(createSession).mockRejectedValue(
       new Error("Servicio no disponible"),
     );

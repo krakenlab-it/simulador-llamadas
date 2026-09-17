@@ -53,8 +53,16 @@ export const CONVAI_AGENT_KEY = "simulador-patient";
  * @see https://elevenlabs.io/docs/overview/capabilities/voices
  */
 export const ELEVENLABS_DEFAULT_PREMADE_VOICE = {
-  id: "EXAVITQu4vr4xnSDxMaL",
-  name: "Sarah",
+  id: "FGY2WhTYpPnrIDTdsKH5",
+  name: "Laura",
+} as const;
+
+/** Conversational defaults — less announcer, more phone call. */
+const TTS_VOICE_SETTINGS = {
+  stability: 0.45,
+  similarity_boost: 0.78,
+  style: 0.35,
+  use_speaker_boost: true,
 } as const;
 
 export const CONVAI_CLIENT_EVENTS = [
@@ -176,13 +184,15 @@ async function requestElevenLabsSpeech(
   if (withLanguageCode) {
     body.language_code = normalizeTtsLanguageCode(speakOptions?.language);
   }
+  const voiceSettings: Record<string, number | boolean> = { ...TTS_VOICE_SETTINGS };
   if (
     speakOptions?.speakingRate !== undefined &&
     Number.isFinite(speakOptions.speakingRate) &&
     speakOptions.speakingRate !== 1
   ) {
-    body.voice_settings = { speed: clampSpeakingRate(speakOptions.speakingRate) };
+    voiceSettings.speed = clampSpeakingRate(speakOptions.speakingRate);
   }
+  body.voice_settings = voiceSettings;
 
   try {
     const response = await fetch(buildTtsUrl(kind, voiceId), {

@@ -3,12 +3,16 @@ import {
   beginStarting,
   canNavigateTo,
   closeBuilder,
+  closeKrakenWizard,
+  closeAgenticPanel,
   enterCall,
   enterDetail,
   enterResults,
   initialFlowState,
   navigate,
+  openAgenticPanel,
   openBuilder,
+  openKrakenWizard,
   resetToHome,
   resetToTrain,
 } from "@/lib/frontend/flow";
@@ -63,6 +67,20 @@ describe("app flow state machine", () => {
     const builder = openBuilder(train);
     expect(builder.view).toBe("builder");
     expect(closeBuilder(builder).view).toBe("train");
+  });
+
+  it("opens and closes the Kraken Lab wizard from train", () => {
+    const train = navigate(initialFlowState(), "train");
+    const wizard = openKrakenWizard(train);
+    expect(wizard.view).toBe("kraken-wizard");
+    expect(closeKrakenWizard(wizard).view).toBe("train");
+  });
+
+  it("opens and closes the agentic panel from train", () => {
+    const train = navigate(initialFlowState(), "train");
+    const panel = openAgenticPanel(train);
+    expect(panel.view).toBe("agentic-panel");
+    expect(closeAgenticPanel(panel).view).toBe("train");
   });
 
   it("cannot open builder during an active call", () => {

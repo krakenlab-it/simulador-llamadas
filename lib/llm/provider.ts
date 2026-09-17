@@ -10,26 +10,44 @@ export function isLlmAvailable(): boolean {
   return getLlmProvider() !== null;
 }
 
+/** Human-readable hint for preview/deploy when agentic replies need an LLM key. */
+export function getLlmEnvHint(): string {
+  const provider = getLlmProvider();
+  if (provider === "groq") {
+    return "GROQ_API_KEY configurada (Groq).";
+  }
+  if (provider === "gemini") {
+    return "GOOGLE_API_KEY configurada (Gemini).";
+  }
+  return "Configura GROQ_API_KEY o GOOGLE_API_KEY en el entorno para réplicas humanas con LLM; sin clave se usan plantillas conversacionales.";
+}
+
 export async function callLlm(
   prompt: string,
-  options: { maxTokens?: number; temperature?: number } = {},
+  options: {
+    maxTokens?: number;
+    temperature?: number;
+    systemPrompt?: string;
+  } = {},
 ): Promise<string | null> {
   const provider = getLlmProvider();
   if (!provider) return null;
 
   const maxTokens = options.maxTokens ?? 800;
   const temperature = options.temperature ?? 0.4;
+  const systemPrompt = options.systemPrompt?.trim();
 
   if (provider === "groq") {
-    return callGroq(prompt, maxTokens, temperature);
+    return callGroq(prompt, maxTokens, temperature, systemPrompt);
   }
-  return callGemini(prompt, maxTokens, temperature);
+  return callGemini(prompt, maxTokens, temperature, systemPrompt);
 }
 
 async function callGroq(
   prompt: string,
   maxTokens: number,
   temperature: number,
+  systemPrompt?: string,
 ): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
@@ -43,7 +61,12 @@ async function callGroq(
       },
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
-        messages: [{ role: "user", content: prompt }],
+        messages: systemPrompt
+          ? [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt },
+            ]
+          : [{ role: "user", content: prompt }],
         max_tokens: maxTokens,
         temperature,
       }),
@@ -63,6 +86,7 @@ async function callGemini(
   prompt: string,
   maxTokens: number,
   temperature: number,
+  systemPrompt?: string,
 ): Promise<string | null> {
   const apiKey = process.env.GOOGLE_API_KEY;
   if (!apiKey) return null;
@@ -74,6 +98,9 @@ async function callGemini(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          systemInstruction: systemPrompt
+            ? { parts: [{ text: systemPrompt }] }
+            : undefined,
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: { maxOutputTokens: maxTokens, temperature },
         }),

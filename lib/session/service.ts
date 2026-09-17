@@ -75,9 +75,19 @@ export class SessionService {
         clientName: session.clientName,
         isLastRound,
         roundNumber: slot.roundNumber,
+        sessionSeed: input.callAttemptId,
         priorLines,
         voiceAgent: session.voiceAgent,
+        mode: session.mode,
+        agenticPersistence: session.agenticPersistence ?? null,
       });
+
+      if (score.agenticPersistence) {
+        await this.repository.saveAgenticPersistence(
+          input.callAttemptId,
+          score.agenticPersistence,
+        );
+      }
 
       return await this.repository.completeTurn(
         slot.turnId,

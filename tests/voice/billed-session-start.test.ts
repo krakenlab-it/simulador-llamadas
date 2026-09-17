@@ -17,7 +17,7 @@ describe("startBilledVoiceSession", () => {
     vi.unstubAllGlobals();
   });
 
-  it("falls back to the browser when the start route returns 500 JSON", async () => {
+  it("does not demote to browser when the start route returns 500 JSON", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -29,12 +29,12 @@ describe("startBilledVoiceSession", () => {
     );
 
     await expect(startBilledVoiceSession("call-1")).resolves.toEqual({
-      fallbackToBrowser: true,
-      reason: "voice_session_start_failed",
+      fallbackToBrowser: false,
+      reason: "voice_session_unavailable",
     });
   });
 
-  it("falls back to the browser when the start body is not JSON", async () => {
+  it("does not demote to browser when the start body is not JSON", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -46,8 +46,33 @@ describe("startBilledVoiceSession", () => {
     );
 
     await expect(startBilledVoiceSession("call-1")).resolves.toEqual({
-      fallbackToBrowser: true,
-      reason: "voice_session_start_failed",
+      fallbackToBrowser: false,
+      reason: "voice_session_unavailable",
+    });
+  });
+
+  it("keeps billed TTS when usage DB is unavailable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            fallbackToBrowser: false,
+            reason: "usage_db_unavailable",
+            verifiedUserId: "user-1",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    await expect(startBilledVoiceSession("call-1")).resolves.toEqual({
+      fallbackToBrowser: false,
+      reason: "usage_db_unavailable",
+      verifiedUserId: "user-1",
     });
   });
 

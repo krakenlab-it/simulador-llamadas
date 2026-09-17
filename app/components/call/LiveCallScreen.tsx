@@ -95,11 +95,12 @@ export function LiveCallScreen({
 }: LiveCallScreenProps) {
   const { showToast } = useToast();
   const voiceConfig = useVoiceConfig();
+  const [effectiveMode, setEffectiveMode] = useState<PracticeMode>(mode);
   const [convaiAudioActive, setConvaiAudioActive] = useState(false);
   const voiceSession = useVoiceSession(
     verifiedUserId ?? null,
     callAttemptId,
-    mode,
+    effectiveMode,
     { meterConvaiSeconds: convaiAudioActive },
   );
   const sessionUsageId = voiceSession.sessionUsageId;
@@ -137,7 +138,7 @@ export function LiveCallScreen({
     clientName,
     scenarioContext,
     enabled:
-      mode === "voz" &&
+      effectiveMode === "voz" &&
       voiceConfig.convaiEnabled &&
       voiceSession.billedActive &&
       !voiceSession.fallbackToBrowser &&
@@ -165,29 +166,30 @@ export function LiveCallScreen({
   } = convai;
 
   /** ConvAI only owns audio when connected; otherwise browser mic + TTS. */
-  const clientVoiceIsConvai = mode === "voz" && convaiConnected;
-  const useBrowserMic = mode === "voz" && !clientVoiceIsConvai;
+  const clientVoiceIsConvai = effectiveMode === "voz" && convaiConnected;
+  const useBrowserMic = effectiveMode === "voz" && !clientVoiceIsConvai;
 
   const synthesis = useSpeechSynthesis({
     sessionUsageId,
+    fallbackToBrowser: voiceSession.fallbackToBrowser,
     locale: resolveSpeechLocale({ language: agentSettings.language }),
     voiceAgent: agentSettings,
   });
   const busy = submitting || hangingUp || ending;
   const holdMic = busy || (synthesis.speaking && !agentSettings.bargeIn);
   const billedTtsActive =
-    Boolean(sessionUsageId) &&
     voiceConfig.serverTts &&
-    !voiceSession.fallbackToBrowser;
+    !voiceSession.fallbackToBrowser &&
+    voiceSession.resolved !== false;
   const billedTtsActiveRef = useRef(billedTtsActive);
   billedTtsActiveRef.current = billedTtsActive;
   const callDevices = useCallAudioDevices(
-    mode === "voz" && useBrowserMic && !hangingUp && !ending,
+    effectiveMode === "voz" && useBrowserMic && !hangingUp && !ending,
     voiceConfig.sttTier === "browser" || !voiceConfig.serverStt,
   );
   const speech = useSpeechRecognition({
     sessionUsageId,
-    keepAlive: micArmed && mode === "voz",
+    keepAlive: micArmed && effectiveMode === "voz",
     paused: holdMic,
     micDeviceId: callDevices.selectedMicId,
   });
@@ -200,7 +202,7 @@ export function LiveCallScreen({
   }, [clientVoiceIsConvai]);
 
   const convaiConnecting =
-    mode === "voz" &&
+    effectiveMode === "voz" &&
     voiceConfig.convaiEnabled &&
     !convaiConnected &&
     !convaiFailed &&
@@ -214,14 +216,13 @@ export function LiveCallScreen({
     speakRef.current = synthesis.speak;
   }, [synthesis.speak]);
 
-  const openingLine = useMemo(
-    () =>
-      authoredOpeningLine ??
-      (isPreset && client
-        ? getClientLine(client, 0)
-        : stubGetOpeningLine(scenarioSlug)),
-    [authoredOpeningLine, client, isPreset, scenarioSlug],
-  );
+  const openingLine = useMemo(() => {
+    if (isPreset && client && callAttemptId) {
+      return getClientLine(client, 0, callAttemptId);
+    }
+    if (authoredOpeningLine) return authoredOpeningLine;
+    return stubGetOpeningLine(scenarioSlug);
+  }, [authoredOpeningLine, callAttemptId, client, isPreset, scenarioSlug]);
 
   useEffect(() => {
     setDialogue([{ role: "client", text: openingLine }]);
@@ -232,16 +233,14 @@ export function LiveCallScreen({
   // with the ElevenLabs voice when it is available, browser voice otherwise.
   const voiceOutputReady =
     voiceConfig.ready !== false &&
-    (!voiceConfig.requiresVoiceAuth ||
-      Boolean(sessionUsageId) ||
-      voiceSession.fallbackToBrowser);
+    (!voiceConfig.requiresVoiceAuth || voiceSession.resolved !== false);
 
   useEffect(() => {
-    if (mode !== "voz" || !voiceOutputReady || openingSpokenRef.current) return;
+    if (effectiveMode !== "voz" || !voiceOutputReady || openingSpokenRef.current) return;
     if (convaiConnected) return;
     openingSpokenRef.current = true;
     speakRef.current(openingLine);
-  }, [convaiConnected, mode, openingLine, voiceOutputReady]);
+  }, [convaiConnected, effectiveMode, openingLine, voiceOutputReady]);
 
   const disconnectConvaiRef = useRef(disconnectConvai);
   disconnectConvaiRef.current = disconnectConvai;
@@ -272,7 +271,13 @@ export function LiveCallScreen({
   }, [dialogue, feedbackHistory]);
 
   const handleMic = () => {
-    if (mode !== "voz" || !useBrowserMic || !speech.supported || hangingUp || ending)
+    if (
+      effectiveMode !== "voz" ||
+      !useBrowserMic ||
+      !speech.supported ||
+      hangingUp ||
+      ending
+    )
       return;
     if (micArmed) {
       unlockClientPlayback();
@@ -356,7 +361,7 @@ export function LiveCallScreen({
           ]);
           if (clientVoiceIsConvai) {
             interruptConvai();
-          } else if (mode === "voz") {
+          } else if (effectiveMode === "voz") {
             speakRef.current(response.clientReply);
             const ttsLog = toPublicVoiceConsoleEntry({
               event: "voice.tts.attempt",
@@ -401,7 +406,7 @@ export function LiveCallScreen({
       hangingUp,
       interruptConvai,
       phaseLabels,
-      mode,
+      effectiveMode,
       round,
       showToast,
       totalRounds,
@@ -462,7 +467,7 @@ export function LiveCallScreen({
   }, [speech.listening, speech.transcript]);
 
   useEffect(() => {
-    if (!micArmed || mode !== "voz" || busy || synthesis.speaking || speech.listening) {
+    if (!micArmed || effectiveMode !== "voz" || busy || synthesis.speaking || speech.listening) {
       return;
     }
     const pending = utterance.trim();
@@ -492,7 +497,7 @@ export function LiveCallScreen({
     busy,
     clearAutosubmitTimer,
     micArmed,
-    mode,
+    effectiveMode,
     speech.listening,
     synthesis.speaking,
     utterance,
@@ -548,9 +553,9 @@ export function LiveCallScreen({
   }, []);
 
   useEffect(() => {
-    if (!micArmed || mode !== "voz" || holdMic) return;
+    if (!micArmed || effectiveMode !== "voz" || holdMic) return;
     ensureListeningRef.current();
-  }, [holdMic, micArmed, mode, synthesis.speaking]);
+  }, [holdMic, micArmed, effectiveMode, synthesis.speaking]);
 
   const handleHangUp = () => {
     if (hangingUp || ending) return;
@@ -579,7 +584,7 @@ export function LiveCallScreen({
           </p>
           <h1 className="call-screen__client">{clientName}</h1>
           <p className="call-screen__meta">
-            Nivel {level} · {mode} ·{" "}
+            Nivel {level} · {effectiveMode} ·{" "}
             {agentSettings.language === "en" ? "EN" : "ES"}
           </p>
         </div>
@@ -650,7 +655,7 @@ export function LiveCallScreen({
           <VoiceAgentControls
             value={agentSettings}
             onChange={handleAgentChange}
-            showBargeIn={mode === "voz"}
+            showBargeIn={effectiveMode === "voz"}
           />
 
           {agentSettings.advancedOpen && useBrowserMic && callDevices.ready ? (
@@ -699,12 +704,28 @@ export function LiveCallScreen({
             </p>
           ) : null}
 
+          {effectiveMode === "texto" ? (
+            <div className="call-screen__text-only" role="status">
+              <p className="call-screen__note">
+                Esta práctica está en modo solo texto. Para usar el micrófono desde
+                el inicio, inicia una nueva simulación con Modo voz activado.
+              </p>
+              <Button
+                variant="secondary"
+                onClick={() => setEffectiveMode("voz")}
+                disabled={busy}
+              >
+                Usar micrófono en esta llamada
+              </Button>
+            </div>
+          ) : null}
+
           <textarea
             ref={textareaRef}
             value={utterance}
             onChange={(e) => setUtterance(e.target.value)}
             placeholder={
-              mode === "voz"
+              effectiveMode === "voz"
                 ? "Responde aquí o usa el micrófono…"
                 : "Escribe tu respuesta…"
             }

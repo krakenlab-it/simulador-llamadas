@@ -8,14 +8,14 @@ import {
 } from "@/lib/scenarios/language";
 
 describe("scenario language lock", () => {
-  it("resolves clinic presets to Spanish / es / es-MX", () => {
+  it("resolves clinic presets to Spanish / es-MX", () => {
     const config = buildPresetScenarioConfig("mariana");
     expect(config).not.toBeNull();
     const language = resolveScenarioLanguage(config);
-    expect(language.iso639).toBe("es");
+    expect(language.iso639).toBe("es-MX");
     expect(language.locale).toBe("es-MX");
     expect(language.promptName.toLowerCase()).toContain("español");
-    expect(resolveTtsLanguageCode(config)).toBe("es");
+    expect(resolveTtsLanguageCode(config)).toBe("es-MX");
     expect(resolveSpeechLocale(config)).toBe("es-MX");
   });
 
@@ -29,7 +29,7 @@ describe("scenario language lock", () => {
       temperament: "Directo",
       clientName: "Lucía",
     });
-    expect(resolveTtsLanguageCode(config)).toBe("es");
+    expect(resolveTtsLanguageCode(config)).toBe("es-MX");
     expect(resolveSpeechLocale(config)).toBe("es-MX");
   });
 

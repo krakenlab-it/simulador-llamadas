@@ -151,7 +151,7 @@ export function enrichClinicFeedback(input: {
     score: input.roundScore,
     utterance: input.utterance,
     whyScore: input.coachingNote,
-    strongerLine: input.coachingNote,
+    strongerLine: "",
     missedCriteria: [],
     roundLabel: input.roundLabel,
   };

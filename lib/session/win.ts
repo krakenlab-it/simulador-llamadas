@@ -1,6 +1,11 @@
 import type { RoundType } from "@/lib/db/types";
 import type { ScenarioConfig } from "@/lib/scenarios/types";
 import { evaluateAdvanceOutcome, resolveWinCriteria } from "@/lib/scoring/outcome";
+import {
+  utteranceHasConcreteDayAndTime,
+  utteranceHasDay,
+  utteranceHasTime,
+} from "@/lib/scoring/keywords";
 
 export interface EndSessionTurnInput {
   roundType: RoundType | null;
@@ -55,12 +60,4 @@ export function evaluateCloseWinFromScore(): boolean {
   return false;
 }
 
-export function utteranceHasDay(utterance: string): boolean {
-  return /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s+de)/i.test(
-    utterance,
-  );
-}
-
-export function utteranceHasTime(utterance: string): boolean {
-  return /\d{1,2}[:h]\d{2}|\d{1,2}\s*(am|pm|hrs?)/i.test(utterance);
-}
+export { utteranceHasConcreteDayAndTime, utteranceHasDay, utteranceHasTime };

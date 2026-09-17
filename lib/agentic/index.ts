@@ -1,0 +1,87 @@
+export type {
+  AgenticRuntimeConfig,
+  CharacterReplyInput,
+  CharacterReplyResult,
+  CoachNoteInput,
+  GroundingResult,
+  ScenarioPack,
+  ScenarioPackSnippet,
+  SessionMemory,
+  ToneId,
+  ToneProfile,
+  TurnLogEntry,
+} from "./types";
+
+export { buildScenarioPack } from "./scenario-pack";
+export {
+  AGENTIC_GROUNDING_PENDING_MESSAGE,
+  buildAgenticScenarioContextText,
+  getAgenticGroundingPendingMessage,
+  hasMinimumAgenticGrounding,
+} from "./scenario-context-text";
+export {
+  TONE_BANK,
+  TONE_IDS,
+  getToneById,
+  isToneId,
+  pickTone,
+} from "./tone-bank";
+export {
+  checkReplyGrounding,
+  retrieveTopSnippets,
+} from "./grounding";
+export {
+  appendTurn,
+  createSessionMemory,
+  formatTurnLog,
+  getRecentTurns,
+  loadSessionMemoryFromStorage,
+  saveSessionMemoryToStorage,
+} from "./session-memory";
+export {
+  buildCharacterPrompt,
+  generateCharacterReply,
+  getCharacterReplyEnvHint,
+  templateCharacterReply,
+} from "./character-runtime";
+export {
+  buildCoachNotePrompt,
+  generateCoachNote,
+  templateCoachNote,
+} from "./coach-runtime";
+export {
+  isAgenticSessionActive,
+  mergeAgenticRuntime,
+  resolveAgenticSeed,
+} from "./runtime";
+export {
+  buildJaimeClientSystemPrompt,
+  buildJaimeScenarioPackBlock,
+  loadJaimePromptTemplate,
+  mapDifficultyToJaime,
+} from "./jaime-prompt";
+export {
+  initialEmotionalMeters,
+  shouldHangUpForPatience,
+  updateEmotionalMeters,
+} from "./emotional-meters";
+export {
+  clearAgenticSessionState,
+  getAgenticSessionState,
+  resetAgenticSessionState,
+} from "./agentic-session-store";
+export {
+  AGENTIC_DEMO_PASSWORD,
+  AGENTIC_ENABLED_STORAGE_KEY,
+  AGENTIC_TONE_PREVIEW_KEY,
+  AGENTIC_UNLOCK_STORAGE_KEY,
+  clearAgenticUnlock,
+  getAgenticTonePreview,
+  isAgenticEnabledForSimulations,
+  isAgenticUnlocked,
+  readAgenticRuntimeForSession,
+  setAgenticEnabledForSimulations,
+  setAgenticTonePreview,
+  setAgenticUnlocked,
+  verifyAgenticPassword,
+} from "./settings";

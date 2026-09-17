@@ -111,6 +111,8 @@ describe("scenario authoring create/edit round-trip", () => {
     expect(nextConfig.winCriteria).toBe(update.winCriteria);
     expect(nextConfig.callType).toBe("cierre");
     expect(nextConfig.dimensionGuides?.cierre_siguiente_paso).toContain("demo");
+    expect(nextConfig.agentic?.scenarioContextText).toContain("Taller Norte");
+    expect(nextConfig.agentic?.scenarioContextText).toContain("llantas premium");
     expect(inferCallType(nextConfig, false)).toBe("cierre");
   });
 

@@ -26,12 +26,17 @@ import {
   parseVoiceAgentSettings,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
+import type { AgenticPersistence, AgenticRuntimeConfig } from "@/lib/agentic/types";
+import { mergeAgenticRuntime } from "@/lib/agentic/runtime";
+import { mergePresetAgenticRuntime } from "@/lib/scenarios/preset-config";
+import { isClinicPreset } from "@/lib/scenarios/types";
 
 export interface CreateSessionInput {
   traineeId: string;
   scenarioSlug: string;
   difficultyLevel: DifficultyLevel;
   mode: PracticeMode;
+  agenticRuntime?: AgenticRuntimeConfig;
 }
 
 export interface SessionRecord {
@@ -47,6 +52,7 @@ export interface SessionRecord {
   totalRounds: number;
   config: ScenarioConfig | null;
   voiceAgent?: VoiceAgentSettings;
+  agenticPersistence?: AgenticPersistence | null;
 }
 
 export interface TurnScoreInput {
@@ -183,6 +189,14 @@ function parseEvaluationSummary(
   return value;
 }
 
+function parseAgenticPersistence(raw: unknown): AgenticPersistence | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as AgenticPersistence;
+  if (!value.state || typeof value.state !== "object") return null;
+  if (typeof value.transcriptOffset !== "number") return null;
+  return value;
+}
+
 export class SessionRepository {
   constructor(private readonly client: Client) {}
 
@@ -220,6 +234,8 @@ export class SessionRepository {
   async createSession(input: CreateSessionInput): Promise<SessionRecord> {
     const scenario = await this.loadScenario(input.scenarioSlug);
 
+    let config = scenario.config;
+
     const attempt = await this.client.query<{ id: string }>(
       `INSERT INTO call_attempts (trainee_id, scenario_id, difficulty_level, mode)
        VALUES ($1, $2, $3, $4)
@@ -227,8 +243,35 @@ export class SessionRepository {
       [input.traineeId, scenario.id, input.difficultyLevel, input.mode],
     );
 
+    const callAttemptId = attempt.rows[0].id;
+
+    if (input.agenticRuntime) {
+      if (config && !scenario.isPreset) {
+        config = mergeAgenticRuntime(config, {
+          ...input.agenticRuntime,
+          sessionSeed: callAttemptId,
+        });
+        await this.client.query(`UPDATE scenarios SET config = $2::jsonb WHERE id = $1`, [
+          scenario.id,
+          JSON.stringify(config),
+        ]);
+      } else if (scenario.isPreset && isClinicPreset(scenario.slug)) {
+        config = mergePresetAgenticRuntime(
+          scenario.slug,
+          input.agenticRuntime,
+          callAttemptId,
+        );
+        if (config) {
+          await this.client.query(
+            `UPDATE call_attempts SET session_config = $2::jsonb WHERE id = $1`,
+            [callAttemptId, JSON.stringify(config)],
+          );
+        }
+      }
+    }
+
     return {
-      callAttemptId: attempt.rows[0].id,
+      callAttemptId,
       traineeId: input.traineeId,
       scenarioSlug: scenario.slug,
       clientName: scenario.clientName,
@@ -238,7 +281,7 @@ export class SessionRepository {
       status: "in_progress",
       currentRound: 1,
       totalRounds: scenario.totalRounds,
-      config: scenario.config,
+      config,
       voiceAgent: scenario.voiceAgent,
     };
   }
@@ -256,6 +299,8 @@ export class SessionRepository {
       status: CallStatus;
       last_round: string;
       voice_agent: unknown;
+      session_config: ScenarioConfig | null;
+      agentic_state: AgenticPersistence | null;
     }>(
       `SELECT
          ca.id,
@@ -265,6 +310,8 @@ export class SessionRepository {
          s.is_preset,
          s.config,
          s.voice_agent,
+         ca.session_config,
+         ca.agentic_state,
          ca.difficulty_level,
          ca.mode,
          ca.status,
@@ -274,14 +321,17 @@ export class SessionRepository {
        LEFT JOIN call_turns ct ON ct.call_attempt_id = ca.id
        WHERE ca.id = $1
        GROUP BY ca.id, ca.trainee_id, s.slug, s.client_name, s.is_preset, s.config,
-                s.voice_agent, ca.difficulty_level, ca.mode, ca.status`,
+                s.voice_agent, ca.session_config, ca.agentic_state, ca.difficulty_level,
+                ca.mode, ca.status`,
       [callAttemptId],
     );
 
     if (result.rows.length === 0) return null;
 
     const row = result.rows[0];
-    const config = row.is_preset ? null : parseConfig(row.config);
+    const config = row.is_preset
+      ? parseConfig(row.session_config)
+      : parseConfig(row.config);
     const totalRounds = getScoringPhaseCount(config, row.is_preset);
 
     return {
@@ -297,7 +347,18 @@ export class SessionRepository {
       totalRounds,
       config,
       voiceAgent: parseVoiceAgentSettings(row.voice_agent),
+      agenticPersistence: parseAgenticPersistence(row.agentic_state),
     };
+  }
+
+  async saveAgenticPersistence(
+    callAttemptId: string,
+    persistence: AgenticPersistence,
+  ): Promise<void> {
+    await this.client.query(
+      `UPDATE call_attempts SET agentic_state = $2::jsonb WHERE id = $1`,
+      [callAttemptId, JSON.stringify(persistence)],
+    );
   }
 
   /**

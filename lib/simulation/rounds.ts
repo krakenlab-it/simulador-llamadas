@@ -2,6 +2,8 @@ import type { RoundType } from "@/lib/db/types";
 import { ROUND_ORDER } from "@/lib/db/types";
 import type { ClientPersona } from "@/lib/clients";
 import { ROUND_EXPECTED } from "@/lib/scoring/rondas";
+import { getClinicOpeningLine } from "./openings";
+import { pickVariedLine } from "./session-variation";
 
 export interface RoundMeta {
   key: RoundType;
@@ -21,23 +23,56 @@ export const CLINIC_PHASE_COUNT = ROUNDS.length;
 
 export const EXPECTED_PHRASES: Record<RoundType, string> = ROUND_EXPECTED;
 
-const CLIENT_LINES_BY_ROUND: Record<number, string> = {
-  0: "",
-  1: "Eso ya lo escuché. ¿Qué resultado me trae?",
-  2: "Explíqueme en una frase qué medirían.",
-  3: "Mande su correo, pero sea breve.",
-  4: "Si no hay fecha en la agenda, no hay reunión.",
-};
+const CLIENT_LINES_BY_ROUND: readonly string[][] = [
+  [],
+  [
+    "Eso ya lo escuché. ¿Qué resultado me trae?",
+    "Suena repetido. ¿Qué resultado concreto trae?",
+    "Ya me lo dijeron. ¿Qué cambia con ustedes?",
+  ],
+  [
+    "Explíqueme en una frase qué medirían.",
+    "Una frase: ¿qué medirían?",
+    "Resuma en una frase la métrica.",
+  ],
+  [
+    "Mande su correo, pero sea breve.",
+    "Puede escribir, pero corto.",
+    "Correo sí, sin rodeos.",
+  ],
+  [
+    "Si no hay fecha en la agenda, no hay reunión.",
+    "Sin día en calendario no avanzo.",
+    "Necesito fecha en agenda o no sigo.",
+  ],
+];
 
 export function getRoundMeta(roundIndex: number): RoundMeta | null {
   return ROUNDS[roundIndex] ?? null;
 }
 
-export function getClientLine(client: ClientPersona, roundIndex: number): string {
+export function getClientLine(
+  client: ClientPersona,
+  roundIndex: number,
+  sessionSeed?: string,
+  priorClientLines?: readonly string[],
+): string {
   if (roundIndex === 0) {
+    if (sessionSeed?.trim()) {
+      return getClinicOpeningLine(client, sessionSeed, priorClientLines);
+    }
     return client.openings[0];
   }
-  return CLIENT_LINES_BY_ROUND[roundIndex] ?? "...";
+
+  const pool = CLIENT_LINES_BY_ROUND[roundIndex];
+  if (!pool?.length) return "...";
+  if (!sessionSeed?.trim()) return pool[0];
+
+  return pickVariedLine(pool, {
+    sessionSeed,
+    salt: `round-preview:${roundIndex}`,
+    priorClientLines,
+  });
 }
 
 export function getExpectedPhrase(roundType: RoundType): string {

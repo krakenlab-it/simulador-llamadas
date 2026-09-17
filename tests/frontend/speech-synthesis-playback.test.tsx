@@ -136,6 +136,51 @@ describe("billed TTS playback", () => {
     vi.clearAllMocks();
   });
 
+  it("uses the server TTS path when elevenlabs is on and the user did not skip", async () => {
+    unlockClientPlayback();
+    const { result } = renderHook(() =>
+      useSpeechSynthesis({ sessionUsageId: null }),
+    );
+
+    await act(async () => {
+      result.current.speak(SPANISH_LINE);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/voice/tts",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(play).toHaveBeenCalled();
+    expect(spokenTexts()).not.toContain(SPANISH_LINE);
+  });
+
+  it("uses browser TTS only when fallbackToBrowser is explicit", async () => {
+    vi.useFakeTimers();
+    unlockClientPlayback();
+    play.mockClear();
+    speak.mockClear();
+    const { result } = renderHook(() =>
+      useSpeechSynthesis({ fallbackToBrowser: true, sessionUsageId: "usage-1" }),
+    );
+
+    await act(async () => {
+      result.current.speak(SPANISH_LINE);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(SETTLE_MS);
+    });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled();
+    expect(spokenTexts()).toEqual([SPANISH_LINE]);
+    vi.useRealTimers();
+  });
+
   it("plays the billed audio on the shared element after unlock", async () => {
     unlockClientPlayback();
     const { result } = renderHook(() =>

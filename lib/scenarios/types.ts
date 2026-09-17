@@ -6,6 +6,7 @@ import type {
   CallTypeOverlay,
   ScoreDimensionId,
 } from "@/lib/scoring/types";
+import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
 import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
 
 export const CLINIC_PRESET_SLUGS = ["mariana", "rodrigo", "efrain"] as const;
@@ -63,6 +64,20 @@ export interface ScenarioConfig {
   language?: string;
   callType?: ScenarioCallType;
   dimensionGuides?: DimensionGuides;
+  /** Agentic runtime flags when enabled for Kraken/custom simulations. */
+  agentic?: AgenticRuntimeConfig;
+  /** Kraken Lab pasantes session metadata when generated from the wizard. */
+  krakenLab?: {
+    cohortId: string;
+    sessionSeed: string;
+    project: string;
+    simulatorRole: string;
+    roleObjective: string;
+    simulationFocuses: string[];
+    selectedPersonaId: string;
+    attentionBattery: string[];
+    difficultyLevel: number;
+  };
 }
 
 export interface ScenarioRecord {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
+import type { AgenticRuntimeConfig } from "@/lib/agentic/types";
 import {
   SessionService,
   createTrainee,
@@ -16,6 +17,7 @@ interface CreateSessionBody {
   scenarioSlug: string;
   difficultyLevel: DifficultyLevel;
   mode: PracticeMode;
+  agenticRuntime?: AgenticRuntimeConfig;
 }
 
 export async function POST(request: Request) {
@@ -54,6 +56,7 @@ export async function POST(request: Request) {
         scenarioSlug: body.scenarioSlug,
         difficultyLevel: body.difficultyLevel,
         mode: body.mode,
+        agenticRuntime: body.agenticRuntime,
       });
     });
 

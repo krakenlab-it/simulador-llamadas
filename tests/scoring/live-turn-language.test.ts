@@ -37,7 +37,7 @@ describe("live-turn language lock — last clinic phase", () => {
 
   it("still requests Spanish on cierre overflow turn 10", async () => {
     const preset = buildPresetScenarioConfig("rodrigo");
-    expect(resolveTtsLanguageCode(preset)).toBe("es");
+    expect(resolveTtsLanguageCode(preset)).toBe("es-MX");
 
     const result = await scoreLiveTurn({
       utterance: "Let's close this with a follow-up next Tuesday at 10.",
@@ -59,7 +59,7 @@ describe("live-turn language lock — last clinic phase", () => {
     const groqInput = vi.mocked(generateGroqClientReply).mock.calls[0]![0];
     expect(groqInput.round.key).toBe("cierre");
     expect(groqInput.roundNumber).toBe(10);
-    expect(resolveTtsLanguageCode(groqInput.config)).toBe("es");
+    expect(resolveTtsLanguageCode(groqInput.config)).toBe("es-MX");
     expect(result.clientReply.length).toBeGreaterThan(0);
   });
 });
