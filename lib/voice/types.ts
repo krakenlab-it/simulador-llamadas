@@ -32,7 +32,7 @@ export interface TtsRequest {
   text: string;
 }
 
-/** Trainer knobs honored on billed TTS. Language is passed through, not rewritten. */
+/** Trainer knobs honored on billed TTS. Spanish regional tags are normalized to `es` for ElevenLabs. */
 export interface TtsSpeakOptions {
   voiceId?: string;
   language?: string;

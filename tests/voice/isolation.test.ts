@@ -33,6 +33,8 @@ describe("KLM-45 trainee audio isolation before Scribe", () => {
       }),
     );
 
+    const appendSpy = vi.spyOn(FormData.prototype, "append");
+
     const result = await transcribeWithElevenLabsScribe(
       Buffer.from("fake-audio"),
       "audio/webm",
@@ -40,7 +42,9 @@ describe("KLM-45 trainee audio isolation before Scribe", () => {
 
     expect(calls[0]).toContain("audio-isolation");
     expect(calls[1]).toContain("speech-to-text");
+    expect(appendSpy).toHaveBeenCalledWith("language_code", "es-MX");
     expect(result?.transcript).toBe("hola");
+    appendSpy.mockRestore();
   });
 
   it("isolateTraineeAudio hits isolation API", async () => {

@@ -28,6 +28,20 @@ const SCRIBE_MODEL = "scribe_v2";
 /** ISO 639-1; required for Flash v2.5 Spanish enforcement. */
 const TTS_LANGUAGE = "es";
 const STT_LANGUAGE = "es-MX";
+
+/**
+ * ElevenLabs Flash v2.5 accepts ISO 639-1 `es` but rejects regional tags like
+ * `es-MX`. Callers may still pass BCP-47 clinic locales via speakOptions.
+ */
+export function normalizeTtsLanguageCode(raw?: string | null): string {
+  const value = (raw ?? "").trim();
+  if (!value) return TTS_LANGUAGE;
+  const lower = value.toLowerCase();
+  if (lower === "es" || lower.startsWith("es-") || lower.startsWith("es_")) {
+    return TTS_LANGUAGE;
+  }
+  return value;
+}
 /** Documented default; sent explicitly so a plan change cannot silently alter it. */
 const TTS_OUTPUT_FORMAT = "mp3_44100_128";
 export const CONVAI_AGENT_KEY = "simulador-patient";
@@ -160,8 +174,7 @@ async function requestElevenLabsSpeech(
 
   const body: Record<string, unknown> = { text, model_id: TTS_MODEL };
   if (withLanguageCode) {
-    const language = speakOptions?.language?.trim();
-    body.language_code = language || TTS_LANGUAGE;
+    body.language_code = normalizeTtsLanguageCode(speakOptions?.language);
   }
   if (
     speakOptions?.speakingRate !== undefined &&

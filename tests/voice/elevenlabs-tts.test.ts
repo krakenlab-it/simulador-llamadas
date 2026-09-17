@@ -62,6 +62,20 @@ describe("synthesizeWithElevenLabs", () => {
     vi.resetModules();
   });
 
+  it.each(["es-MX", "es-mx", "es-419", "es_MX"])(
+    "normalizes %s to language_code es for Spanish clinic TTS",
+    async (language) => {
+      const { synthesizeWithElevenLabs } = await loadProvider();
+      const line = "Si no hay fecha en la agenda, no hay reunión.";
+
+      const result = await synthesizeWithElevenLabs(line, undefined, { language });
+
+      expect(result.ok).toBe(true);
+      expect(calledBody(0).language_code).toBe("es");
+      expect(calledBody(0).language_code).not.toBe("es-MX");
+    },
+  );
+
   it("still sends language_code es for a last-phase Spanish clinic line", async () => {
     const { synthesizeWithElevenLabs } = await loadProvider();
     const lastPhaseLine = "Si no hay fecha en la agenda, no hay reunión.";
