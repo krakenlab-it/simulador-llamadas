@@ -72,10 +72,8 @@ async function fetchServerAudio(
     "Content-Type": "application/json",
   };
   if (sessionUsageId) headers["x-voice-session-id"] = sessionUsageId;
-  const ttsOptions = voiceAgentToTtsOptions(
-    voiceAgent ?? DEFAULT_VOICE_AGENT_SETTINGS,
-    character,
-  );
+  const settings = voiceAgent ?? DEFAULT_VOICE_AGENT_SETTINGS;
+  const ttsOptions = voiceAgentToTtsOptions(settings, character);
 
   const requestInit: RequestInit = {
     method: "POST",
@@ -83,7 +81,8 @@ async function fetchServerAudio(
     body: JSON.stringify({
       text,
       sessionUsageId,
-      voiceId: ttsOptions.voiceId,
+      ...(settings.voiceOverride ? { voiceId: ttsOptions.voiceId } : {}),
+      voiceGender: settings.voiceGender,
       language: ttsOptions.language,
       speakingRate: ttsOptions.speakingRate,
       characterName: character?.name ?? undefined,
@@ -147,11 +146,12 @@ export function useSpeechSynthesis(
 
   const billedTtsCacheKey = useCallback(
     (line: string) => {
-      const tts = voiceAgentToTtsOptions(
-        voiceAgent ?? DEFAULT_VOICE_AGENT_SETTINGS,
-        character,
-      );
-      return `${sessionUsageId ?? ""}::${tts.voiceId}::${tts.language}::${tts.speakingRate}::${line}`;
+      const settings = voiceAgent ?? DEFAULT_VOICE_AGENT_SETTINGS;
+      const tts = voiceAgentToTtsOptions(settings, character);
+      const voiceKey = settings.voiceOverride
+        ? tts.voiceId
+        : `${settings.voiceGender}::${character.slug ?? ""}::${character.name ?? ""}`;
+      return `${sessionUsageId ?? ""}::${voiceKey}::${tts.language}::${tts.speakingRate}::${line}`;
     },
     [character, sessionUsageId, voiceAgent],
   );

@@ -1,7 +1,9 @@
 import type { DifficultyLevel } from "@/lib/db/types";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import {
+  curatedVoiceForId,
   resolveCuratedVoiceId,
+  resolveSlotVoiceId,
   type VoiceGenderPreference,
 } from "@/lib/voice/voice-pool";
 
@@ -91,7 +93,11 @@ export function resolvePremadeVoiceId(
     scenarioSlug?: string | null;
   },
 ): string {
-  if (voiceId && isPremadeVoiceId(voiceId)) return voiceId;
+  if (voiceId && isPremadeVoiceId(voiceId)) {
+    const curated = curatedVoiceForId(voiceId);
+    if (curated) return resolveSlotVoiceId(curated.slot);
+    return voiceId;
+  }
   return resolveCuratedVoiceId({
     genderPreference: fallback?.genderPreference ?? "auto",
     characterName: fallback?.characterName,
