@@ -72,7 +72,7 @@ describe("tts-proof helpers", () => {
     vi.unstubAllEnvs();
   });
 
-  it("isTtsProofEnvReady is true when key and voice id are set", () => {
+  it("isTtsProofEnvReady is true when the API key is set", () => {
     vi.stubEnv("ELEVENLABS_API_KEY", "sk-test");
     vi.stubEnv("ELEVENLABS_VOICE_ID", "voice-123");
     vi.stubEnv("ELEVENLABS_ENABLED", "true");

@@ -105,7 +105,8 @@ export function AgentSettingsPanel({
         <div className="agent-settings__advanced">
           <p className="agent-settings__hint">
             Camino feliz: Vercel AI Gateway → DeepSeek
-            (AI_GATEWAY_API_KEY o VERCEL_OIDC_TOKEN).{" "}
+            (AI_GATEWAY_API_KEY o VERCEL_OIDC_TOKEN). Voz: género del
+            personaje → pool ElevenLabs (2 mujeres / 2 hombres).{" "}
             {availability?.gateway
               ? "Gateway disponible en el servidor."
               : availability?.hasModel

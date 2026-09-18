@@ -5,10 +5,6 @@ function hasElevenLabsKey(): boolean {
   return isElevenLabsEnabled();
 }
 
-function hasElevenLabsVoice(): boolean {
-  return Boolean(process.env.ELEVENLABS_VOICE_ID?.trim());
-}
-
 /**
  * ConvAI stays out of the call loop unless it is switched on explicitly. The
  * working voice path is browser mic in, HTTP turn, TTS out; ConvAI agent
@@ -48,11 +44,12 @@ export function resolveSttTier(): SttTier {
 }
 
 /**
- * Resolve TTS tier — ElevenLabs when key + voice id are set, otherwise browser.
+ * Resolve TTS tier — ElevenLabs when the API key is set. Voice ids come from
+ * the curated gender pool (not a single ELEVENLABS_VOICE_ID default).
  * No Google Chirp/Gemini TTS; billed failure → 502 → client speechSynthesis.
  */
 export function resolveTtsTier(): TtsTier {
-  if (hasElevenLabsKey() && hasElevenLabsVoice()) {
+  if (hasElevenLabsKey()) {
     return "elevenlabs";
   }
   return "browser";
@@ -66,7 +63,7 @@ export function resolveVoiceLadder(): VoiceLadderConfig {
   return {
     sttTier,
     ttsTier,
-    convaiEnabled: isConvaiOptedIn() && hasElevenLabsKey() && hasElevenLabsVoice(),
+    convaiEnabled: isConvaiOptedIn() && hasElevenLabsKey(),
     pronunciationDictionary: ttsTier === "elevenlabs",
     elevenlabsBilledAvailable: hasElevenLabsKey(),
   };

@@ -19,6 +19,7 @@ import { withPgClient } from "@/lib/session";
 import type { SttResult, TtsSpeakOptions } from "@/lib/voice/types";
 import {
   clampSpeakingRate,
+  isPremadeVoiceId,
   resolvePremadeVoiceId,
 } from "@/lib/voice/agent-settings";
 
@@ -336,19 +337,21 @@ export async function synthesizeWithElevenLabs(
   options?: TtsSpeakOptions,
 ): Promise<ElevenLabsTtsOutcome> {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
-  const envVoiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
-  const trainerVoiceId = options?.voiceId
-    ? resolvePremadeVoiceId(options.voiceId)
-    : undefined;
-  const voiceId = trainerVoiceId ?? envVoiceId;
+  const requested = options?.voiceId?.trim();
+  const curatedId = resolvePremadeVoiceId(undefined, {
+    genderPreference: options?.voiceGender,
+    characterName: options?.characterName,
+    scenarioSlug: options?.scenarioSlug,
+  });
+  const voiceId =
+    requested && isPremadeVoiceId(requested)
+      ? requested
+      : requested || curatedId;
   if (!isElevenLabsEnabled()) {
     return { ok: false, failures: [{ reason: "elevenlabs_disabled" }] };
   }
   if (!apiKey) {
     return { ok: false, failures: [{ reason: "missing_ELEVENLABS_API_KEY" }] };
-  }
-  if (!voiceId) {
-    return { ok: false, failures: [{ reason: "missing_ELEVENLABS_VOICE_ID" }] };
   }
 
   const normalized = applyPronunciationHints(text);
@@ -635,7 +638,9 @@ export async function resolveConvaiAgentId(
     return { ok: true, agentId: envAgentId };
   }
 
-  const voiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
+  const voiceId = resolvePremadeVoiceId(undefined, {
+    characterName: clientName,
+  });
 
   const persisted = await readPersistedAgentId();
   if (persisted) {

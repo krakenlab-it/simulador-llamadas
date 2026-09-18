@@ -172,6 +172,8 @@ export function LiveCallScreen({
     sessionUsageId,
     locale: resolveSpeechLocale({ language: agentSettings.language }),
     voiceAgent: agentSettings,
+    characterName: client?.name ?? scenarioSlug,
+    scenarioSlug,
   });
   const busy = submitting || hangingUp || ending;
   const holdMic = busy || (synthesis.speaking && !agentSettings.bargeIn);

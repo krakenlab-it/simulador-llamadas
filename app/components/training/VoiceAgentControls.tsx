@@ -9,7 +9,9 @@ import {
   type AgentPersonality,
   type SpeakingRatePreset,
   type VoiceAgentSettings,
+  type VoiceGenderPreference,
 } from "@/lib/voice/agent-settings";
+import { ELEVENLABS_CONNECTION_ENV_NAMES } from "@/lib/voice/voice-pool";
 
 interface VoiceAgentControlsProps {
   value: VoiceAgentSettings;
@@ -20,6 +22,12 @@ interface VoiceAgentControlsProps {
 const LANGUAGE_OPTIONS: { value: AgentLanguage; label: string }[] = [
   { value: "es", label: "Español" },
   { value: "en", label: "English" },
+];
+
+const GENDER_OPTIONS: { value: VoiceGenderPreference; label: string }[] = [
+  { value: "auto", label: "Según personaje" },
+  { value: "female", label: "Mujer" },
+  { value: "male", label: "Hombre" },
 ];
 
 const RATE_OPTIONS: { value: SpeakingRatePreset; label: string }[] = [
@@ -41,6 +49,7 @@ export function VoiceAgentControls({
   showBargeIn,
 }: VoiceAgentControlsProps) {
   const languageId = useId();
+  const genderId = useId();
   const rateId = useId();
   const personalityId = useId();
   const voiceId = useId();
@@ -55,6 +64,20 @@ export function VoiceAgentControls({
           value={value.language}
           options={LANGUAGE_OPTIONS}
           onChange={(language) => onChange({ ...value, language })}
+        />
+        <SegmentedControl
+          label="Género de voz"
+          labelId={genderId}
+          value={value.voiceGender}
+          options={GENDER_OPTIONS}
+          onChange={(voiceGender) =>
+            onChange({
+              ...value,
+              voiceGender,
+              voiceOverride: false,
+              voiceId: "",
+            })
+          }
         />
         <Button
           variant="ghost"
@@ -75,18 +98,30 @@ export function VoiceAgentControls({
             <select
               id={voiceId}
               className="config-panel__select"
-              value={value.voiceId}
-              onChange={(event) =>
-                onChange({ ...value, voiceId: event.target.value })
-              }
+              value={value.voiceOverride ? value.voiceId : ""}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                onChange({
+                  ...value,
+                  voiceId: nextId,
+                  voiceOverride: Boolean(nextId),
+                });
+              }}
             >
+              <option value="">Según el personaje (2 voces por género)</option>
               {PREMADE_VOICES.map((voice) => (
                 <option key={voice.id} value={voice.id}>
-                  {voice.name}
+                  {voice.name} · {voice.gender === "male" ? "hombre" : voice.gender === "female" ? "mujer" : "neutra"}
                 </option>
               ))}
             </select>
           </div>
+
+          <p className="agent-settings__hint" aria-label="Conexión ElevenLabs">
+            ElevenLabs (nombres de variables, nunca valores):{" "}
+            {ELEVENLABS_CONNECTION_ENV_NAMES.join(", ")}. El servidor elige
+            voz mujer/hombre del pool. Español nativo (LATAM); English aparte.
+          </p>
 
           <div className="config-panel__section">
             <SegmentedControl

@@ -83,6 +83,8 @@ Ver `.env.example`. Nunca commitear valores reales.
 | `GROQ_API_KEY` | Fallback de modelo |
 | `GOOGLE_API_KEY` | Fallback Gemini |
 | `DEEPSEEK_API_KEY` | Último recurso opcional — no es el camino principal |
+| `ELEVENLABS_API_KEY` | TTS facturado; la voz sale del pool por género |
+| `ELEVENLABS_VOICE_ID_FEMALE_A` / `_B` / `_MALE_A` / `_B` | Overrides opcionales del pool |
 | `ELEVENLABS_CONVAI_ENABLED` | Opt-in del agente ConvAI (vacío = llamada con micrófono del navegador + TTS) |
 | `NEXT_PUBLIC_APP_URL` | URL base de la app |
 
@@ -93,6 +95,7 @@ Ver `.env.example`. Nunca commitear valores reales.
 - **Roles:** agent / user / context stay in separate channels. The frontend does not invent comparison text.
 - **Frontend:** Agente = first-run auto setup + Settings. Equipos = create team, add members, same exam, compare.
 - **PREFILLED:** Mariana, Rodrigo and Efraín keep their names; the situations are rewritten so each one asks different questions.
+- **Voice:** TTS follows character gender (2 female + 2 male premade voices). Settings expose language (es/en) and ElevenLabs env names only. Flash still normalizes `es-MX` → `es`.
 
 Smoke:
 
@@ -123,7 +126,7 @@ practice_teams / members / tests / results → mismo examen y comparación (KAN-
 
 1. Entrada de voz: Web Speech API del navegador.
 2. Un `POST /api/sessions/:id/turns` por ronda; ahí vuelven la puntuación y la respuesta del cliente.
-3. Salida de voz: TTS de ElevenLabs por `/api/voice/tts` cuando la sesión de voz facturada está activa; voz del navegador si no.
+3. Salida de voz: TTS de ElevenLabs por `/api/voice/tts` cuando hay `ELEVENLABS_API_KEY`. La voz sigue el género del personaje (pool de 2 mujeres + 2 hombres). `language_code` de Flash se normaliza `es-MX` → `es`. STT sigue en `es-MX`. Sin clave: voz del navegador.
 
 El agente ConvAI es opcional (`ELEVENLABS_CONVAI_ENABLED=true`) y solo se hace cargo del audio mientras está conectado. Apagado, la llamada funciona igual.
 

@@ -1,5 +1,9 @@
 import type { DifficultyLevel } from "@/lib/db/types";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
+import {
+  resolveCuratedVoiceId,
+  type VoiceGenderPreference,
+} from "@/lib/voice/voice-pool";
 
 /**
  * Documented ElevenLabs premade/default voices (category premade,
@@ -21,6 +25,7 @@ export const PREMADE_VOICES = [
 export type PremadeVoiceId = (typeof PREMADE_VOICES)[number]["id"];
 
 export type AgentLanguage = "es" | "en";
+export type { VoiceGenderPreference };
 export type SpeakingRatePreset = "lento" | "normal" | "rapido";
 export type AgentPersonality =
   | "paciente"
@@ -30,7 +35,10 @@ export type AgentPersonality =
 
 export interface VoiceAgentSettings {
   language: AgentLanguage;
+  voiceGender: VoiceGenderPreference;
+  /** Explicit premade override. Empty + voiceOverride false → gender map. */
   voiceId: string;
+  voiceOverride: boolean;
   speakingRate: SpeakingRatePreset;
   personality: AgentPersonality;
   difficultyLevel: DifficultyLevel;
@@ -43,7 +51,9 @@ export const DEFAULT_PREMADE_VOICE_ID: PremadeVoiceId = "EXAVITQu4vr4xnSDxMaL";
 
 export const DEFAULT_VOICE_AGENT_SETTINGS: VoiceAgentSettings = {
   language: "es",
-  voiceId: DEFAULT_PREMADE_VOICE_ID,
+  voiceGender: "auto",
+  voiceId: "",
+  voiceOverride: false,
   speakingRate: "normal",
   personality: "neutral",
   difficultyLevel: 1,
@@ -73,9 +83,20 @@ export function isPremadeVoiceId(voiceId: string): boolean {
   return PREMADE_VOICE_IDS.has(voiceId);
 }
 
-export function resolvePremadeVoiceId(voiceId: string | undefined | null): string {
+export function resolvePremadeVoiceId(
+  voiceId: string | undefined | null,
+  fallback?: {
+    genderPreference?: VoiceGenderPreference;
+    characterName?: string | null;
+    scenarioSlug?: string | null;
+  },
+): string {
   if (voiceId && isPremadeVoiceId(voiceId)) return voiceId;
-  return DEFAULT_PREMADE_VOICE_ID;
+  return resolveCuratedVoiceId({
+    genderPreference: fallback?.genderPreference ?? "auto",
+    characterName: fallback?.characterName,
+    scenarioSlug: fallback?.scenarioSlug,
+  });
 }
 
 export function speakingRateToNumber(preset: SpeakingRatePreset): number {
@@ -124,6 +145,11 @@ function parseLanguage(value: unknown): AgentLanguage {
   return value === "en" ? "en" : "es";
 }
 
+function parseVoiceGender(value: unknown): VoiceGenderPreference {
+  if (value === "female" || value === "male" || value === "auto") return value;
+  return "auto";
+}
+
 function parseSpeakingRate(value: unknown): SpeakingRatePreset {
   if (value === "lento" || value === "rapido" || value === "normal") return value;
   return "normal";
@@ -152,11 +178,17 @@ export function parseVoiceAgentSettings(raw: unknown): VoiceAgentSettings {
     return { ...DEFAULT_VOICE_AGENT_SETTINGS };
   }
   const input = raw as Record<string, unknown>;
+  const requestedId = typeof input.voiceId === "string" ? input.voiceId.trim() : "";
+  const isLegacyDefault =
+    !requestedId || requestedId === DEFAULT_PREMADE_VOICE_ID;
+  const voiceOverride =
+    input.voiceOverride === true ||
+    (isPremadeVoiceId(requestedId) && !isLegacyDefault);
   return {
     language: parseLanguage(input.language),
-    voiceId: resolvePremadeVoiceId(
-      typeof input.voiceId === "string" ? input.voiceId : null,
-    ),
+    voiceGender: parseVoiceGender(input.voiceGender),
+    voiceId: voiceOverride ? requestedId : "",
+    voiceOverride,
     speakingRate: parseSpeakingRate(input.speakingRate),
     personality: parsePersonality(input.personality),
     difficultyLevel: parseDifficulty(input.difficultyLevel),
@@ -181,13 +213,27 @@ export function applyVoiceAgentToRecord(
   };
 }
 
-export function voiceAgentToTtsOptions(settings: VoiceAgentSettings): {
+export function voiceAgentToTtsOptions(
+  settings: VoiceAgentSettings,
+  character?: { name?: string | null; slug?: string | null },
+): {
   voiceId: string;
   language: AgentLanguage;
   speakingRate: number;
 } {
+  const voiceId = settings.voiceOverride
+    ? resolvePremadeVoiceId(settings.voiceId, {
+        genderPreference: settings.voiceGender,
+        characterName: character?.name,
+        scenarioSlug: character?.slug,
+      })
+    : resolveCuratedVoiceId({
+        genderPreference: settings.voiceGender,
+        characterName: character?.name,
+        scenarioSlug: character?.slug,
+      });
   return {
-    voiceId: resolvePremadeVoiceId(settings.voiceId),
+    voiceId,
     language: settings.language,
     speakingRate: clampSpeakingRate(speakingRateToNumber(settings.speakingRate)),
   };

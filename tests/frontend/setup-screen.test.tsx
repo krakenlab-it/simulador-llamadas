@@ -303,7 +303,9 @@ describe("ScenarioHub flow", () => {
         ...marianaScenarioFixture,
         voiceAgent: {
           language: "en",
+          voiceGender: "auto",
           voiceId: PREMADE_VOICES[2].id,
+          voiceOverride: true,
           speakingRate: "rapido",
           personality: "impaciente",
           difficultyLevel: 3,

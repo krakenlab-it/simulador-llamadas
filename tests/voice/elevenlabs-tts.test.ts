@@ -123,9 +123,10 @@ describe("synthesizeWithElevenLabs", () => {
 
     expect(result.ok).toBe(true);
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(calledUrls()[0]).toBe(
-      "https://api.elevenlabs.io/v1/text-to-speech/voice-123?output_format=mp3_44100_128",
+    expect(calledUrls()[0]).toMatch(
+      /text-to-speech\/[A-Za-z0-9]+(\?output_format=mp3_44100_128)$/,
     );
+    expect(calledUrls()[0]).not.toContain("voice-123");
     expect(calledBody(0)).toEqual({
       text: "Eso no mueve venta por m².",
       model_id: "eleven_flash_v2_5",
@@ -183,7 +184,9 @@ describe("synthesizeWithElevenLabs", () => {
 
     const { synthesizeWithElevenLabs, ELEVENLABS_DEFAULT_PREMADE_VOICE } =
       await loadProvider();
-    const result = await synthesizeWithElevenLabs("Hola, soy Mariana.");
+    const result = await synthesizeWithElevenLabs("Hola, soy Mariana.", undefined, {
+      voiceId: "voice-123",
+    });
 
     expect(result.ok).toBe(true);
     expect(fetch).toHaveBeenCalledTimes(2);
@@ -221,7 +224,9 @@ describe("synthesizeWithElevenLabs", () => {
       .mockResolvedValueOnce(audioResponse());
 
     const { synthesizeWithElevenLabs } = await loadProvider();
-    const result = await synthesizeWithElevenLabs("Hola");
+    const result = await synthesizeWithElevenLabs("Hola", undefined, {
+      voiceId: "voice-123",
+    });
 
     expect(result.ok).toBe(true);
     expect(calledUrls()[1]).toContain("premade-override");
@@ -249,7 +254,9 @@ describe("synthesizeWithElevenLabs", () => {
     );
     const { synthesizeWithElevenLabs } = await loadProvider();
 
-    const result = await synthesizeWithElevenLabs("Hola");
+    const result = await synthesizeWithElevenLabs("Hola", undefined, {
+      voiceId: "EXAVITQu4vr4xnSDxMaL",
+    });
 
     expect(result.ok).toBe(false);
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -267,9 +274,10 @@ describe("synthesizeWithElevenLabs", () => {
 
     expect(result.ok).toBe(true);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(calledUrls()[1]).toBe(
-      "https://api.elevenlabs.io/v1/text-to-speech/voice-123/stream?output_format=mp3_44100_128",
+    expect(calledUrls()[1]).toMatch(
+      /text-to-speech\/[A-Za-z0-9]+\/stream\?output_format=mp3_44100_128$/,
     );
+    expect(calledUrls()[1]).not.toContain("voice-123");
     expect(calledBody(1)).toEqual({
       text: "Hola Rodrigo.",
       model_id: "eleven_flash_v2_5",
@@ -383,16 +391,18 @@ describe("synthesizeWithElevenLabs", () => {
     expect(PREMADE_VOICES[1].id).not.toBe(ELEVENLABS_DEFAULT_PREMADE_VOICE.id);
   });
 
-  it("refuses a library voice id and bills Sarah instead", async () => {
-    const { synthesizeWithElevenLabs, ELEVENLABS_DEFAULT_PREMADE_VOICE } =
-      await loadProvider();
+  it("does not default billed TTS to ELEVENLABS_VOICE_ID when gender is known", async () => {
+    const { synthesizeWithElevenLabs } = await loadProvider();
+    const { CURATED_VOICE_SLOTS } = await import("@/lib/voice/voice-pool");
 
     const result = await synthesizeWithElevenLabs("Hola.", undefined, {
-      voiceId: "library-paid-voice",
+      scenarioSlug: "rodrigo",
+      characterName: "Rodrigo Nava",
     });
 
     expect(result.ok).toBe(true);
-    expect(calledUrls()[0]).toContain(ELEVENLABS_DEFAULT_PREMADE_VOICE.id);
+    expect(calledUrls()[0]).toContain(CURATED_VOICE_SLOTS[2].id);
+    expect(calledUrls()[0]).not.toContain("voice-123");
   });
 
   it("never echoes the API key back from an ElevenLabs error body", async () => {
@@ -410,7 +420,6 @@ describe("synthesizeWithElevenLabs", () => {
     ["ELEVENLABS_ENABLED", "false", "elevenlabs_disabled"],
     // No key means the kill switch reads as off, so that reason wins here.
     ["ELEVENLABS_API_KEY", "", "elevenlabs_disabled"],
-    ["ELEVENLABS_VOICE_ID", "", "missing_ELEVENLABS_VOICE_ID"],
   ])("skips the billed call when %s is %s", async (key, value, reason) => {
     vi.stubEnv(key, value);
     const { synthesizeWithElevenLabs } = await loadProvider();

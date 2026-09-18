@@ -23,6 +23,7 @@ export interface CatalogPreset {
   temperament: string;
   winCriteria: string;
   practiceBrief: string;
+  voiceGender: "female" | "male";
   pains: string[];
   openings: [string, string];
   objections: string[];
@@ -46,6 +47,7 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
       "Agenda una revisión de 25 minutos el jueves o viernes, con hora concreta, para ver el tablero de visitas a caseta.",
     practiceBrief:
       "Practica atribuir visitas reales a caseta — no un pitch de branding. Mariana ya tiene agencia y solo abre la agenda si le hablas de CAC y de gente que sí llega al desarrollo.",
+    voiceGender: "female",
     pains: [
       "Costo por prospecto +40%",
       "Formularios que no visitan",
@@ -110,6 +112,7 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
       "Deja un slot de 20 minutos el lunes o martes, con hora, para revisar el plan de dos aperturas de proximidad.",
     practiceBrief:
       "Practica vender tráfico a tienda y venta por m². Rodrigo cuelga si oye branding. Cada pregunta suya es de piso, no de awareness.",
+    voiceGender: "male",
     pains: ["Aperturas de proximidad que no levantan"],
     openings: [
       "Tengo dos minutos. ¿Qué tiene que ver con tráfico a tienda?",
@@ -170,6 +173,7 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
       "Acepta una visita o llamada el miércoles, con hora, para ver el plan de gente en piso — no un reporte de leads.",
     practiceBrief:
       "Practica traducir digital a gente en el showroom. Efraín no cree en clics. Gana si agenda con día y hora un plan de piso, no un dashboard de leads.",
+    voiceGender: "male",
     pains: ["No cree en clics"],
     openings: [
       "El piso está flojo. No me interesan los clics.",

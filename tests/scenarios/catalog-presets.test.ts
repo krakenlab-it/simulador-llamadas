@@ -26,6 +26,11 @@ describe("PREFILLED catalog presets", () => {
     expect(new Set(briefs).size).toBe(3);
     expect(CLIENTS).toHaveLength(3);
     expect(CLIENTS[0].practiceBrief).toContain("caseta");
+    expect(presets.map((item) => item.voiceGender)).toEqual([
+      "female",
+      "male",
+      "male",
+    ]);
   });
 
   it("does not share questions or scripted replies across clients", () => {

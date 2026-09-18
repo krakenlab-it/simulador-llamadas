@@ -27,6 +27,7 @@ describe("VoiceAgentControls Advanced toggle", () => {
     renderControls();
 
     expect(screen.getByRole("radiogroup", { name: "Idioma" })).toBeInTheDocument();
+    expect(screen.getByRole("radiogroup", { name: "Género de voz" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /avanzado/i })).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -47,6 +48,9 @@ describe("VoiceAgentControls Advanced toggle", () => {
       "true",
     );
     expect(screen.getByLabelText("Voz")).toBeInTheDocument();
+    expect(screen.getByLabelText("Conexión ElevenLabs")).toBeInTheDocument();
+    expect(screen.getByText(/ELEVENLABS_API_KEY/)).toBeInTheDocument();
+    expect(screen.getByText(/ELEVENLABS_VOICE_ID_FEMALE_A/)).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "Ritmo" })).toBeInTheDocument();
     expect(
       screen.getByRole("radiogroup", { name: "Personalidad" }),

@@ -16,16 +16,21 @@ import {
 } from "@/lib/voice/brakes";
 
 describe("trainer voice-agent settings", () => {
-  it("defaults to Spanish, Sarah, normal rate, and barge-in off", () => {
+  it("defaults to Spanish, auto gender, and no forced woman voice", () => {
     expect(DEFAULT_VOICE_AGENT_SETTINGS).toEqual({
       language: "es",
-      voiceId: ELEVENLABS_DEFAULT_PREMADE_VOICE.id,
+      voiceGender: "auto",
+      voiceId: "",
+      voiceOverride: false,
       speakingRate: "normal",
       personality: "neutral",
       difficultyLevel: 1,
       bargeIn: false,
       advancedOpen: false,
     });
+    expect(DEFAULT_VOICE_AGENT_SETTINGS.voiceId).not.toBe(
+      ELEVENLABS_DEFAULT_PREMADE_VOICE.id,
+    );
   });
 
   it("only catalogs documented premade voices", () => {
@@ -39,9 +44,9 @@ describe("trainer voice-agent settings", () => {
     expect(isPremadeVoiceId("library-paid-voice")).toBe(false);
   });
 
-  it("falls back to Sarah when a library or unknown voice is requested", () => {
-    expect(resolvePremadeVoiceId("library-paid-voice")).toBe(
-      ELEVENLABS_DEFAULT_PREMADE_VOICE.id,
+  it("falls back to the curated gender pool when a library voice is requested", () => {
+    expect(resolvePremadeVoiceId("library-paid-voice", { scenarioSlug: "rodrigo" })).toBe(
+      PREMADE_VOICES[2].id,
     );
     expect(resolvePremadeVoiceId(PREMADE_VOICES[2].id)).toBe(PREMADE_VOICES[2].id);
   });
@@ -59,7 +64,9 @@ describe("trainer voice-agent settings", () => {
 
     expect(parsed).toEqual({
       language: "en",
+      voiceGender: "auto",
       voiceId: PREMADE_VOICES[1].id,
+      voiceOverride: true,
       speakingRate: "rapido",
       personality: "esceptico",
       difficultyLevel: 3,
@@ -78,7 +85,8 @@ describe("trainer voice-agent settings", () => {
       bargeIn: false,
     });
 
-    expect(parsed.voiceId).toBe(ELEVENLABS_DEFAULT_PREMADE_VOICE.id);
+    expect(parsed.voiceId).toBe("");
+    expect(parsed.voiceOverride).toBe(false);
     expect(parsed.speakingRate).toBe("lento");
   });
 
