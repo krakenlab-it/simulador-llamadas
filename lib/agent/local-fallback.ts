@@ -83,8 +83,8 @@ function shouldProposeScenario(
   if (!trimmed) return false;
   if (session.draft && looksLikeSave(trimmed)) return false;
   if (looksLikeReset(trimmed)) return false;
-  if (looksLikeCompare(trimmed)) return false;
-  if (looksLikeTeams(trimmed)) return false;
+  if (session.draft && looksLikeCompare(trimmed)) return false;
+  if (session.draft && looksLikeTeams(trimmed)) return false;
   return true;
 }
 
