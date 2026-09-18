@@ -123,6 +123,11 @@ describe("ScenarioHub flow", () => {
     expect(
       screen.getByRole("radiogroup", { name: "Dificultad" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Cliente en vivo" })).toBeChecked();
+    expect(
+      screen.getByRole("radiogroup", { name: "Tono del cliente" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/El pack sale del caso/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("Voz")).not.toBeInTheDocument();
     expect(screen.queryByRole("radiogroup", { name: "Ritmo" })).not.toBeInTheDocument();
 
@@ -303,12 +308,15 @@ describe("ScenarioHub flow", () => {
         ...marianaScenarioFixture,
         voiceAgent: {
           language: "en",
+          voiceGender: "auto",
           voiceId: PREMADE_VOICES[2].id,
+          voiceOverride: true,
           speakingRate: "rapido",
           personality: "impaciente",
           difficultyLevel: 3,
           bargeIn: true,
           advancedOpen: true,
+          clientLayer: { motorEnabled: true, toneId: "auto" },
         },
       },
     ]);

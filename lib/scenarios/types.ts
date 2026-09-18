@@ -1,3 +1,4 @@
+import type { CatalogClientPackSeed } from "@/lib/agent/client-layer";
 import type { DifficultyLevel } from "@/lib/db/types";
 import type {
   CallAnalytics,
@@ -63,6 +64,8 @@ export interface ScenarioConfig {
   language?: string;
   callType?: ScenarioCallType;
   dimensionGuides?: DimensionGuides;
+  /** Jaime pack seed — lives in config JSONB so custom slugs keep motor/PACK. */
+  clientPack?: CatalogClientPackSeed;
 }
 
 export interface ScenarioRecord {
@@ -102,6 +105,7 @@ export interface CreateCustomScenarioInput {
   callType?: ScenarioCallType;
   rounds?: ScenarioRoundDef[];
   dimensionGuides?: DimensionGuides;
+  clientPack?: CatalogClientPackSeed;
   traineeId?: string;
 }
 

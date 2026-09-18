@@ -24,7 +24,11 @@ export function AuthScreen({
           </p>
         </header>
 
-        <section className="auth-card" aria-label="Acceso al simulador">
+        <section
+          className="auth-card"
+          aria-label="Acceso al simulador"
+          data-no-focus-trap="true"
+        >
           <p className="auth-kicker">Formación comercial</p>
           <h1 className="auth-title">Accede al simulador</h1>
           <p className="auth-lead">

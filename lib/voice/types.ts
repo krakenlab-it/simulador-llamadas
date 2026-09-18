@@ -37,6 +37,9 @@ export interface TtsSpeakOptions {
   voiceId?: string;
   language?: string;
   speakingRate?: number;
+  voiceGender?: "auto" | "female" | "male";
+  characterName?: string;
+  scenarioSlug?: string;
 }
 
 export interface TtsResult {

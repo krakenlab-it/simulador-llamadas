@@ -72,15 +72,16 @@ export function AuthForm({
   const emailId = `${formId}-email`;
   const passwordId = `${formId}-password`;
   const confirmId = `${formId}-confirm`;
+  const errorId = `${formId}-error`;
+  const hasError = Boolean(fieldError || submitError);
 
   return (
     <form className="auth-form" onSubmit={(event) => void handleSubmit(event)} noValidate>
       {showModeToggle && (
-        <div className="auth-mode-toggle" role="tablist" aria-label="Tipo de acceso">
+        <div className="auth-mode-toggle" role="group" aria-label="Tipo de acceso">
           <button
             type="button"
-            role="tab"
-            aria-selected={mode === "signin"}
+            aria-pressed={mode === "signin"}
             className={mode === "signin" ? "active" : ""}
             onClick={() => {
               onModeChange("signin");
@@ -92,8 +93,7 @@ export function AuthForm({
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={mode === "signup"}
+            aria-pressed={mode === "signup"}
             className={mode === "signup" ? "active" : ""}
             onClick={() => {
               onModeChange("signup");
@@ -122,6 +122,9 @@ export function AuthForm({
             required
             disabled={submitting}
             placeholder="tu@correo.com"
+            autoFocus
+            aria-invalid={hasError || undefined}
+            aria-describedby={hasError ? errorId : undefined}
           />
         </div>
 
@@ -132,6 +135,8 @@ export function AuthForm({
           value={password}
           autoComplete={mode === "signup" ? "new-password" : "current-password"}
           disabled={submitting}
+          invalid={hasError}
+          describedBy={hasError ? errorId : undefined}
           onChange={setPassword}
         />
 
@@ -143,16 +148,18 @@ export function AuthForm({
             value={confirmPassword}
             autoComplete="new-password"
             disabled={submitting}
+            invalid={hasError}
+            describedBy={hasError ? errorId : undefined}
             onChange={setConfirmPassword}
           />
         )}
       </div>
 
-      {(fieldError || submitError) && (
-        <p className="auth-alert" role="alert">
+      {hasError ? (
+        <p id={errorId} className="auth-alert" role="alert">
           {fieldError ?? submitError}
         </p>
-      )}
+      ) : null}
 
       <button type="submit" className="auth-submit" disabled={submitting}>
         {submitting

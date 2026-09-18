@@ -97,10 +97,14 @@ function resolveTtsSpeakOptions(body: {
   voiceId?: string;
   language?: string;
   speakingRate?: number | string;
+  voiceGender?: string;
+  characterName?: string;
+  scenarioSlug?: string;
 }): TtsSpeakOptions | undefined {
   const parsed = parseVoiceAgentSettings({
     voiceId: body.voiceId,
     language: body.language,
+    voiceGender: body.voiceGender,
     speakingRate:
       body.speakingRate === 0.85 || body.speakingRate === "lento"
         ? "lento"
@@ -109,7 +113,16 @@ function resolveTtsSpeakOptions(body: {
           : "normal",
   });
   const options: TtsSpeakOptions = {};
-  if (body.voiceId) options.voiceId = resolvePremadeVoiceId(body.voiceId);
+  if (body.voiceId) {
+    options.voiceId = resolvePremadeVoiceId(body.voiceId, {
+      genderPreference: parsed.voiceGender,
+      characterName: body.characterName,
+      scenarioSlug: body.scenarioSlug,
+    });
+  }
+  if (body.characterName) options.characterName = body.characterName;
+  if (body.scenarioSlug) options.scenarioSlug = body.scenarioSlug;
+  if (parsed.voiceGender !== "auto") options.voiceGender = parsed.voiceGender;
   if (body.language) options.language = parsed.language;
   if (body.speakingRate !== undefined && body.speakingRate !== "") {
     const numeric =

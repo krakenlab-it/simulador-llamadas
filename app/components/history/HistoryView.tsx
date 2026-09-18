@@ -105,7 +105,11 @@ export function HistoryView({
         ) : null}
       </header>
 
-      {error ? <p className="dashboard-home__error">{error}</p> : null}
+      {error ? (
+        <p className="dashboard-home__error" role="alert">
+          {error}
+        </p>
+      ) : null}
 
       {rows.length === 0 ? (
         <EmptyState

@@ -1,7 +1,13 @@
+import type { ClientLayerSettings } from "@/lib/agent/client-layer";
+import type { ConversationTurn } from "@/lib/agent/client-motor";
+import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import type { ClientReaction } from "@/lib/scoring/rondas";
 import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { templateClientReply } from "@/lib/feedback/evaluation";
+import { isDeepSeekAvailable } from "@/lib/agent/availability";
+import { generateImpersonatedReply } from "@/lib/agent/impersonation";
 import { callLlm, isLlmAvailable } from "@/lib/llm/provider";
+import { getCatalogPreset } from "@/lib/scenarios/catalog-presets";
 import {
   buildLanguageLockSystemPrompt,
   resolveScenarioLanguage,
@@ -18,6 +24,11 @@ export interface GenerateReplyInput {
   clientName: string;
   traineeUtterance: string;
   roundNumber: number;
+  scenarioSlug?: string;
+  priorTurns?: ConversationTurn[];
+  difficultyLevel?: DifficultyLevel;
+  mode?: PracticeMode;
+  clientLayer?: ClientLayerSettings;
 }
 
 async function callGroq(
@@ -73,6 +84,13 @@ export function buildClientReplyPrompt(input: GenerateReplyInput): string {
       : `Ronda: ${input.round.label}.`;
   const goodLooksLike = input.round.whatGoodLooksLike?.trim();
 
+  const preset = input.scenarioSlug
+    ? getCatalogPreset(input.scenarioSlug)
+    : undefined;
+  const questionHint = preset?.questionBank[0]
+    ? `Si preguntas, usa un ángulo de este cliente: ${preset.questionBank[0]} No copies las réplicas de otros clientes.`
+    : "No repitas la misma pregunta. Cambia el ángulo.";
+
   return `Eres ${input.clientName}, cliente en ${input.config.industry}.
 Problema: ${input.config.clientProblem}.
 Vendes/compras: ${input.config.productSold}.
@@ -82,6 +100,7 @@ ${turnLabel}
 ${goodLooksLike ? `En esta fase, una buena respuesta del vendedor se ve así: ${goodLooksLike}.` : ""}
 El vendedor dijo: "${input.traineeUtterance}".
 Responde en 1-2 oraciones cortas, tono ${mood}.
+${questionHint}
 Solo la réplica del cliente, sin comillas ni explicación.`;
 }
 
@@ -133,6 +152,14 @@ export async function generateClientReply(
       input.reaction,
       input.clientName,
     );
+
+  if (input.clientLayer?.motorEnabled === false) {
+    return fallback;
+  }
+
+  if (isDeepSeekAvailable()) {
+    return generateImpersonatedReply(input, fallback);
+  }
 
   if (!isLlmAvailable()) return fallback;
 

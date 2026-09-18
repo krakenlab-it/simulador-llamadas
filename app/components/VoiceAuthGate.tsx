@@ -22,6 +22,14 @@ export function VoiceAuthGate({ onVerified, onSkip }: VoiceAuthGateProps) {
   onVerifiedRef.current = onVerified;
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onSkip();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onSkip]);
+
+  useEffect(() => {
     if (!session?.user.email) return;
 
     let cancelled = false;
@@ -54,13 +62,21 @@ export function VoiceAuthGate({ onVerified, onSkip }: VoiceAuthGateProps) {
   if (registerError) {
     return (
       <p className="auth-alert" role="alert">
-        {registerError}
+        {registerError}{" "}
+        <button type="button" className="auth-text-link" onClick={onSkip}>
+          Usar voz del navegador
+        </button>
       </p>
     );
   }
 
   return (
-    <div className="auth-card auth-card-inline" aria-label="Acceso a voz con IA">
+    <div
+      className="auth-card auth-card-inline"
+      role="region"
+      aria-label="Acceso a voz con IA"
+      data-no-focus-trap="true"
+    >
       <p className="auth-kicker">Voz con IA</p>
       <h3 className="auth-title auth-title-sm">Acceso a ElevenLabs</h3>
       <p className="auth-lead">

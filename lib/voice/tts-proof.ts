@@ -13,14 +13,12 @@ const CURSOR_ARTIFACTS_ROOT = "/opt/cursor/artifacts";
 export function isTtsProofEnvReady(): boolean {
   const enabled = process.env.ELEVENLABS_ENABLED?.trim().toLowerCase();
   if (enabled === "false" || enabled === "0" || enabled === "no") return false;
-  return Boolean(
-    process.env.ELEVENLABS_API_KEY?.trim() && process.env.ELEVENLABS_VOICE_ID?.trim(),
-  );
+  return Boolean(process.env.ELEVENLABS_API_KEY?.trim());
 }
 
 export function ttsProofSkipMessage(): string {
   return (
-    "Skipping TTS proof: set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID " +
+    "Skipping TTS proof: set ELEVENLABS_API_KEY " +
     "(ELEVENLABS_ENABLED must not be false) to run a live ElevenLabs synthesis."
   );
 }

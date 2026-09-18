@@ -4,6 +4,8 @@ import {
   temperamentWithPersonality,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
+import { isDeepSeekAvailable } from "@/lib/agent/availability";
+import { generateImpersonatedReply } from "@/lib/agent/impersonation";
 import {
   generateClientReply,
   generateGroqClientReply,
@@ -128,6 +130,32 @@ function resolveScoringRoundType(input: LiveTurnInput): RoundType | null {
   return isClinicRoundType(phaseKey) ? phaseKey : null;
 }
 
+function priorTurnsFromLines(
+  priorLines: TranscriptLine[],
+): { role: "trainee" | "client"; text: string }[] {
+  return priorLines
+    .filter((line) => line.role === "client" || line.role === "trainee")
+    .map((line) => ({
+      role: line.role === "client" ? "client" : "trainee",
+      text: line.text,
+    }));
+}
+
+function buildImpersonationHistory(priorLines: TranscriptLine[]): {
+  recentReplies: string[];
+  askedQuestions: string[];
+} {
+  const clientLines = priorLines
+    .filter((line) => line.role === "client")
+    .map((line) => line.text.trim())
+    .filter(Boolean);
+  const askedQuestions = clientLines.filter((text) => text.includes("?"));
+  return {
+    recentReplies: clientLines.slice(-4),
+    askedQuestions,
+  };
+}
+
 export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
   const analytics = computeTurnAnalytics({
     utterance: input.utterance,
@@ -155,29 +183,42 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     );
 
     clientReply = templatedReply;
-    if (isGroqAvailable()) {
-      const presetConfig = applyVoiceAgentPersonality(
-        buildPresetScenarioConfig(input.scenarioSlug),
-        input.voiceAgent,
-      );
-      if (presetConfig) {
-        const roundDef: ScenarioRoundDef = {
-          key: roundType,
-          label: ROUND_LABELS[roundType] ?? input.roundLabel,
-          goal: ROUND_EXPECTED[roundType],
-          clientPrompt: templatedReply,
-          positiveCriteria: [],
-          negativeCriteria: [],
-        };
+    const presetConfig = applyVoiceAgentPersonality(
+      buildPresetScenarioConfig(input.scenarioSlug),
+      input.voiceAgent,
+    );
+    if (presetConfig) {
+      const roundDef: ScenarioRoundDef = {
+        key: roundType,
+        label: ROUND_LABELS[roundType] ?? input.roundLabel,
+        goal: ROUND_EXPECTED[roundType],
+        clientPrompt: templatedReply,
+        positiveCriteria: [],
+        negativeCriteria: [],
+      };
+      const impersonationInput = {
+        config: presetConfig,
+        round: roundDef,
+        reaction: clientReaction,
+        clientName: input.clientName,
+        traineeUtterance: input.utterance,
+        roundNumber: resolveTurnNumber(input),
+        scenarioSlug: input.scenarioSlug,
+        priorTurns: priorTurnsFromLines(input.priorLines),
+        difficultyLevel: input.difficultyLevel,
+        mode: "voz" as const,
+        clientLayer: input.voiceAgent?.clientLayer,
+      };
+      const motorOn = input.voiceAgent?.clientLayer?.motorEnabled !== false;
+      if (motorOn && isDeepSeekAvailable()) {
+        const history = buildImpersonationHistory(input.priorLines);
+        clientReply = await generateImpersonatedReply(
+          { ...impersonationInput, ...history },
+          templatedReply,
+        );
+      } else if (motorOn && isGroqAvailable()) {
         clientReply = await generateGroqClientReply(
-          {
-            config: presetConfig,
-            round: roundDef,
-            reaction: clientReaction,
-            clientName: input.clientName,
-            traineeUtterance: input.utterance,
-            roundNumber: resolveTurnNumber(input),
-          },
+          impersonationInput,
           templatedReply,
         );
       }
@@ -202,6 +243,10 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       clientName: input.clientName,
       traineeUtterance: input.utterance,
       roundNumber: resolveTurnNumber(input),
+      priorTurns: priorTurnsFromLines(input.priorLines),
+      difficultyLevel: input.difficultyLevel,
+      mode: "voz",
+      clientLayer: input.voiceAgent?.clientLayer,
     });
   } else {
     clientReply = "Entiendo. Siga.";

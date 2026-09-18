@@ -78,8 +78,31 @@ Ver `.env.example`. Nunca commitear valores reales.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública (cliente) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave de servicio (solo servidor) |
 | `DATABASE_URL` | Postgres directo (tests de migración en CI) |
+| `AI_GATEWAY_API_KEY` | Camino feliz: Vercel AI Gateway sirviendo DeepSeek |
+| `VERCEL_OIDC_TOKEN` | Auth Gateway vía OIDC (`vercel env pull`; automático en Vercel) |
+| `GROQ_API_KEY` | Fallback de modelo |
+| `GOOGLE_API_KEY` | Fallback Gemini |
+| `DEEPSEEK_API_KEY` | Último recurso opcional — no es el camino principal |
+| `ELEVENLABS_API_KEY` | TTS facturado; la voz sale del pool por género |
+| `ELEVENLABS_VOICE_ID_FEMALE_A` / `_B` / `_MALE_A` / `_B` | Overrides opcionales del pool |
 | `ELEVENLABS_CONVAI_ENABLED` | Opt-in del agente ConvAI (vacío = llamada con micrófono del navegador + TTS) |
 | `NEXT_PUBLIC_APP_URL` | URL base de la app |
+
+### KAN-91 — harness, equipos y PREFILLED
+
+- **Backend** owns the AI SDK harness (`lib/agent`), teams (`lib/teams`) and same-test comparison.
+- **Happy path:** Vercel AI SDK through Vercel AI Gateway. DeepSeek is the model the gateway serves (`deepseek/deepseek-v4-flash`). Auth: `AI_GATEWAY_API_KEY` or `VERCEL_OIDC_TOKEN`. Fallbacks: Groq, Gemini, last-resort direct `DEEPSEEK_API_KEY`, then local (no spend).
+- **Roles:** agent / user / context stay in separate channels. The frontend does not invent comparison text.
+- **Frontend:** Agente = first-run auto setup + Settings. Equipos = create team, add members, same exam, compare.
+- **PREFILLED:** Mariana, Rodrigo and Efraín keep their names; the situations are rewritten so each one asks different questions.
+- **Voice:** TTS follows character gender (2 female + 2 male premade voices). Settings expose language (es/en) and ElevenLabs env names only. Flash still normalizes `es-MX` → `es`.
+
+Smoke:
+
+1. `npm run dev` → **Entrenar** and start Mariana / Rodrigo / Efraín (ready without chat).
+2. **Agente** → leave Settings on auto → send `Crea un gerente de banco que no quiere pauta digital` → save.
+3. Optional: set `AI_GATEWAY_API_KEY` (or `vercel env pull` for `VERCEL_OIDC_TOKEN`) and repeat — runtime should report Gateway → DeepSeek.
+4. **Equipos** → create team, add Jaime + another member, create the same Mariana exam, enter two scores, **Comparar**.
 
 ### Esquema de base de datos
 
@@ -92,6 +115,7 @@ call_attempts     → intentos de llamada (nivel 1|2|3, modo voz|texto)
 call_turns        → 5 turnos por llamada
 turn_scores       → puntuación por ronda (keywords JSON)
 call_history (vista) → historial agregado (reemplaza localStorage clinicav2:historial)
+practice_teams / members / tests / results → mismo examen y comparación (KAN-91)
 ```
 
 **Palabras clave de scoring:** problema, medición, jerga, reconocimiento, descalifica, gratis, reunión, día/hora, monólogo, telegrama.
@@ -102,7 +126,7 @@ call_history (vista) → historial agregado (reemplaza localStorage clinicav2:hi
 
 1. Entrada de voz: Web Speech API del navegador.
 2. Un `POST /api/sessions/:id/turns` por ronda; ahí vuelven la puntuación y la respuesta del cliente.
-3. Salida de voz: TTS de ElevenLabs por `/api/voice/tts` cuando la sesión de voz facturada está activa; voz del navegador si no.
+3. Salida de voz: TTS de ElevenLabs por `/api/voice/tts` cuando hay `ELEVENLABS_API_KEY`. La voz sigue el género del personaje (pool de 2 mujeres + 2 hombres). `language_code` de Flash se normaliza `es-MX` → `es`. STT sigue en `es-MX`. Sin clave: voz del navegador.
 
 El agente ConvAI es opcional (`ELEVENLABS_CONVAI_ENABLED=true`) y solo se hace cargo del audio mientras está conectado. Apagado, la llamada funciona igual.
 

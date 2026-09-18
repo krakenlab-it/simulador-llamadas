@@ -35,6 +35,29 @@ import {
   parseVoiceAgentSettings,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
+import { AGENT_PRESETS } from "@/lib/agent/presets";
+import {
+  DEFAULT_AGENT_SETTINGS,
+  parseAgentHarnessSettings,
+} from "@/lib/agent/settings";
+import { AGENT_TOOL_CATALOG, createToolSession } from "@/lib/agent/tools";
+import { AGENT_ENV_NAMES } from "@/lib/agent/availability";
+import { DEFAULT_GATEWAY_DEEPSEEK_MODEL } from "@/lib/agent/models";
+import { runLocalAgentTurn } from "@/lib/agent/local-fallback";
+import { composeRuntimeSystemPrompt } from "@/lib/agent/prompts";
+import { packAgentContext } from "@/lib/agent/context";
+import type { AgentChatRequest } from "@/lib/agent/types";
+import { buildDeterministicComparison } from "@/lib/teams/comparison";
+import {
+  memoryAddMember,
+  memoryCreateTeam,
+  memoryCreateTest,
+  memoryFindTest,
+  memoryGetSnapshot,
+  memoryListResults,
+  memoryListTeams,
+  memoryRecordResult,
+} from "@/lib/teams/memory";
 
 export interface CreateSessionRequest {
   scenarioSlug: string;
@@ -618,4 +641,115 @@ export function resetStubSessions(): void {
   traineeIdByEmail.clear();
   voiceAgentBySlug.clear();
   customScenarios.clear();
+}
+
+export function stubGetAgentHarness() {
+  return {
+    defaultSettings: DEFAULT_AGENT_SETTINGS,
+    defaultModel: DEFAULT_GATEWAY_DEEPSEEK_MODEL,
+    presets: Object.values(AGENT_PRESETS),
+    tools: AGENT_TOOL_CATALOG,
+    availability: {
+      deepseek: false,
+      groq: false,
+      gemini: false,
+      gateway: false,
+      hasModel: false,
+    },
+    envNames: AGENT_ENV_NAMES,
+  };
+}
+
+export async function stubRunAgentChat(body: AgentChatRequest) {
+  const settings = {
+    ...parseAgentHarnessSettings(body.settings),
+    runtime: "local" as const,
+  };
+  const contextPack = packAgentContext({
+    settings,
+    catalog: body.catalog,
+    draft: body.draft,
+  });
+  const composed = composeRuntimeSystemPrompt({ settings, contextPack });
+  return runLocalAgentTurn({
+    request: { ...body, settings },
+    session: createToolSession({
+      draft: body.draft,
+      catalog: body.catalog,
+      settings,
+      teamId: body.teamId ?? null,
+      testId: body.testId ?? null,
+    }),
+    systemPromptUsed: composed.systemPrompt,
+    contextPack,
+    roles: composed.roles,
+  });
+}
+
+export async function stubListTeams() {
+  return memoryListTeams();
+}
+
+export async function stubCreateTeam(input: {
+  name: string;
+  createdBy?: string | null;
+}) {
+  return memoryCreateTeam(input);
+}
+
+export async function stubGetTeam(teamId: string) {
+  return memoryGetSnapshot(teamId);
+}
+
+export async function stubAddTeamMember(
+  teamId: string,
+  input: { displayName: string; email?: string | null },
+) {
+  return memoryAddMember(teamId, input);
+}
+
+export async function stubCreateTeamTest(
+  teamId: string,
+  input: { scenarioSlug: string; title?: string },
+) {
+  return memoryCreateTest(teamId, input);
+}
+
+export async function stubRecordTeamResult(
+  testId: string,
+  input: {
+    memberId: string;
+    totalScore: number;
+    won?: boolean;
+    turnsCompleted?: number;
+    notes?: string;
+  },
+) {
+  return memoryRecordResult(testId, input);
+}
+
+export async function stubCompareTeamTest(teamId: string, testId: string) {
+  const snapshot = memoryGetSnapshot(teamId);
+  const test = memoryFindTest(testId);
+  if (!test || test.teamId !== teamId) {
+    throw new Error("Examen no encontrado en este equipo.");
+  }
+  const results = memoryListResults(testId);
+  return buildDeterministicComparison({
+    teamName: snapshot.team.name,
+    teamId,
+    testId,
+    scenarioSlug: test.scenarioSlug,
+    title: test.title,
+    members: snapshot.members.map((member) => {
+      const result = results.find((item) => item.memberId === member.id);
+      return {
+        memberId: member.id,
+        displayName: member.displayName,
+        totalScore: result?.totalScore ?? 0,
+        won: result?.won ?? false,
+        turnsCompleted: result?.turnsCompleted ?? 0,
+      };
+    }),
+  });
 }

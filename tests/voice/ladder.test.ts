@@ -153,28 +153,27 @@ describe("voice ladder — ElevenLabs", () => {
     expect(resolveVoiceLadder().elevenlabsBilledAvailable).toBe(false);
   });
 
-  it("uses ElevenLabs TTS only when key and voice id are both set", () => {
+  it("uses ElevenLabs TTS when the API key is set — curated pool, no single voice env", () => {
     clearVoiceEnv();
     process.env.ELEVENLABS_API_KEY = "el-test";
-    process.env.ELEVENLABS_VOICE_ID = "voice-123";
 
     expect(resolveTtsTier()).toBe("elevenlabs");
   });
 
-  it("falls back to browser TTS when voice id is missing", () => {
+  it("keeps billed TTS without ELEVENLABS_VOICE_ID", () => {
     clearVoiceEnv();
     process.env.ELEVENLABS_API_KEY = "el-test";
     process.env.GOOGLE_API_KEY = "g-test";
 
-    expect(resolveTtsTier()).toBe("browser");
+    expect(resolveTtsTier()).toBe("elevenlabs");
   });
 
-  it("falls back to browser TTS when voice id missing even with GCP creds", () => {
+  it("uses ElevenLabs TTS without a global voice id even with GCP creds", () => {
     clearVoiceEnv();
     process.env.ELEVENLABS_API_KEY = "el-test";
     process.env.GOOGLE_APPLICATION_CREDENTIALS = "/tmp/fake-sa.json";
 
-    expect(resolveTtsTier()).toBe("browser");
+    expect(resolveTtsTier()).toBe("elevenlabs");
   });
 });
 

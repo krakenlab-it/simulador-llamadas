@@ -1,3 +1,7 @@
+import {
+  parseCatalogClientPackSeed,
+  type CatalogClientPackSeed,
+} from "@/lib/agent/client-layer";
 import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
 import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
@@ -38,6 +42,7 @@ export interface ScenarioAuthoringDraft {
   callType: ScenarioCallType;
   rounds: ScenarioRoundDef[];
   dimensionGuides: DimensionGuides;
+  clientPack?: CatalogClientPackSeed;
 }
 
 export function defaultScenarioLanguage(): ScenarioLanguage {
@@ -345,6 +350,7 @@ export function draftFromRecord(record: ScenarioRecord): ScenarioAuthoringDraft 
       ...defaults,
       ...(record.config.dimensionGuides ?? {}),
     },
+    clientPack: parseCatalogClientPackSeed(record.config.clientPack),
   };
 }
 
@@ -464,6 +470,7 @@ export function draftToCreateInput(
       if (text) acc[dim.id] = text;
       return acc;
     }, {}),
+    clientPack: parseCatalogClientPackSeed(draft.clientPack),
   };
 }
 
@@ -496,6 +503,7 @@ export function parseAuthoringBody(
     callType,
     rounds: body.rounds ?? [],
     dimensionGuides: body.dimensionGuides ?? defaultDimensionGuides(language),
+    clientPack: parseCatalogClientPackSeed(body.clientPack),
   };
 
   const error = validateAuthoringDraft(draft);
@@ -518,6 +526,7 @@ export function buildAuthoredScenarioConfig(
     callType: resolveScenarioCallType(input.callType),
     rounds: input.rounds,
     dimensionGuides: input.dimensionGuides,
+    clientPack: parseCatalogClientPackSeed(input.clientPack),
   });
 }
 
