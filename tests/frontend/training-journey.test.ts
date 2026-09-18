@@ -79,9 +79,9 @@ describe("training journey (main user flow)", () => {
     expect(flow.phase).toBe("idle");
   });
 
-  it("lands on home after login-style reset", () => {
-    const home = initialFlowState();
-    expect(home.view).toBe("home");
+  it("lands on Entrenar after login-style reset", () => {
+    const train = initialFlowState();
+    expect(train.view).toBe("train");
   });
 
   it("supports early hang up with partial scoring", async () => {

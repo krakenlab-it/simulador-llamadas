@@ -49,8 +49,42 @@ describe("AgentHarnessScreen", () => {
     expect(
       screen.getByRole("button", { name: /Practicar Mariana Escobedo/i }),
     ).toBeInTheDocument();
+    expect(screen.getByText(/Ejemplos para armar/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cargar Kraken Flow/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cargar Me We/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cargar Wellness/i })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /Mostrar todos los ajustes/i }));
     expect(screen.getByText(/System prompt/i)).toBeInTheDocument();
+  });
+
+  it("loads a Jaime example pack and saves it as a custom case", async () => {
+    const user = userEvent.setup();
+    getAgentHarness.mockResolvedValue({ availability: { hasModel: false } });
+    listScenarios.mockResolvedValue([]);
+    createScenario.mockResolvedValue({ slug: "valeria-soto-kraken-flow" });
+    const onSaved = vi.fn();
+
+    render(
+      <ToastProvider>
+        <AgentHarnessScreen onScenarioSaved={onSaved} onPracticePreset={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Cargar Kraken Flow/i }));
+    expect(
+      await screen.findByRole("heading", { name: /Borrador propuesto/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Éxito: Mesa de trabajo el jueves/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Guardar y practicar" }));
+    await waitFor(() =>
+      expect(onSaved).toHaveBeenCalledWith("valeria-soto-kraken-flow"),
+    );
+    expect(createScenario).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientName: "Valeria Soto",
+        productSold: expect.stringMatching(/Kraken Flow/i),
+      }),
+    );
   });
 
   it("chats, shows a draft, and saves", async () => {
@@ -89,8 +123,8 @@ describe("AgentHarnessScreen", () => {
       "Crea un gerente de banco que no quiere pauta digital",
     );
     await user.click(screen.getByRole("button", { name: "Enviar" }));
-    expect(await screen.findByText(/Borrador propuesto/i)).toBeInTheDocument();
-    expect(screen.getByText(/Laura/)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Borrador propuesto/i })).toBeInTheDocument();
+    expect(screen.getByText(/Banca —/i)).toBeInTheDocument();
 
     runAgentChat.mockResolvedValueOnce({
       assistantMessage: { role: "assistant", content: "Guardado" },

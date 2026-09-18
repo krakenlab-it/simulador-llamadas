@@ -88,13 +88,6 @@ describe("session start failure", () => {
     render(<SimulatorApp />);
 
     await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: "Nueva práctica" }),
-      ).toBeInTheDocument();
-    });
-    await user.click(screen.getByRole("button", { name: "Nueva práctica" }));
-
-    await waitFor(() => {
       expect(screen.getByRole("button", { name: /Mariana Escobedo/i })).toBeInTheDocument();
     });
 
@@ -124,13 +117,6 @@ describe("session start failure", () => {
 
     const user = userEvent.setup();
     render(<SimulatorApp />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: "Nueva práctica" }),
-      ).toBeInTheDocument();
-    });
-    await user.click(screen.getByRole("button", { name: "Nueva práctica" }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Mariana Escobedo/i })).toBeInTheDocument();

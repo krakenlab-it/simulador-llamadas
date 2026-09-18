@@ -26,7 +26,15 @@ import type {
 } from "@/lib/agent/types";
 import { useDocumentLang } from "@/lib/a11y/document-lang";
 import { listCatalogPresets } from "@/lib/scenarios/catalog-presets";
-import type { ScenarioAuthoringDraft } from "@/lib/scenarios/authoring";
+import {
+  draftToCreateInput,
+  validateAuthoringDraft,
+  type ScenarioAuthoringDraft,
+} from "@/lib/scenarios/authoring";
+import {
+  listExamplePacks,
+  type ExamplePack,
+} from "@/lib/scenarios/example-packs";
 
 interface AgentHarnessScreenProps {
   onScenarioSaved: (slug: string) => void;
@@ -53,6 +61,7 @@ export function AgentHarnessScreen({
   const [composer, setComposer] = useState("");
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingExample, setSavingExample] = useState(false);
 
   useEffect(() => {
     setSettings(readStoredAgentSettings(window.localStorage));
@@ -71,6 +80,7 @@ export function AgentHarnessScreen({
   }, [hydrated, settings]);
 
   const presets = useMemo(() => listCatalogPresets(), []);
+  const examplePacks = useMemo(() => listExamplePacks(), []);
   useDocumentLang(settings.voiceAgent.language);
 
   const send = async (text: string) => {
@@ -138,23 +148,57 @@ export function AgentHarnessScreen({
     }
   };
 
+  const loadExample = (pack: ExamplePack) => {
+    setDraft(pack.draft);
+    setMessages([
+      {
+        role: "assistant",
+        content: `Cargué ${pack.label}: ${pack.draft.clientName}. Revisa el pack y guárdalo, o práctica un caso de la clínica.`,
+      },
+    ]);
+  };
+
+  const saveExample = async () => {
+    if (!draft) return;
+    const invalid = validateAuthoringDraft(draft);
+    if (invalid) {
+      showToast(invalid, "error");
+      return;
+    }
+    setSavingExample(true);
+    try {
+      const saved = await createScenario(draftToCreateInput(draft));
+      onScenarioSaved(saved.slug);
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "No se pudo guardar el ejemplo.",
+        "error",
+      );
+    } finally {
+      setSavingExample(false);
+    }
+  };
+
   return (
     <div className="agent-harness">
       <header className="page-hero">
-        <p className="page-hero__eyebrow">Modo automático</p>
+        <p className="page-hero__eyebrow">Arranque guiado</p>
         <h1 className="page-hero__title">Arma el escenario o practica ya</h1>
         <p className="page-hero__subtitle">
-          Un flujo: elige el caso, el pack ya viene armado, eliges tono e
-          idioma, practicas y comparas al equipo en el mismo examen. El coach
-          no habla con la voz del cliente. Camino feliz: Vercel AI Gateway →
-          DeepSeek.
+          Tres pasos: elige un caso listo o un ejemplo (Kraken Flow, Me We,
+          Wellness), revisa tono y si el cliente vive, practica. Luego compara
+          al equipo. Camino feliz: Vercel AI Gateway → DeepSeek.
         </p>
       </header>
 
+      <ol className="agent-onboarding" aria-label="Cómo empezar">
+        <li>Elige un caso de la clínica o un ejemplo</li>
+        <li>Revisa tono e idioma — el pack ya viene armado</li>
+        <li>Practica y compara al equipo en el mismo examen</li>
+      </ol>
+
       <section className="agent-prefilled" aria-labelledby="agent-prefilled-title">
-        <h2 id="agent-prefilled-title" className="visually-hidden">
-          Casos listos para practicar
-        </h2>
+        <h2 id="agent-prefilled-title">Clínica — listos para llamar</h2>
         {presets.map((preset) => (
           <Card key={preset.slug} className="agent-prefilled__card">
             <h3>{preset.name}</h3>
@@ -167,6 +211,30 @@ export function AgentHarnessScreen({
             </Button>
           </Card>
         ))}
+      </section>
+
+      <section className="agent-examples" aria-labelledby="agent-examples-title">
+        <h2 id="agent-examples-title">Ejemplos para armar</h2>
+        <p className="agent-settings__hint">
+          Lo que Jaime usa para probar al equipo: Kraken Flow, Me We, Wellness y
+          Global Green. Se guardan como caso propio — no tocan la clínica de
+          tres.
+        </p>
+        <div className="agent-prefilled">
+          {examplePacks.map((pack) => (
+            <Card key={pack.id} className="agent-prefilled__card">
+              <p className="agent-examples__label">{pack.label}</p>
+              <h3>{pack.draft.clientName}</h3>
+              <p>
+                {pack.draft.clientTitle} · {pack.draft.companyContext}
+              </p>
+              <p>{pack.practiceBrief}</p>
+              <Button onClick={() => loadExample(pack)}>
+                Cargar {pack.label}
+              </Button>
+            </Card>
+          ))}
+        </div>
       </section>
 
       <div className="agent-harness__grid">
@@ -226,13 +294,24 @@ export function AgentHarnessScreen({
               <p>
                 {draft.industry} — {draft.clientProblem}
               </p>
-              <Button
-                variant="primary"
-                loading={saving}
-                onClick={() => void saveDraft()}
-              >
-                Guardar escenario
-              </Button>
+              <p>
+                Éxito: {draft.winCriteria}
+              </p>
+              <div className="team-actions">
+                <Button
+                  variant="primary"
+                  loading={savingExample}
+                  onClick={() => void saveExample()}
+                >
+                  Guardar y practicar
+                </Button>
+                <Button
+                  loading={saving}
+                  onClick={() => void saveDraft()}
+                >
+                  Guardar escenario
+                </Button>
+              </div>
             </Card>
           ) : null}
 

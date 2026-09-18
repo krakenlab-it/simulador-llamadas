@@ -18,19 +18,19 @@ import {
 } from "@/lib/frontend/flow";
 
 describe("app flow state machine", () => {
-  it("starts on the home dashboard with idle phase", () => {
+  it("starts on Entrenar with idle phase", () => {
     const state = initialFlowState();
-    expect(state.view).toBe("home");
+    expect(state.view).toBe("train");
     expect(state.phase).toBe("idle");
     expect(state.hasActiveSession).toBe(false);
   });
 
   it("allows navigation between home and train when idle", () => {
     const state = initialFlowState();
-    expect(canNavigateTo(state, "train")).toBe(true);
-    const train = navigate(state, "train");
-    expect(train.view).toBe("train");
-    expect(navigate(train, "home").view).toBe("home");
+    expect(canNavigateTo(state, "home")).toBe(true);
+    const home = navigate(state, "home");
+    expect(home.view).toBe("home");
+    expect(navigate(home, "train").view).toBe("train");
   });
 
   it("blocks navigation while starting a call", () => {
@@ -95,7 +95,7 @@ describe("app flow state machine", () => {
     expect(closeAgent(agent).view).toBe("train");
     const teams = openTeams(home);
     expect(teams.view).toBe("teams");
-    expect(closeTeams(teams).view).toBe("home");
+    expect(closeTeams(teams).view).toBe("train");
     expect(openAgent(enterCall())).toEqual(enterCall());
   });
 

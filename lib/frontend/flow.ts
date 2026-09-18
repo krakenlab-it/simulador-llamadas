@@ -24,7 +24,7 @@ export interface FlowState {
 
 export function initialFlowState(): FlowState {
   return {
-    view: "home",
+    view: "train",
     phase: "idle",
     hasActiveSession: false,
   };
@@ -90,7 +90,11 @@ export function finishEvaluating(state: FlowState): FlowState {
 }
 
 export function resetToHome(): FlowState {
-  return initialFlowState();
+  return {
+    view: "home",
+    phase: "idle",
+    hasActiveSession: false,
+  };
 }
 
 export function resetToTrain(): FlowState {
@@ -128,5 +132,5 @@ export function openTeams(state: FlowState): FlowState {
 
 export function closeTeams(state: FlowState): FlowState {
   if (state.view !== "teams") return state;
-  return { ...state, view: "home" };
+  return { ...state, view: "train" };
 }
