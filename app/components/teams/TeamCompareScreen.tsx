@@ -401,7 +401,13 @@ export function TeamCompareScreen({
                 <tr key={member.memberId}>
                   <th scope="row">{member.displayName}</th>
                   <td>{member.totalScore} pts</td>
-                  <td>{member.won ? "Ganó" : "Pendiente"}</td>
+                  <td>
+                    {member.turnsCompleted === 0
+                      ? "Pendiente"
+                      : member.won
+                        ? "Ganó"
+                        : "No ganó"}
+                  </td>
                 </tr>
               ))}
             </tbody>

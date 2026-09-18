@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useId, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { useDocumentLang } from "@/lib/a11y/document-lang";
 import { nextRovingValue } from "@/lib/a11y/roving-options";
 import { useToast } from "@/components/ui/Toast";
@@ -96,6 +102,8 @@ export function ScenarioHub({
   const libraryTabId = useId();
   const customTabId = useId();
   const scenarioPanelId = useId();
+  const libraryTabRef = useRef<HTMLButtonElement>(null);
+  const customTabRef = useRef<HTMLButtonElement>(null);
   useDocumentLang(voiceAgent.language);
 
   useEffect(() => {
@@ -326,10 +334,12 @@ export function ScenarioHub({
           if (!next) return;
           event.preventDefault();
           setTab(next);
+          (next === "library" ? libraryTabRef : customTabRef).current?.focus();
         }}
       >
         <button
           type="button"
+          ref={libraryTabRef}
           id={libraryTabId}
           role="tab"
           aria-selected={tab === "library"}
@@ -342,6 +352,7 @@ export function ScenarioHub({
         </button>
         <button
           type="button"
+          ref={customTabRef}
           id={customTabId}
           role="tab"
           aria-selected={tab === "custom"}
