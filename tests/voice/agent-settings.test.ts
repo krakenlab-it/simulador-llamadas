@@ -27,6 +27,7 @@ describe("trainer voice-agent settings", () => {
       difficultyLevel: 1,
       bargeIn: false,
       advancedOpen: false,
+      clientLayer: { motorEnabled: true, toneId: "auto" },
     });
     expect(DEFAULT_VOICE_AGENT_SETTINGS.voiceId).not.toBe(
       ELEVENLABS_DEFAULT_PREMADE_VOICE.id,
@@ -72,6 +73,18 @@ describe("trainer voice-agent settings", () => {
       difficultyLevel: 3,
       bargeIn: true,
       advancedOpen: false,
+      clientLayer: { motorEnabled: true, toneId: "auto" },
+    });
+  });
+
+  it("round-trips live-client knobs on the same voice-agent payload", () => {
+    const parsed = parseVoiceAgentSettings({
+      language: "es",
+      clientLayer: { motorEnabled: false, toneId: "suave" },
+    });
+    expect(parsed.clientLayer).toEqual({
+      motorEnabled: false,
+      toneId: "suave",
     });
   });
 

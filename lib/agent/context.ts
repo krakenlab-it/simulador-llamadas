@@ -1,4 +1,5 @@
 import type { ScenarioAuthoringDraft } from "@/lib/scenarios/authoring";
+import { DEFAULT_CLIENT_LAYER_SETTINGS } from "./client-layer";
 import type { AgentHarnessSettings, PublicScenarioSummary } from "./types";
 
 const CATALOG_LIMIT = 12;
@@ -35,6 +36,7 @@ export function packAgentContext(input: {
 
   if (input.settings.includeVoiceSettings) {
     const voice = input.settings.voiceAgent;
+    const layer = voice.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS;
     sections.push(
       [
         "Voz del cliente simulado:",
@@ -43,6 +45,8 @@ export function packAgentContext(input: {
         `- Ritmo: ${voice.speakingRate}`,
         `- Dificultad: ${voice.difficultyLevel}`,
         `- Barge-in: ${voice.bargeIn ? "sí" : "no"}`,
+        `- Cliente en vivo: ${layer.motorEnabled ? "sí" : "no"}`,
+        `- Tono: ${layer.toneId}`,
       ].join("\n"),
     );
   }

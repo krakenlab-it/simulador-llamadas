@@ -1,3 +1,6 @@
+import type { ClientLayerSettings } from "@/lib/agent/client-layer";
+import type { ConversationTurn } from "@/lib/agent/client-motor";
+import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import type { ClientReaction } from "@/lib/scoring/rondas";
 import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { templateClientReply } from "@/lib/feedback/evaluation";
@@ -22,6 +25,10 @@ export interface GenerateReplyInput {
   traineeUtterance: string;
   roundNumber: number;
   scenarioSlug?: string;
+  priorTurns?: ConversationTurn[];
+  difficultyLevel?: DifficultyLevel;
+  mode?: PracticeMode;
+  clientLayer?: ClientLayerSettings;
 }
 
 async function callGroq(
@@ -145,6 +152,10 @@ export async function generateClientReply(
       input.reaction,
       input.clientName,
     );
+
+  if (input.clientLayer?.motorEnabled === false) {
+    return fallback;
+  }
 
   if (isDeepSeekAvailable()) {
     return generateImpersonatedReply(input, fallback);

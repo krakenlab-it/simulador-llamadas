@@ -14,6 +14,10 @@ describe("agent settings", () => {
     expect(DEFAULT_AGENT_SETTINGS.visibility.advancedOpen).toBe(false);
     expect(DEFAULT_AGENT_SETTINGS.visibility.showSystemPrompt).toBe(true);
     expect(DEFAULT_AGENT_SETTINGS.systemPrompt).toMatch(/agente de diseño/i);
+    expect(DEFAULT_AGENT_SETTINGS.voiceAgent.clientLayer).toEqual({
+      motorEnabled: true,
+      toneId: "auto",
+    });
   });
 
   it("clamps junk and applies presets / custom prompts", () => {

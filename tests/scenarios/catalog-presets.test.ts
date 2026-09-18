@@ -31,6 +31,14 @@ describe("PREFILLED catalog presets", () => {
       "male",
       "male",
     ]);
+    expect(presets.map((item) => item.clientPack.decisionRole)).toEqual([
+      "decisor",
+      "decisor",
+      "decisor",
+    ]);
+    expect(new Set(presets.map((item) => item.clientPack.realObjection)).size).toBe(
+      3,
+    );
   });
 
   it("does not share questions or scripted replies across clients", () => {

@@ -186,9 +186,9 @@ export function TeamCompareScreen({
         <p className="page-hero__eyebrow">Mismo examen</p>
         <h1 className="page-hero__title">Equipos y comparación</h1>
         <p className="page-hero__subtitle">
-          Orden: crea el equipo, suma miembros, ponlos en el mismo caso
-          PREFILLED y compara. El backend escribe el coaching — no el
-          navegador.
+          Mismo caso, mismo pack, mismo cliente en vivo. Crea el equipo, súmalos
+          y ponlos en el mismo examen PREFILLED. El backend escribe el coaching
+          — no el navegador.
         </p>
       </header>
 

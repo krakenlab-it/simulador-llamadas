@@ -22,6 +22,7 @@ import { SESSION_MAX_TURN_ALLOCATIONS } from "@/lib/voice/brakes";
 import { durationSecondsBetween } from "./duration";
 import { SessionError } from "./errors";
 import { resolveEndSessionWin } from "./win";
+import { snapshotSessionConfig } from "@/lib/agent/client-layer";
 import {
   parseVoiceAgentSettings,
   type VoiceAgentSettings,
@@ -220,11 +221,24 @@ export class SessionRepository {
   async createSession(input: CreateSessionInput): Promise<SessionRecord> {
     const scenario = await this.loadScenario(input.scenarioSlug);
 
+    const sessionConfig = snapshotSessionConfig({
+      clientLayer: scenario.voiceAgent.clientLayer,
+      language: scenario.voiceAgent.language,
+      difficultyLevel: input.difficultyLevel,
+      mode: input.mode,
+    });
+
     const attempt = await this.client.query<{ id: string }>(
-      `INSERT INTO call_attempts (trainee_id, scenario_id, difficulty_level, mode)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO call_attempts (trainee_id, scenario_id, difficulty_level, mode, session_config)
+       VALUES ($1, $2, $3, $4, $5::jsonb)
        RETURNING id`,
-      [input.traineeId, scenario.id, input.difficultyLevel, input.mode],
+      [
+        input.traineeId,
+        scenario.id,
+        input.difficultyLevel,
+        input.mode,
+        JSON.stringify(sessionConfig),
+      ],
     );
 
     return {

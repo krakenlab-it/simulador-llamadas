@@ -130,6 +130,17 @@ function resolveScoringRoundType(input: LiveTurnInput): RoundType | null {
   return isClinicRoundType(phaseKey) ? phaseKey : null;
 }
 
+function priorTurnsFromLines(
+  priorLines: TranscriptLine[],
+): { role: "trainee" | "client"; text: string }[] {
+  return priorLines
+    .filter((line) => line.role === "client" || line.role === "trainee")
+    .map((line) => ({
+      role: line.role === "client" ? "client" : "trainee",
+      text: line.text,
+    }));
+}
+
 function buildImpersonationHistory(priorLines: TranscriptLine[]): {
   recentReplies: string[];
   askedQuestions: string[];
@@ -193,14 +204,19 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
         traineeUtterance: input.utterance,
         roundNumber: resolveTurnNumber(input),
         scenarioSlug: input.scenarioSlug,
+        priorTurns: priorTurnsFromLines(input.priorLines),
+        difficultyLevel: input.difficultyLevel,
+        mode: "voz" as const,
+        clientLayer: input.voiceAgent?.clientLayer,
       };
-      if (isDeepSeekAvailable()) {
+      const motorOn = input.voiceAgent?.clientLayer?.motorEnabled !== false;
+      if (motorOn && isDeepSeekAvailable()) {
         const history = buildImpersonationHistory(input.priorLines);
         clientReply = await generateImpersonatedReply(
           { ...impersonationInput, ...history },
           templatedReply,
         );
-      } else if (isGroqAvailable()) {
+      } else if (motorOn && isGroqAvailable()) {
         clientReply = await generateGroqClientReply(
           impersonationInput,
           templatedReply,
@@ -227,6 +243,10 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       clientName: input.clientName,
       traineeUtterance: input.utterance,
       roundNumber: resolveTurnNumber(input),
+      priorTurns: priorTurnsFromLines(input.priorLines),
+      difficultyLevel: input.difficultyLevel,
+      mode: "voz",
+      clientLayer: input.voiceAgent?.clientLayer,
     });
   } else {
     clientReply = "Entiendo. Siga.";

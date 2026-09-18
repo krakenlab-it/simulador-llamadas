@@ -24,6 +24,8 @@ describe("context packing and visibility", () => {
     expect(pack).toMatch(/PREFILLED/);
     expect(pack).toMatch(/Laura/);
     expect(pack).toMatch(/Voz del cliente/);
+    expect(pack).toMatch(/Cliente en vivo: sí/);
+    expect(pack).toMatch(/Tono: auto/);
   });
 
   it("omits sections when toggled off and hides traces on the happy path", () => {

@@ -144,9 +144,10 @@ export function AgentHarnessScreen({
         <p className="page-hero__eyebrow">Modo automático</p>
         <h1 className="page-hero__title">Arma el escenario o practica ya</h1>
         <p className="page-hero__subtitle">
-          Primero practica un caso listo. El chat arma un caso nuevo. Ajustes
-          avanzados (prompt, herramientas, voz) quedan a la derecha. Camino
-          feliz: Vercel AI Gateway → DeepSeek.
+          Un flujo: elige el caso, el pack ya viene armado, eliges tono e
+          idioma, practicas y comparas al equipo en el mismo examen. El coach
+          no habla con la voz del cliente. Camino feliz: Vercel AI Gateway →
+          DeepSeek.
         </p>
       </header>
 

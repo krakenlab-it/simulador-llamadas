@@ -42,6 +42,9 @@ describe("AgentHarnessScreen", () => {
       await screen.findByRole("heading", { name: /Arma el escenario/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Vercel AI Gateway/i)).toBeInTheDocument();
+    expect(screen.getByText(/Hechos del caso/i)).toBeInTheDocument();
+    expect(screen.getByText(/Coach aparte/i)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Cliente en vivo" })).toBeChecked();
     expect(screen.queryByText(/System prompt/i)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Practicar Mariana Escobedo/i }),

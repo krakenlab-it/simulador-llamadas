@@ -4,6 +4,12 @@ import { useId } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { SegmentedControl, Switch } from "@/app/components/ui/Switch";
 import {
+  CLIENT_TONE_IDS,
+  CLIENT_TONE_LABELS,
+  DEFAULT_CLIENT_LAYER_SETTINGS,
+  type ClientToneId,
+} from "@/lib/agent/client-layer";
+import {
   PREMADE_VOICES,
   type AgentLanguage,
   type AgentPersonality,
@@ -30,6 +36,13 @@ const GENDER_OPTIONS: { value: VoiceGenderPreference; label: string }[] = [
   { value: "male", label: "Hombre" },
 ];
 
+const TONE_OPTIONS: { value: ClientToneId; label: string }[] = CLIENT_TONE_IDS.map(
+  (toneId) => ({
+    value: toneId,
+    label: CLIENT_TONE_LABELS[toneId],
+  }),
+);
+
 const RATE_OPTIONS: { value: SpeakingRatePreset; label: string }[] = [
   { value: "lento", label: "Lento" },
   { value: "normal", label: "Normal" },
@@ -50,6 +63,7 @@ export function VoiceAgentControls({
 }: VoiceAgentControlsProps) {
   const languageId = useId();
   const genderId = useId();
+  const toneId = useId();
   const rateId = useId();
   const personalityId = useId();
   const voiceId = useId();
@@ -76,6 +90,35 @@ export function VoiceAgentControls({
               voiceGender,
               voiceOverride: false,
               voiceId: "",
+            })
+          }
+        />
+        <Switch
+          label="Cliente en vivo"
+          description="El caso arma el pack. El cliente responde; el coach va aparte."
+          checked={(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS).motorEnabled}
+          onCheckedChange={(motorEnabled) =>
+            onChange({
+              ...value,
+              clientLayer: {
+                ...(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS),
+                motorEnabled,
+              },
+            })
+          }
+        />
+        <SegmentedControl
+          label="Tono del cliente"
+          labelId={toneId}
+          value={(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS).toneId}
+          options={TONE_OPTIONS}
+          onChange={(nextTone) =>
+            onChange({
+              ...value,
+              clientLayer: {
+                ...(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS),
+                toneId: nextTone,
+              },
             })
           }
         />

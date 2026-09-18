@@ -1,3 +1,4 @@
+import type { CatalogClientPackSeed } from "@/lib/agent/client-layer";
 import type { RoundType } from "@/lib/db/types";
 import type { ClientReaction } from "@/lib/scoring/rondas";
 import type { ClinicPresetSlug, ScenarioConfig } from "./types";
@@ -24,6 +25,8 @@ export interface CatalogPreset {
   winCriteria: string;
   practiceBrief: string;
   voiceGender: "female" | "male";
+  /** Jaime pack extras — what the live client is allowed to know. */
+  clientPack: CatalogClientPackSeed;
   pains: string[];
   openings: [string, string];
   objections: string[];
@@ -48,6 +51,28 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     practiceBrief:
       "Practica atribuir visitas reales a caseta — no un pitch de branding. Mariana ya tiene agencia y solo abre la agenda si le hablas de CAC y de gente que sí llega al desarrollo.",
     voiceGender: "female",
+    clientPack: {
+      decisionRole: "decisor",
+      howTheyWorkToday:
+        "Agencia de branding y caseta propia; no miden si el formulario llega al desarrollo",
+      onTheirMind: "Está entre juntas; el CAC subió y no quiere otro retainer",
+      allowedFacts: [
+        "Costo por prospecto +40%",
+        "Formularios que no visitan la caseta",
+        "Espectaculares sin medición",
+      ],
+      forbiddenClaims: [
+        "garantía de visitas a caseta",
+        "nombres de agencias o competidores",
+        "cifras de ventas del desarrollo",
+      ],
+      realObjection:
+        "Ya pagó agencia y no ve gente en caseta; no quiere volver a pagar por likes",
+      grantConditions:
+        "Que expliquen cómo se mide una visita real a caseta, no un clic",
+      sellerObjective:
+        "Conseguir una revisión de 25 minutos esta semana con día y hora",
+    },
     pains: [
       "Costo por prospecto +40%",
       "Formularios que no visitan",
@@ -113,6 +138,28 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     practiceBrief:
       "Practica vender tráfico a tienda y venta por m². Rodrigo cuelga si oye branding. Cada pregunta suya es de piso, no de awareness.",
     voiceGender: "male",
+    clientPack: {
+      decisionRole: "decisor",
+      howTheyWorkToday:
+        "Pauta nacional de awareness; las dos aperturas de proximidad no levantan ticket",
+      onTheirMind: "Tiene dos minutos; si oye branding cuelga",
+      allowedFacts: [
+        "Dos aperturas de proximidad que no levantan",
+        "Ya pagó awareness",
+        "Mide venta por m² y tickets de piso",
+      ],
+      forbiddenClaims: [
+        "garantía de venta por m²",
+        "nombres de cadenas competidoras",
+        "cifras inventadas de tickets",
+      ],
+      realObjection:
+        "Pagó awareness y el piso de las aperturas sigue flojo; no cree en marca",
+      grantConditions:
+        "Que hablen de tickets y m² en las dos aperturas, no de awareness",
+      sellerObjective:
+        "Dejar 20 minutos el lunes o martes, con hora, para el plan de las dos aperturas",
+    },
     pains: ["Aperturas de proximidad que no levantan"],
     openings: [
       "Tengo dos minutos. ¿Qué tiene que ver con tráfico a tienda?",
@@ -174,6 +221,28 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     practiceBrief:
       "Practica traducir digital a gente en el showroom. Efraín no cree en clics. Gana si agenda con día y hora un plan de piso, no un dashboard de leads.",
     voiceGender: "male",
+    clientPack: {
+      decisionRole: "decisor",
+      howTheyWorkToday:
+        "Marketing le manda leads y clics; él mira el showroom vacío",
+      onTheirMind: "El piso está flojo; no le interesan los reportes web",
+      allowedFacts: [
+        "Piso con menos gente",
+        "Leads que no cruzan la puerta",
+        "Desconfía de clics y sesiones web",
+      ],
+      forbiddenClaims: [
+        "garantía de gente en piso",
+        "nombres de otras agencias",
+        "cifras de leads inventadas",
+      ],
+      realObjection:
+        "Marketing presume clics y el sábado el showroom sigue vacío",
+      grantConditions:
+        "Que traduzcan digital a cabezas en piso el sábado, no a un dashboard",
+      sellerObjective:
+        "Una visita o llamada el miércoles, con hora, para el plan de gente en piso",
+    },
     pains: ["No cree en clics"],
     openings: [
       "El piso está flojo. No me interesan los clics.",

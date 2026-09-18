@@ -28,6 +28,8 @@ describe("VoiceAgentControls Advanced toggle", () => {
 
     expect(screen.getByRole("radiogroup", { name: "Idioma" })).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "Género de voz" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Cliente en vivo" })).toBeChecked();
+    expect(screen.getByRole("radiogroup", { name: "Tono del cliente" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /avanzado/i })).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -56,6 +58,25 @@ describe("VoiceAgentControls Advanced toggle", () => {
       screen.getByRole("radiogroup", { name: "Personalidad" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Interrumpir" })).toBeInTheDocument();
+  });
+
+  it("lets the trainer flip the live motor and tone without opening Advanced", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderControls();
+
+    await user.click(screen.getByRole("switch", { name: "Cliente en vivo" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientLayer: expect.objectContaining({ motorEnabled: false }),
+      }),
+    );
+
+    await user.click(screen.getByRole("radio", { name: "Desconfiado" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientLayer: expect.objectContaining({ toneId: "desconfianza" }),
+      }),
+    );
   });
 
   it("persists Advanced open through onChange so the session can keep it", async () => {

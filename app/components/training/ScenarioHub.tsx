@@ -14,6 +14,8 @@ import {
   voiceAgentFromRecord,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
+import { DEFAULT_CLIENT_LAYER_SETTINGS } from "@/lib/agent/client-layer";
+import { describeClientLayerForTrainer } from "@/lib/agent/client-pack";
 import { VoiceAgentControls } from "@/app/components/training/VoiceAgentControls";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
@@ -307,9 +309,10 @@ export function ScenarioHub({
         <p className="page-hero__eyebrow">Tu sesión de práctica</p>
         <h1 className="page-hero__title">Elige un escenario y empieza</h1>
         <p className="page-hero__subtitle">
-          Los casos PREFILLED ya están listos para practicar. Cinco rondas:
-          apertura, objeción, claridad, seguimiento y cierre. Gana con día y
-          hora concretos — o tu propio criterio de éxito.
+          Elige el caso. El pack (hechos, objeción real, qué concede) ya viene
+          armado — no es un formulario. Tú eliges dificultad, tono e idioma.
+          Cinco rondas; gana con día y hora. Luego compara al equipo en el
+          mismo examen.
         </p>
       </header>
 
@@ -430,6 +433,12 @@ export function ScenarioHub({
             }}
           />
         </div>
+
+        <p className="config-panel__hint">
+          {describeClientLayerForTrainer(
+            voiceAgent.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS,
+          )}
+        </p>
 
         <VoiceAgentControls
           value={voiceAgent}

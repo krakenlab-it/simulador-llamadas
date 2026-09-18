@@ -6,6 +6,14 @@ export {
   resolveAgentProvider,
   resolveAgentRuntime,
 } from "./availability";
+export {
+  CLIENT_LAYER_ENGINES,
+  CLIENT_TONE_IDS,
+  DEFAULT_CLIENT_LAYER_SETTINGS,
+  mapDifficultyToJaime,
+  parseClientLayerSettings,
+  snapshotSessionConfig,
+} from "./client-layer";
 export { packAgentContext } from "./context";
 export { AgentHarnessError, runAgentChat } from "./harness";
 export { generateImpersonatedReply, isCloneReply } from "./impersonation";

@@ -83,6 +83,12 @@ describe("schema migration (static)", () => {
     expect(sql).toMatch(/sort_order BETWEEN 1 AND 3/);
   });
 
+  it("stores live-client knobs and motor state on each call", () => {
+    expect(sql).toContain("session_config");
+    expect(sql).toContain("client_layer_state");
+    expect(sql).toMatch(/ALTER TABLE call_attempts/i);
+  });
+
   it("gives every migration a unique 14-digit version so supabase_migrations.schema_migrations cannot collide", () => {
     const versions = files.map((file) => {
       const version = migrationVersionPrefix(file);

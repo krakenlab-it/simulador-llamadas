@@ -2156,6 +2156,31 @@ body {
   font-size: 0.92rem;
 }
 
+.client-engines {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.65rem;
+}
+
+.client-engines__card {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.client-engines__card h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.88rem;
+}
+
+.client-engines__card p {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
 .agent-bubble {
   margin: 0;
   padding: 0.7rem 0.85rem;

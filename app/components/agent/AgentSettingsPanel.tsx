@@ -1,6 +1,11 @@
 "use client";
 
 import { VoiceAgentControls } from "@/app/components/training/VoiceAgentControls";
+import {
+  CLIENT_LAYER_ENGINES,
+  DEFAULT_CLIENT_LAYER_SETTINGS,
+} from "@/lib/agent/client-layer";
+import { describeClientLayerForTrainer } from "@/lib/agent/client-pack";
 import { AGENT_PRESETS } from "@/lib/agent/presets";
 import { applyPreset, applySystemPrompt } from "@/lib/agent/settings";
 import { AGENT_TOOL_CATALOG } from "@/lib/agent/tools";
@@ -49,10 +54,32 @@ export function AgentSettingsPanel({
       <header className="agent-settings__head">
         <h2>Ajustes del agente</h2>
         <p>
-          El modo automático ya está listo. Abre avanzado solo si quieres
-          cambiar prompt, herramientas o visibilidad.
+          El caso arma el pack (hechos, objeción real, qué concede). Tú solo
+          eliges tono, idioma y si el cliente vive. El coach no habla con esa
+          voz. Avanzado es prompt y herramientas.
         </p>
       </header>
+
+      <div className="client-engines" role="list" aria-label="Capas del cliente">
+        {CLIENT_LAYER_ENGINES.map((engine) => (
+          <article key={engine.id} className="client-engines__card" role="listitem">
+            <h3>{engine.title}</h3>
+            <p>{engine.body}</p>
+          </article>
+        ))}
+      </div>
+
+      <p className="agent-settings__hint">
+        {describeClientLayerForTrainer(
+          settings.voiceAgent.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS,
+        )}
+      </p>
+
+      <VoiceAgentControls
+        value={settings.voiceAgent}
+        onChange={(voiceAgent) => onChange({ ...settings, voiceAgent })}
+        showBargeIn
+      />
 
       <div className="agent-preset-row" role="group" aria-label="Presets">
         {([...Object.values(AGENT_PRESETS), { id: "custom" as const, label: "Personalizado", prompt: settings.systemPrompt }]).map(
@@ -296,12 +323,6 @@ export function AgentSettingsPanel({
               Trazas
             </label>
           </fieldset>
-
-          <VoiceAgentControls
-            value={settings.voiceAgent}
-            onChange={(voiceAgent) => onChange({ ...settings, voiceAgent })}
-            showBargeIn
-          />
         </div>
       ) : null}
     </section>

@@ -1,3 +1,8 @@
+import {
+  DEFAULT_CLIENT_LAYER_SETTINGS,
+  parseClientLayerSettings,
+  type ClientLayerSettings,
+} from "@/lib/agent/client-layer";
 import type { DifficultyLevel } from "@/lib/db/types";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import {
@@ -47,6 +52,8 @@ export interface VoiceAgentSettings {
   bargeIn: boolean;
   /** Trainer opened the Advanced voice knobs; persist so a call does not reset it. */
   advancedOpen: boolean;
+  /** Live client motor + tone. Pack comes from the case, not these knobs. */
+  clientLayer: ClientLayerSettings;
 }
 
 export const DEFAULT_PREMADE_VOICE_ID: PremadeVoiceId = "EXAVITQu4vr4xnSDxMaL";
@@ -61,6 +68,7 @@ export const DEFAULT_VOICE_AGENT_SETTINGS: VoiceAgentSettings = {
   difficultyLevel: 1,
   bargeIn: false,
   advancedOpen: false,
+  clientLayer: { ...DEFAULT_CLIENT_LAYER_SETTINGS },
 };
 
 const PREMADE_VOICE_IDS = new Set<string>(PREMADE_VOICES.map((voice) => voice.id));
@@ -200,6 +208,7 @@ export function parseVoiceAgentSettings(raw: unknown): VoiceAgentSettings {
     difficultyLevel: parseDifficulty(input.difficultyLevel),
     bargeIn: input.bargeIn === true,
     advancedOpen: input.advancedOpen === true,
+    clientLayer: parseClientLayerSettings(input.clientLayer),
   };
 }
 

@@ -26,6 +26,7 @@ describe("voice agent persistence on the scenario", () => {
       difficultyLevel: 2 as const,
       bargeIn: true,
       advancedOpen: true,
+      clientLayer: { motorEnabled: true, toneId: "desconfianza" as const },
     };
 
     const updated = applyVoiceAgentToRecord(marianaScenarioFixture, saved);
@@ -46,6 +47,7 @@ describe("voice agent persistence on the scenario", () => {
       difficultyLevel: 3,
       bargeIn: true,
       advancedOpen: false,
+      clientLayer: { motorEnabled: true, toneId: "auto" },
     });
 
     const replay = voiceAgentFromRecord(first);

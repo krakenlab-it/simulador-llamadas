@@ -6,6 +6,20 @@ import {
   resolveScenarioLanguage,
 } from "@/lib/scenarios/language";
 import type { ClientReaction } from "@/lib/scoring/rondas";
+import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
+import {
+  DEFAULT_CLIENT_LAYER_SETTINGS,
+  toneHint,
+  type ClientLayerSettings,
+} from "./client-layer";
+import {
+  analyzeMeetingLogistics,
+  buildLiveStateBlock,
+  initialEmotionalMeters,
+  updateEmotionalMeters,
+  type ConversationTurn,
+} from "./client-motor";
+import { buildClientPack, formatClientPack } from "./client-pack";
 import { composeSeparatedSystemPrompt } from "./roles";
 import {
   readProviderAvailability,
@@ -25,6 +39,10 @@ export interface ImpersonationInput {
   scenarioSlug?: string;
   recentReplies?: string[];
   askedQuestions?: string[];
+  priorTurns?: ConversationTurn[];
+  difficultyLevel?: DifficultyLevel;
+  mode?: PracticeMode;
+  clientLayer?: ClientLayerSettings;
 }
 
 export function buildImpersonationRoles(input: ImpersonationInput): {
@@ -48,13 +66,45 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
   );
   const unused = questions.filter((item) => !asked.has(item.toLowerCase()));
   const recent = (input.recentReplies ?? []).slice(-4);
+  const layer = input.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS;
+  const difficulty = input.difficultyLevel ?? 1;
+  const pack = buildClientPack({
+    clientName: input.clientName,
+    clientTitle: preset?.title,
+    company: preset?.company,
+    config: input.config,
+    seed: preset?.clientPack,
+    difficultyLevel: difficulty,
+    mode: input.mode,
+    maxTurns: input.config.rounds.length || 5,
+  });
+  const priorTurns = input.priorTurns ?? [];
+  const logistics = analyzeMeetingLogistics(priorTurns, input.traineeUtterance);
+  const meters = updateEmotionalMeters(
+    initialEmotionalMeters(difficulty),
+    input.traineeUtterance,
+    pack.temperament,
+    input.roundNumber,
+  );
+  const liveBlock = buildLiveStateBlock({
+    meters,
+    logistics,
+    turnNumber: input.roundNumber,
+    maxTurns: pack.maxTurns,
+  });
+  const tone = toneHint(layer.toneId, mood);
 
   const agent = [
     `Eres ${input.clientName}. Interpretas a ESTE comprador, no a un cliente genérico.`,
-    `Temperamento: ${input.config.temperament}. Tono: ${mood}.`,
+    `Temperamento: ${pack.temperament}. Tono: ${tone}.`,
+    `Rol en la decisión: ${pack.decisionRole}.`,
     buildLanguageLockSystemPrompt(language),
+    "Modo CLIENTE del motor: una sola intervención, 1-3 oraciones. Nunca coach ni evaluador.",
     "Nunca hables como el vendedor. Nunca des coaching. Solo la réplica del cliente.",
-    "1-2 oraciones cortas. Sin comillas ni explicación.",
+    "No inventes datos fuera del pack. Lo que ya aceptaste sigue aceptado.",
+    logistics.meetingAccepted
+      ? "Ya aceptaste la cita. No pidas otra vez día y hora."
+      : "Aún no concedas la cita si faltan las condiciones del pack.",
     "No repitas una pregunta que ya hiciste. No clones la última réplica.",
     unused[0]
       ? `Si preguntas algo, usa una variante de: ${unused[0]}`
@@ -64,9 +114,8 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
   const user = `El vendedor (usuario) dijo: "${input.traineeUtterance}"`;
 
   const context = [
-    `Industria: ${input.config.industry}`,
-    `Problema: ${input.config.clientProblem}`,
-    `Compra/vende: ${input.config.productSold}`,
+    formatClientPack(pack),
+    liveBlock,
     `Fase: ${input.round.label} (turno ${input.roundNumber})`,
     input.round.whatGoodLooksLike
       ? `Qué se espera del vendedor: ${input.round.whatGoodLooksLike}`
@@ -77,7 +126,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
       : "",
   ]
     .filter(Boolean)
-    .join("\n");
+    .join("\n\n");
 
   return { agent, user, context };
 }
@@ -100,6 +149,9 @@ export async function generateImpersonatedReply(
   input: ImpersonationInput,
   fallbackText: string,
 ): Promise<string> {
+  const layer = input.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS;
+  if (!layer.motorEnabled) return fallbackText;
+
   const availability = readProviderAvailability();
   if (!availability.hasModel) return fallbackText;
 
