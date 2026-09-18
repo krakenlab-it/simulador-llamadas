@@ -27,6 +27,10 @@ describe("schema migration (static)", () => {
       "call_attempts",
       "call_turns",
       "turn_scores",
+      "practice_teams",
+      "practice_team_members",
+      "practice_team_tests",
+      "practice_team_results",
     ];
     for (const table of tables) {
       expect(sql).toMatch(new RegExp(`CREATE TABLE ${table}`, "i"));

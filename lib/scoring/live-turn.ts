@@ -4,6 +4,8 @@ import {
   temperamentWithPersonality,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
+import { isDeepSeekAvailable } from "@/lib/agent/availability";
+import { generateImpersonatedReply } from "@/lib/agent/impersonation";
 import {
   generateClientReply,
   generateGroqClientReply,
@@ -155,29 +157,36 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     );
 
     clientReply = templatedReply;
-    if (isGroqAvailable()) {
-      const presetConfig = applyVoiceAgentPersonality(
-        buildPresetScenarioConfig(input.scenarioSlug),
-        input.voiceAgent,
-      );
-      if (presetConfig) {
-        const roundDef: ScenarioRoundDef = {
-          key: roundType,
-          label: ROUND_LABELS[roundType] ?? input.roundLabel,
-          goal: ROUND_EXPECTED[roundType],
-          clientPrompt: templatedReply,
-          positiveCriteria: [],
-          negativeCriteria: [],
-        };
+    const presetConfig = applyVoiceAgentPersonality(
+      buildPresetScenarioConfig(input.scenarioSlug),
+      input.voiceAgent,
+    );
+    if (presetConfig) {
+      const roundDef: ScenarioRoundDef = {
+        key: roundType,
+        label: ROUND_LABELS[roundType] ?? input.roundLabel,
+        goal: ROUND_EXPECTED[roundType],
+        clientPrompt: templatedReply,
+        positiveCriteria: [],
+        negativeCriteria: [],
+      };
+      const impersonationInput = {
+        config: presetConfig,
+        round: roundDef,
+        reaction: clientReaction,
+        clientName: input.clientName,
+        traineeUtterance: input.utterance,
+        roundNumber: resolveTurnNumber(input),
+        scenarioSlug: input.scenarioSlug,
+      };
+      if (isDeepSeekAvailable()) {
+        clientReply = await generateImpersonatedReply(
+          impersonationInput,
+          templatedReply,
+        );
+      } else if (isGroqAvailable()) {
         clientReply = await generateGroqClientReply(
-          {
-            config: presetConfig,
-            round: roundDef,
-            reaction: clientReaction,
-            clientName: input.clientName,
-            traineeUtterance: input.utterance,
-            roundNumber: resolveTurnNumber(input),
-          },
+          impersonationInput,
           templatedReply,
         );
       }

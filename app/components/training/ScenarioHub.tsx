@@ -2,8 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { useToast } from "@/components/ui/Toast";
-import type { ClientPersona } from "@/lib/clients";
-import { CLIENTS } from "@/lib/clients";
+import { CLIENTS, getClientBySlug, type ClientPersona } from "@/lib/clients";
 import { listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
@@ -272,7 +271,8 @@ export function ScenarioHub({
           </p>
           <p className="scenario-card__hint">
             {scenario.isPreset
-              ? `Indicador: ${scenario.indicator}`
+              ? getClientBySlug(scenario.slug)?.practiceBrief ??
+                `Indicador: ${scenario.indicator}`
               : `Vende: ${scenario.productSold}`}
           </p>
           {(scenario.painPoints ?? []).length > 0 ? (
@@ -300,8 +300,9 @@ export function ScenarioHub({
         <p className="page-hero__eyebrow">Tu sesión de práctica</p>
         <h1 className="page-hero__title">Elige un escenario y empieza</h1>
         <p className="page-hero__subtitle">
-          Cinco rondas por llamada: apertura, objeción, claridad, seguimiento y
-          cierre. Gana con día y hora concretos — o tu propio criterio de éxito.
+          Los casos PREFILLED ya están listos para practicar. Cinco rondas:
+          apertura, objeción, claridad, seguimiento y cierre. Gana con día y
+          hora concretos — o tu propio criterio de éxito.
         </p>
       </header>
 

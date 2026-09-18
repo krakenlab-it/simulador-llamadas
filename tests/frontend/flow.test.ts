@@ -3,12 +3,16 @@ import {
   beginStarting,
   canNavigateTo,
   closeBuilder,
+  closeAgent,
+  closeTeams,
   enterCall,
   enterDetail,
   enterResults,
   initialFlowState,
   navigate,
+  openAgent,
   openBuilder,
+  openTeams,
   resetToHome,
   resetToTrain,
 } from "@/lib/frontend/flow";
@@ -82,5 +86,23 @@ describe("app flow state machine", () => {
     const reset = resetToTrain();
     expect(reset.view).toBe("train");
     expect(reset.phase).toBe("idle");
+  });
+
+  it("opens and closes the agent and teams surfaces when idle", () => {
+    const home = initialFlowState();
+    const agent = openAgent(home);
+    expect(agent.view).toBe("agent");
+    expect(closeAgent(agent).view).toBe("train");
+    const teams = openTeams(home);
+    expect(teams.view).toBe("teams");
+    expect(closeTeams(teams).view).toBe("home");
+    expect(openAgent(enterCall())).toEqual(enterCall());
+  });
+
+  it("allows navigating to agent and teams when idle", () => {
+    const state = initialFlowState();
+    expect(canNavigateTo(state, "agent")).toBe(true);
+    expect(canNavigateTo(state, "teams")).toBe(true);
+    expect(navigate(state, "agent").view).toBe("agent");
   });
 });

@@ -8,6 +8,8 @@ export type AppView =
   | "train"
   | "history"
   | "builder"
+  | "agent"
+  | "teams"
   | "call"
   | "results"
   | "detail";
@@ -107,4 +109,24 @@ export function openBuilder(state: FlowState): FlowState {
 export function closeBuilder(state: FlowState): FlowState {
   if (state.view !== "builder") return state;
   return { ...state, view: "train" };
+}
+
+export function openAgent(state: FlowState): FlowState {
+  if (state.phase !== "idle" || state.view === "call") return state;
+  return { ...state, view: "agent" };
+}
+
+export function closeAgent(state: FlowState): FlowState {
+  if (state.view !== "agent") return state;
+  return { ...state, view: "train" };
+}
+
+export function openTeams(state: FlowState): FlowState {
+  if (state.phase !== "idle" || state.view === "call") return state;
+  return { ...state, view: "teams" };
+}
+
+export function closeTeams(state: FlowState): FlowState {
+  if (state.view !== "teams") return state;
+  return { ...state, view: "home" };
 }
