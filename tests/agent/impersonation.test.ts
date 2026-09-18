@@ -4,6 +4,11 @@ import {
   generateImpersonatedReply,
   isCloneReply,
 } from "@/lib/agent/impersonation";
+import {
+  buildAuthoredScenarioConfig,
+  draftToCreateInput,
+} from "@/lib/scenarios/authoring";
+import { getExamplePack } from "@/lib/scenarios/example-packs";
 import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
 
 describe("impersonation", () => {
@@ -72,6 +77,24 @@ describe("impersonation", () => {
       "Ya tenemos agencia y caseta.",
     );
     expect(text).toBe("Ya tenemos agencia y caseta.");
+  });
+
+  it("uses clientPackSeed from a saved Jaime example when the slug is custom", () => {
+    const pack = getExamplePack("kraken-flow");
+    expect(pack).toBeDefined();
+    const input = draftToCreateInput(pack!.draft, pack!.clientPack);
+    const config = buildAuthoredScenarioConfig(input);
+    const roles = buildImpersonationRoles({
+      config,
+      round: config.rounds[0],
+      reaction: "medio",
+      clientName: pack!.draft.clientName,
+      traineeUtterance: "Buenos días, le llamo por Kraken Flow.",
+      roundNumber: 1,
+      scenarioSlug: "valeria-soto-custom",
+    });
+    expect(roles.context).toMatch(/reemplazar el ERP/);
+    expect(roles.agent).toMatch(/decisor/);
   });
 
   it("detects clone replies", () => {

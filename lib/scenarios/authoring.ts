@@ -436,6 +436,7 @@ export function validateAuthoringDraft(
 
 export function draftToCreateInput(
   draft: ScenarioAuthoringDraft,
+  clientPack?: CreateCustomScenarioInput["clientPack"],
 ): CreateCustomScenarioInput {
   const rounds = normalizeAuthoredRounds(draft.rounds, {
     industry: draft.industry,
@@ -464,6 +465,7 @@ export function draftToCreateInput(
       if (text) acc[dim.id] = text;
       return acc;
     }, {}),
+    ...(clientPack ? { clientPack } : {}),
   };
 }
 
@@ -518,6 +520,7 @@ export function buildAuthoredScenarioConfig(
     callType: resolveScenarioCallType(input.callType),
     rounds: input.rounds,
     dimensionGuides: input.dimensionGuides,
+    clientPackSeed: input.clientPack,
   });
 }
 

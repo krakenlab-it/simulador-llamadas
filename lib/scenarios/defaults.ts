@@ -1,3 +1,4 @@
+import type { CatalogClientPackSeed } from "@/lib/agent/client-layer";
 import type {
   DimensionGuides,
   ScenarioCallType,
@@ -164,6 +165,7 @@ export function buildScenarioConfig(input: {
   language?: ScenarioLanguage;
   callType?: ScenarioCallType;
   dimensionGuides?: DimensionGuides;
+  clientPackSeed?: CatalogClientPackSeed;
 }): ScenarioConfig {
   const rounds =
     input.rounds && input.rounds.length > 0
@@ -204,6 +206,7 @@ export function buildScenarioConfig(input: {
     language: input.language ?? "es",
     callType: input.callType ?? "discovery",
     dimensionGuides: input.dimensionGuides ?? {},
+    ...(input.clientPackSeed ? { clientPackSeed: input.clientPackSeed } : {}),
   };
 }
 

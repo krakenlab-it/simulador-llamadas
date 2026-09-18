@@ -31,6 +31,7 @@ import {
   validateAuthoringDraft,
   type ScenarioAuthoringDraft,
 } from "@/lib/scenarios/authoring";
+import type { CatalogClientPackSeed } from "@/lib/agent/client-layer";
 import {
   listExamplePacks,
   type ExamplePack,
@@ -62,6 +63,8 @@ export function AgentHarnessScreen({
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingExample, setSavingExample] = useState(false);
+  const [loadedClientPack, setLoadedClientPack] =
+    useState<CatalogClientPackSeed | null>(null);
 
   useEffect(() => {
     setSettings(readStoredAgentSettings(window.localStorage));
@@ -102,6 +105,7 @@ export function AgentHarnessScreen({
       });
       setLastResponse(response);
       setDraft(response.draft);
+      setLoadedClientPack(null);
       setMessages([...nextMessages, response.assistantMessage]);
       if (response.appliedInput) {
         const saved = await createScenario(response.appliedInput);
@@ -150,6 +154,7 @@ export function AgentHarnessScreen({
 
   const loadExample = (pack: ExamplePack) => {
     setDraft(pack.draft);
+    setLoadedClientPack(pack.clientPack);
     setMessages([
       {
         role: "assistant",
@@ -167,8 +172,10 @@ export function AgentHarnessScreen({
     }
     setSavingExample(true);
     try {
-      const saved = await createScenario(draftToCreateInput(draft));
-      onScenarioSaved(saved.slug);
+      const saved = await createScenario(
+        draftToCreateInput(draft, loadedClientPack ?? undefined),
+      );
+      onPracticePreset(saved.slug);
     } catch (error) {
       showToast(
         error instanceof Error ? error.message : "No se pudo guardar el ejemplo.",

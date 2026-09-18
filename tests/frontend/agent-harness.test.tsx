@@ -62,11 +62,11 @@ describe("AgentHarnessScreen", () => {
     getAgentHarness.mockResolvedValue({ availability: { hasModel: false } });
     listScenarios.mockResolvedValue([]);
     createScenario.mockResolvedValue({ slug: "valeria-soto-kraken-flow" });
-    const onSaved = vi.fn();
+    const onPractice = vi.fn();
 
     render(
       <ToastProvider>
-        <AgentHarnessScreen onScenarioSaved={onSaved} onPracticePreset={vi.fn()} />
+        <AgentHarnessScreen onScenarioSaved={vi.fn()} onPracticePreset={onPractice} />
       </ToastProvider>,
     );
 
@@ -77,12 +77,15 @@ describe("AgentHarnessScreen", () => {
     expect(screen.getByText(/Éxito: Mesa de trabajo el jueves/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Guardar y practicar" }));
     await waitFor(() =>
-      expect(onSaved).toHaveBeenCalledWith("valeria-soto-kraken-flow"),
+      expect(onPractice).toHaveBeenCalledWith("valeria-soto-kraken-flow"),
     );
     expect(createScenario).toHaveBeenCalledWith(
       expect.objectContaining({
         clientName: "Valeria Soto",
         productSold: expect.stringMatching(/Kraken Flow/i),
+        clientPack: expect.objectContaining({
+          forbiddenClaims: expect.arrayContaining(["reemplazar el ERP"]),
+        }),
       }),
     );
   });

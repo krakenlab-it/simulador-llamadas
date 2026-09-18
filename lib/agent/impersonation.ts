@@ -73,7 +73,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     clientTitle: preset?.title,
     company: preset?.company,
     config: input.config,
-    seed: preset?.clientPack,
+    seed: preset?.clientPack ?? input.config.clientPackSeed,
     difficultyLevel: difficulty,
     mode: input.mode,
     maxTurns: input.config.rounds.length || 5,

@@ -6,6 +6,7 @@ import type {
   CallTypeOverlay,
   ScoreDimensionId,
 } from "@/lib/scoring/types";
+import type { CatalogClientPackSeed } from "@/lib/agent/client-layer";
 import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
 
 export const CLINIC_PRESET_SLUGS = ["mariana", "rodrigo", "efrain"] as const;
@@ -63,6 +64,8 @@ export interface ScenarioConfig {
   language?: string;
   callType?: ScenarioCallType;
   dimensionGuides?: DimensionGuides;
+  /** Jaime example packs and other authored client-layer seeds for custom cases. */
+  clientPackSeed?: CatalogClientPackSeed;
 }
 
 export interface ScenarioRecord {
@@ -102,6 +105,7 @@ export interface CreateCustomScenarioInput {
   callType?: ScenarioCallType;
   rounds?: ScenarioRoundDef[];
   dimensionGuides?: DimensionGuides;
+  clientPack?: CatalogClientPackSeed;
   traineeId?: string;
 }
 
