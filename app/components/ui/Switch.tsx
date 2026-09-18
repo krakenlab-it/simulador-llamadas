@@ -1,4 +1,5 @@
-import type { InputHTMLAttributes } from "react";
+import type { InputHTMLAttributes, KeyboardEvent } from "react";
+import { nextRovingValue } from "@/lib/a11y/roving-options";
 
 interface SwitchProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
   label: string;
@@ -71,6 +72,16 @@ export function SegmentedControl<T extends string>({
         className="segmented"
         role="radiogroup"
         aria-labelledby={labelId}
+        onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+          const next = nextRovingValue(
+            options.map((option) => option.value),
+            value,
+            event.key,
+          );
+          if (!next) return;
+          event.preventDefault();
+          onChange(next);
+        }}
       >
         {options.map((opt) => (
           <button

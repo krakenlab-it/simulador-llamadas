@@ -24,6 +24,7 @@ import type {
   AgentProviderAvailability,
   PublicScenarioSummary,
 } from "@/lib/agent/types";
+import { useDocumentLang } from "@/lib/a11y/document-lang";
 import { listCatalogPresets } from "@/lib/scenarios/catalog-presets";
 import type { ScenarioAuthoringDraft } from "@/lib/scenarios/authoring";
 
@@ -70,6 +71,7 @@ export function AgentHarnessScreen({
   }, [hydrated, settings]);
 
   const presets = useMemo(() => listCatalogPresets(), []);
+  useDocumentLang(settings.voiceAgent.language);
 
   const send = async (text: string) => {
     const content = text.trim();
@@ -142,13 +144,16 @@ export function AgentHarnessScreen({
         <p className="page-hero__eyebrow">Modo automático</p>
         <h1 className="page-hero__title">Arma el escenario o practica ya</h1>
         <p className="page-hero__subtitle">
-          Los casos PREFILLED ya están listos. El chat es para un caso nuevo.
-          El camino feliz es Vercel AI Gateway sirviendo DeepSeek. Sin
-          Gateway, el backend usa modo local.
+          Primero practica un caso listo. El chat arma un caso nuevo. Ajustes
+          avanzados (prompt, herramientas, voz) quedan a la derecha. Camino
+          feliz: Vercel AI Gateway → DeepSeek.
         </p>
       </header>
 
-      <div className="agent-prefilled">
+      <section className="agent-prefilled" aria-labelledby="agent-prefilled-title">
+        <h2 id="agent-prefilled-title" className="visually-hidden">
+          Casos listos para practicar
+        </h2>
         {presets.map((preset) => (
           <Card key={preset.slug} className="agent-prefilled__card">
             <h3>{preset.name}</h3>
@@ -161,10 +166,11 @@ export function AgentHarnessScreen({
             </Button>
           </Card>
         ))}
-      </div>
+      </section>
 
       <div className="agent-harness__grid">
-        <section className="agent-chat" aria-label="Conversación con el agente">
+        <section className="agent-chat" aria-labelledby="agent-chat-title">
+          <h2 id="agent-chat-title">Nuevo caso</h2>
           <div className="agent-chat__log">
             {messages.length === 0 ? (
               <p className="agent-chat__empty">

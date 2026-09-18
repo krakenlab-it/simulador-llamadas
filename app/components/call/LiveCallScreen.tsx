@@ -31,6 +31,7 @@ import {
 import { AUTOSUBMIT_SILENCE_MS } from "@/lib/voice/timeouts";
 import { isAutosubmitReady } from "@/lib/voice/autosubmit";
 import { resolveSpeechLocale } from "@/lib/scenarios/language";
+import { useDocumentLang } from "@/lib/a11y/document-lang";
 import {
   DEFAULT_VOICE_AGENT_SETTINGS,
   type VoiceAgentSettings,
@@ -561,8 +562,19 @@ export function LiveCallScreen({
     onHangUp([...turnHistory.current]);
   };
 
+  useDocumentLang(agentSettings.language);
+
   const displayRoundLabel = roundMeta?.label ?? roundLabel;
   const progressPct = Math.round(((round - 1) / totalRounds) * 100);
+  const callStateAnnouncement = hangingUp || ending
+    ? "Colgando la llamada"
+    : speech.error
+      ? speech.error
+      : convaiConnecting
+        ? "Conectando el agente de voz"
+        : convaiConnected
+          ? `En llamada con agente de voz. Ronda ${round} de ${totalRounds}`
+          : `En llamada. Ronda ${round} de ${totalRounds}`;
   const showBrowserVoiceNote =
     !convaiConnected &&
     !billedTtsActive &&
@@ -572,7 +584,20 @@ export function LiveCallScreen({
       voiceConfig.ttsTier === "browser");
 
   return (
-    <section className="call-screen call-console" aria-label="Llamada en vivo">
+    <section
+      className="call-screen call-console"
+      aria-label="Llamada en vivo"
+      lang={agentSettings.language}
+    >
+      <p
+        className="visually-hidden"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        aria-label="Estado de la llamada"
+      >
+        {callStateAnnouncement}
+      </p>
       <header className="call-screen__header">
         <div>
           <p className="call-screen__status">
@@ -742,26 +767,30 @@ export function LiveCallScreen({
         </div>
 
         {voiceSession.warnLowTime ? (
-          <p className="call-screen__note call-screen__note--warn">
+          <p className="call-screen__note call-screen__note--warn" role="status">
             Queda poco tiempo de voz en esta sesión.
           </p>
         ) : null}
         {convaiConnecting ? (
-          <p className="call-screen__note">
+          <p className="call-screen__note" role="status">
             Agente de voz no conectado: usa el micrófono y escucha al cliente
             por el navegador.
           </p>
         ) : null}
         {showBrowserVoiceNote ? (
-          <p className="call-screen__note">
+          <p className="call-screen__note" role="status">
             Usando voz del navegador (sin facturación ElevenLabs).
           </p>
         ) : null}
         {convaiConnected ? (
-          <p className="call-screen__note">Agente de voz conectado.</p>
+          <p className="call-screen__note" role="status">
+            Agente de voz conectado.
+          </p>
         ) : null}
         {speech.error ? (
-          <p className="call-screen__note call-screen__note--warn">{speech.error}</p>
+          <p className="call-screen__note call-screen__note--warn" role="alert">
+            {speech.error}
+          </p>
         ) : null}
 
         <TurnFeedbackRail

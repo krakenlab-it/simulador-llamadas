@@ -24,7 +24,8 @@ afterEach(() => {
 });
 
 describe("AgentHarnessScreen", () => {
-  it("shows the system prompt and PREFILLED practice cards", async () => {
+  it("shows PREFILLED practice cards and keeps the prompt behind advanced", async () => {
+    const user = userEvent.setup();
     getAgentHarness.mockResolvedValue({
       availability: { hasModel: false },
     });
@@ -41,10 +42,12 @@ describe("AgentHarnessScreen", () => {
       await screen.findByRole("heading", { name: /Arma el escenario/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Vercel AI Gateway/i)).toBeInTheDocument();
-    expect(screen.getByText(/System prompt/i)).toBeInTheDocument();
+    expect(screen.queryByText(/System prompt/i)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Practicar Mariana Escobedo/i }),
     ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Mostrar todos los ajustes/i }));
+    expect(screen.getByText(/System prompt/i)).toBeInTheDocument();
   });
 
   it("chats, shows a draft, and saves", async () => {
@@ -116,6 +119,7 @@ describe("AgentHarnessScreen", () => {
       </ToastProvider>,
     );
     await user.click(screen.getByRole("button", { name: "Cierre SPIN" }));
+    await user.click(screen.getByRole("button", { name: /Mostrar todos los ajustes/i }));
     expect(
       (screen.getByRole("textbox", { name: /System prompt/i }) as HTMLTextAreaElement)
         .value,

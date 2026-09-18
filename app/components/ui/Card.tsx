@@ -10,6 +10,7 @@ interface CardProps {
   tabIndex?: number;
   role?: string;
   "aria-pressed"?: boolean;
+  "aria-label"?: string;
 }
 
 export function Card({

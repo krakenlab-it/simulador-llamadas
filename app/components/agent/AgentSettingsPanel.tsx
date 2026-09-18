@@ -71,21 +71,11 @@ export function AgentSettingsPanel({
         )}
       </div>
 
-      <label className="agent-field">
-        <span>System prompt (canal agente)</span>
-        <textarea
-          rows={10}
-          value={settings.systemPrompt}
-          onChange={(event) =>
-            onChange(applySystemPrompt(settings, event.target.value))
-          }
-        />
-      </label>
-
       <button
         type="button"
         className="agent-advanced-toggle"
         aria-expanded={settings.visibility.advancedOpen}
+        aria-controls="agent-settings-advanced"
         onClick={() =>
           onChange({
             ...settings,
@@ -102,7 +92,17 @@ export function AgentSettingsPanel({
       </button>
 
       {settings.visibility.advancedOpen ? (
-        <div className="agent-settings__advanced">
+        <div id="agent-settings-advanced" className="agent-settings__advanced">
+          <label className="agent-field">
+            <span>System prompt (canal agente)</span>
+            <textarea
+              rows={10}
+              value={settings.systemPrompt}
+              onChange={(event) =>
+                onChange(applySystemPrompt(settings, event.target.value))
+              }
+            />
+          </label>
           <p className="agent-settings__hint">
             Camino feliz: Vercel AI Gateway → DeepSeek
             (AI_GATEWAY_API_KEY o VERCEL_OIDC_TOKEN). Voz: género del

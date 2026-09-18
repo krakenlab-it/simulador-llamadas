@@ -44,6 +44,7 @@ export function TeamCompareScreen({
   const [comparison, setComparison] = useState<TeamComparisonView | null>(null);
   const [scoreDrafts, setScoreDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const presets = listCatalogPresets();
 
   const refreshTeams = async () => {
@@ -68,6 +69,11 @@ export function TeamCompareScreen({
   }, []);
 
   const handleCreateTeam = async () => {
+    if (!teamName.trim()) {
+      setFormError("Escribe el nombre del equipo.");
+      return;
+    }
+    setFormError(null);
     setBusy(true);
     try {
       const team = await createTeam({
@@ -88,7 +94,15 @@ export function TeamCompareScreen({
   };
 
   const handleAddMember = async () => {
-    if (!selectedId) return;
+    if (!selectedId) {
+      setFormError("Crea o elige un equipo antes de sumar miembros.");
+      return;
+    }
+    if (!memberName.trim()) {
+      setFormError("Escribe el nombre del miembro.");
+      return;
+    }
+    setFormError(null);
     setBusy(true);
     try {
       await addTeamMember(selectedId, {
@@ -109,7 +123,10 @@ export function TeamCompareScreen({
   };
 
   const handleCreateTest = async () => {
-    if (!selectedId) return;
+    if (!selectedId) {
+      setFormError("Crea o elige un equipo antes del examen.");
+      return;
+    }
     setBusy(true);
     try {
       const test = await createTeamTest(selectedId, { scenarioSlug });
@@ -169,20 +186,35 @@ export function TeamCompareScreen({
         <p className="page-hero__eyebrow">Mismo examen</p>
         <h1 className="page-hero__title">Equipos y comparación</h1>
         <p className="page-hero__subtitle">
-          Crea un equipo, suma miembros y ponlos en el mismo caso PREFILLED.
-          El backend genera la comparación — no el navegador.
+          Orden: crea el equipo, suma miembros, ponlos en el mismo caso
+          PREFILLED y compara. El backend escribe el coaching — no el
+          navegador.
         </p>
       </header>
 
+      <ol className="team-flow" aria-label="Pasos para comparar">
+        <li>Crear o elegir equipo</li>
+        <li>Sumar miembros</li>
+        <li>Mismo examen</li>
+        <li>Comparar</li>
+      </ol>
+
+      {formError ? (
+        <p className="team-form-error" role="alert">
+          {formError}
+        </p>
+      ) : null}
+
       <div className="team-compare__grid">
         <Card>
-          <h2>Equipo</h2>
+          <h2>1. Equipo</h2>
           <label className="agent-field">
             <span>Nombre del equipo</span>
             <input
               value={teamName}
               onChange={(event) => setTeamName(event.target.value)}
               placeholder="Jaime / pasantes"
+              aria-invalid={formError?.includes("equipo") || undefined}
             />
           </label>
           <Button
@@ -192,29 +224,44 @@ export function TeamCompareScreen({
           >
             Crear equipo
           </Button>
-          <ul className="team-list">
-            {teams.map((team) => (
-              <li key={team.id}>
-                <button
-                  type="button"
-                  className={team.id === selectedId ? "is-active" : ""}
-                  onClick={() => void loadTeam(team.id)}
-                >
-                  {team.name}
-                </button>
-              </li>
-            ))}
-          </ul>
+          {teams.length === 0 ? (
+            <p className="team-empty" role="status">
+              Aún no hay equipos. Crea el primero para continuar.
+            </p>
+          ) : (
+            <ul className="team-list">
+              {teams.map((team) => (
+                <li key={team.id}>
+                  <button
+                    type="button"
+                    className={team.id === selectedId ? "is-active" : ""}
+                    aria-pressed={team.id === selectedId}
+                    onClick={() => void loadTeam(team.id)}
+                  >
+                    {team.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
 
         <Card>
-          <h2>Miembros</h2>
+          <h2>2. Miembros</h2>
+          {!selectedId ? (
+            <p className="team-empty" role="status">
+              Elige un equipo para sumar personas. Sin equipo no hay callejón
+              sin salida: vuelve al paso 1.
+            </p>
+          ) : null}
           <label className="agent-field">
             <span>Nombre</span>
             <input
               value={memberName}
               onChange={(event) => setMemberName(event.target.value)}
               placeholder="Jaime"
+              disabled={!selectedId}
+              aria-invalid={formError?.includes("miembro") || undefined}
             />
           </label>
           <label className="agent-field">
@@ -223,23 +270,34 @@ export function TeamCompareScreen({
               value={memberEmail}
               onChange={(event) => setMemberEmail(event.target.value)}
               placeholder="jaime@equipo"
+              disabled={!selectedId}
             />
           </label>
-          <Button loading={busy} onClick={() => void handleAddMember()}>
+          <Button
+            loading={busy}
+            disabled={!selectedId}
+            onClick={() => void handleAddMember()}
+          >
             Agregar miembro
           </Button>
-          <ul className="team-list">
-            {members.map((member) => (
-              <li key={member.id}>
-                {member.displayName}
-                {member.email ? ` · ${member.email}` : ""}
-              </li>
-            ))}
-          </ul>
+          {selectedId && members.length === 0 ? (
+            <p className="team-empty" role="status">
+              Agrega al menos dos personas para comparar.
+            </p>
+          ) : (
+            <ul className="team-list">
+              {members.map((member) => (
+                <li key={member.id}>
+                  {member.displayName}
+                  {member.email ? ` · ${member.email}` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
 
         <Card>
-          <h2>Mismo examen</h2>
+          <h2>3. Mismo examen</h2>
           <label className="agent-field">
             <span>Escenario PREFILLED</span>
             <select
@@ -254,7 +312,11 @@ export function TeamCompareScreen({
             </select>
           </label>
           <div className="team-actions">
-            <Button loading={busy} onClick={() => void handleCreateTest()}>
+            <Button
+              loading={busy}
+              disabled={!selectedId}
+              onClick={() => void handleCreateTest()}
+            >
               Crear examen
             </Button>
             <Button onClick={() => onPractice(scenarioSlug)}>
@@ -279,7 +341,12 @@ export function TeamCompareScreen({
 
       {selectedTestId ? (
         <Card className="team-scores">
-          <h2>Resultados del mismo test</h2>
+          <h2>4. Resultados del mismo test</h2>
+          {members.length === 0 ? (
+            <p className="team-empty" role="status">
+              Suma miembros y vuelve aquí para cargar puntajes.
+            </p>
+          ) : null}
           {members.map((member) => (
             <div key={member.id} className="team-score-row">
               <span>{member.displayName}</span>
@@ -318,14 +385,27 @@ export function TeamCompareScreen({
         <Card className="team-comparison">
           <h2>Comparación</h2>
           <p>{comparison.narrative}</p>
-          <ul>
-            {comparison.members.map((member) => (
-              <li key={member.memberId}>
-                {member.displayName}: {member.totalScore} pts
-                {member.won ? " · ganó" : ""}
-              </li>
-            ))}
-          </ul>
+          <table className="team-comparison__table">
+            <caption className="visually-hidden">
+              Resultados del mismo examen
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Nombre</th>
+                <th scope="col">Puntaje</th>
+                <th scope="col">Resultado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {comparison.members.map((member) => (
+                <tr key={member.memberId}>
+                  <th scope="row">{member.displayName}</th>
+                  <td>{member.totalScore} pts</td>
+                  <td>{member.won ? "Ganó" : "Pendiente"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           <h3>Huecos</h3>
           <ul>
             {comparison.gaps.map((gap) => (

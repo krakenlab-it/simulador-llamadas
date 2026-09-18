@@ -23,6 +23,9 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <div className="app-shell">
+      <a href="#contenido" className="skip-link">
+        Saltar al contenido
+      </a>
       <header className="app-header">
         <div className="app-header__brand">
           <span className="app-header__logo" aria-hidden="true">
@@ -94,7 +97,9 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="app-main">{children}</main>
+      <main id="contenido" className="app-main" tabIndex={-1}>
+        {children}
+      </main>
     </div>
   );
 }

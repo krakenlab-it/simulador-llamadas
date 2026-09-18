@@ -198,6 +198,13 @@ describe("live call voice path without ConvAI", () => {
     expect(
       screen.queryByText(/sin facturación ElevenLabs/i),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Estado de la llamada" })).toHaveTextContent(
+      /En llamada/,
+    );
+    expect(screen.getByRole("region", { name: "Llamada en vivo" })).toHaveAttribute(
+      "lang",
+      "es",
+    );
   });
 
   it("shows and speaks the client reply returned by the turn", async () => {

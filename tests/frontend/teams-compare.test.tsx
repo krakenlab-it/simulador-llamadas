@@ -115,6 +115,10 @@ describe("TeamCompareScreen", () => {
       </ToastProvider>,
     );
 
+    expect(screen.getByText(/Aún no hay equipos/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Crear equipo" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/nombre del equipo/i);
+
     await user.type(screen.getByPlaceholderText(/Jaime \/ pasantes/i), "Jaime / pasantes");
     await user.click(screen.getByRole("button", { name: "Crear equipo" }));
     await waitFor(() => expect(createTeam).toHaveBeenCalled());
@@ -125,5 +129,6 @@ describe("TeamCompareScreen", () => {
     await user.click(screen.getAllByRole("button", { name: "Guardar" })[0]);
     expect(await screen.findByText(/Jaime va adelante/i)).toBeInTheDocument();
     expect(screen.getByText(/caseta/i)).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Puntaje" })).toBeInTheDocument();
   });
 });

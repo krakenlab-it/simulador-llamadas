@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type KeyboardEvent } from "react";
+import { useDocumentLang } from "@/lib/a11y/document-lang";
+import { nextRovingValue } from "@/lib/a11y/roving-options";
 import { useToast } from "@/components/ui/Toast";
 import { CLIENTS, getClientBySlug, type ClientPersona } from "@/lib/clients";
 import { listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
@@ -91,6 +93,10 @@ export function ScenarioHub({
   const voiceConfig = useVoiceConfig();
   const { session } = useAuth();
   const difficultyGroupId = useId();
+  const libraryTabId = useId();
+  const customTabId = useId();
+  const scenarioPanelId = useId();
+  useDocumentLang(voiceAgent.language);
 
   useEffect(() => {
     if (!session?.user.email || verifiedUserId) return;
@@ -241,13 +247,14 @@ export function ScenarioHub({
   const renderScenarioCard = (scenario: ScenarioRecord) => {
     const isSelected = selectedSlug === scenario.slug;
     return (
-      <div key={scenario.slug} className="scenario-card-wrap">
+      <div key={scenario.slug} className="scenario-card-wrap" role="listitem">
         <Card
           interactive
           selected={isSelected}
           role="button"
           tabIndex={0}
           aria-pressed={isSelected}
+          aria-label={`Escenario ${scenario.clientName}`}
           onClick={() => setSelectedSlug(scenario.slug)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -306,11 +313,28 @@ export function ScenarioHub({
         </p>
       </header>
 
-      <div className="train-hub__tabs" role="tablist" aria-label="Tipo de escenario">
+      <div
+        className="train-hub__tabs"
+        role="tablist"
+        aria-label="Tipo de escenario"
+        onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+          const next = nextRovingValue(
+            ["library", "custom"] as const,
+            tab,
+            event.key,
+          );
+          if (!next) return;
+          event.preventDefault();
+          setTab(next);
+        }}
+      >
         <button
           type="button"
+          id={libraryTabId}
           role="tab"
           aria-selected={tab === "library"}
+          aria-controls={scenarioPanelId}
+          tabIndex={tab === "library" ? 0 : -1}
           className={`train-hub__tab ${tab === "library" ? "train-hub__tab--active" : ""}`}
           onClick={() => setTab("library")}
         >
@@ -318,8 +342,11 @@ export function ScenarioHub({
         </button>
         <button
           type="button"
+          id={customTabId}
           role="tab"
           aria-selected={tab === "custom"}
+          aria-controls={scenarioPanelId}
+          tabIndex={tab === "custom" ? 0 : -1}
           className={`train-hub__tab ${tab === "custom" ? "train-hub__tab--active" : ""}`}
           onClick={() => setTab("custom")}
         >
@@ -327,34 +354,40 @@ export function ScenarioHub({
         </button>
       </div>
 
-      {loadingScenarios ? (
-        <div className="train-hub__loading">
-          <Spinner label="Cargando escenarios…" />
-        </div>
-      ) : catalogFailed ? (
-        <EmptyState
-          title="No se pudieron cargar los escenarios"
-          description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo — no arrancamos la clínica de respaldo para no ensayar un caso distinto al de producción."
-        />
-      ) : tab === "custom" && custom.length === 0 ? (
-        <EmptyState
-          title="Aún no tienes escenarios propios"
-          description="Crea un caso de venta a tu medida — banco, SaaS, seguros, retail — y practícalo con el mismo motor de cinco rondas."
-          actionLabel="Crear escenario"
-          onAction={onCreateScenario}
-        />
-      ) : visibleScenarios.length === 0 ? (
-        <EmptyState
-          title="No hay escenarios disponibles"
-          description="Vuelve a intentar en unos segundos o crea uno personalizado."
-          actionLabel="Crear escenario"
-          onAction={onCreateScenario}
-        />
-      ) : (
-        <div className="scenario-grid" role="list">
-          {visibleScenarios.map(renderScenarioCard)}
-        </div>
-      )}
+      <div
+        id={scenarioPanelId}
+        role="tabpanel"
+        aria-labelledby={tab === "library" ? libraryTabId : customTabId}
+      >
+        {loadingScenarios ? (
+          <div className="train-hub__loading">
+            <Spinner label="Cargando escenarios…" />
+          </div>
+        ) : catalogFailed ? (
+          <EmptyState
+            title="No se pudieron cargar los escenarios"
+            description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo — no arrancamos la clínica de respaldo para no ensayar un caso distinto al de producción."
+          />
+        ) : tab === "custom" && custom.length === 0 ? (
+          <EmptyState
+            title="Aún no tienes escenarios propios"
+            description="Crea un caso de venta a tu medida — banco, SaaS, seguros, retail — y practícalo con el mismo motor de cinco rondas."
+            actionLabel="Crear escenario"
+            onAction={onCreateScenario}
+          />
+        ) : visibleScenarios.length === 0 ? (
+          <EmptyState
+            title="No hay escenarios disponibles"
+            description="Vuelve a intentar en unos segundos o crea uno personalizado."
+            actionLabel="Crear escenario"
+            onAction={onCreateScenario}
+          />
+        ) : (
+          <div className="scenario-grid" role="list">
+            {visibleScenarios.map(renderScenarioCard)}
+          </div>
+        )}
+      </div>
 
       {tab === "custom" && custom.length > 0 ? (
         <div className="train-hub__secondary-action">
