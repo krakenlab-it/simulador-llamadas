@@ -40,6 +40,7 @@ export const AGENT_PROVIDER_PREFERENCES = [
 export type AgentProviderPreference = (typeof AGENT_PROVIDER_PREFERENCES)[number];
 
 export const AGENT_RESOLVED_PROVIDERS = [
+  "gateway",
   "deepseek",
   "groq",
   "gemini",

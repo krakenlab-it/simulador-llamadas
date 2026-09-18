@@ -7,32 +7,38 @@ import type {
 } from "./types";
 
 export const AGENT_ENV_NAMES = [
-  "DEEPSEEK_API_KEY",
+  "AI_GATEWAY_API_KEY",
+  "VERCEL_OIDC_TOKEN",
   "GROQ_API_KEY",
   "GOOGLE_API_KEY",
-  "AI_GATEWAY_API_KEY",
+  "DEEPSEEK_API_KEY",
 ] as const;
 
 function hasKey(name: string): boolean {
   return Boolean(process.env[name]?.trim());
 }
 
+export function isGatewayAvailable(): boolean {
+  return hasKey("AI_GATEWAY_API_KEY") || hasKey("VERCEL_OIDC_TOKEN");
+}
+
 export function readProviderAvailability(): AgentProviderAvailability {
   const deepseek = hasKey("DEEPSEEK_API_KEY");
   const groq = hasKey("GROQ_API_KEY");
   const gemini = hasKey("GOOGLE_API_KEY");
-  const gateway = hasKey("AI_GATEWAY_API_KEY");
+  const gateway = isGatewayAvailable();
   return {
     deepseek,
     groq,
     gemini,
     gateway,
-    hasModel: deepseek || groq || gemini || gateway,
+    hasModel: gateway || groq || gemini || deepseek,
   };
 }
 
+/** DeepSeek via Gateway, or last-resort direct DeepSeek key. */
 export function isDeepSeekAvailable(): boolean {
-  return hasKey("DEEPSEEK_API_KEY") || hasKey("AI_GATEWAY_API_KEY");
+  return isGatewayAvailable() || hasKey("DEEPSEEK_API_KEY");
 }
 
 export function resolveAgentProvider(
@@ -41,8 +47,11 @@ export function resolveAgentProvider(
 ): AgentResolvedProvider {
   const pick = (wanted: AgentResolvedProvider): AgentResolvedProvider => {
     switch (wanted) {
+      case "gateway":
+        return availability.gateway ? "gateway" : "local";
       case "deepseek":
-        return availability.deepseek || availability.gateway ? "deepseek" : "local";
+        if (availability.gateway) return "gateway";
+        return availability.deepseek ? "deepseek" : "local";
       case "groq":
         return availability.groq ? "groq" : "local";
       case "gemini":
@@ -62,9 +71,10 @@ export function resolveAgentProvider(
     case "gemini":
       return pick(preference);
     case "auto":
-      if (availability.deepseek || availability.gateway) return "deepseek";
+      if (availability.gateway) return "gateway";
       if (availability.groq) return "groq";
       if (availability.gemini) return "gemini";
+      if (availability.deepseek) return "deepseek";
       return "local";
     default: {
       const _exhaustive: never = preference;

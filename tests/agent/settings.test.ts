@@ -7,7 +7,7 @@ import {
 } from "@/lib/agent";
 
 describe("agent settings", () => {
-  it("defaults to coach, auto runtime, DeepSeek preference and hidden advanced knobs", () => {
+  it("defaults to coach, auto runtime, Gateway → DeepSeek preference and hidden advanced knobs", () => {
     expect(DEFAULT_AGENT_SETTINGS.presetId).toBe("coach");
     expect(DEFAULT_AGENT_SETTINGS.runtime).toBe("auto");
     expect(DEFAULT_AGENT_SETTINGS.providerPreference).toBe("auto");

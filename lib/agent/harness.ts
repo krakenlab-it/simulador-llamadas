@@ -221,7 +221,7 @@ export async function runAiSdkTurn(input: {
   const model = createAgentModel(input.provider);
   if (!model) {
     throw new AgentHarnessError(
-      "No hay modelo AI SDK disponible. Configura DEEPSEEK_API_KEY (default) u otra clave documentada.",
+      "No hay modelo AI SDK disponible. Configura AI_GATEWAY_API_KEY o VERCEL_OIDC_TOKEN (Gateway → DeepSeek).",
       503,
     );
   }
@@ -300,7 +300,7 @@ export async function runAgentChat(
 
   if (settings.runtime === "ai-sdk" && resolved.provider === "local") {
     throw new AgentHarnessError(
-      "Runtime AI SDK forzado, pero no hay DEEPSEEK_API_KEY / GROQ_API_KEY / GOOGLE_API_KEY / AI_GATEWAY_API_KEY.",
+      "Runtime AI SDK forzado, pero no hay AI_GATEWAY_API_KEY / VERCEL_OIDC_TOKEN ni un fallback documentado.",
       503,
     );
   }

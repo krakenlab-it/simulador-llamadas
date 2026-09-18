@@ -6,14 +6,16 @@ describe("agent API routes", () => {
   it("exposes harness bootstrap without secrets", async () => {
     const response = await GET();
     const body = await response.json();
-    expect(body.defaultModel).toBe("deepseek-v4-flash");
+    expect(body.defaultModel).toBe("deepseek/deepseek-v4-flash");
     expect(body.presets.some((item: { id: string }) => item.id === "coach")).toBe(
       true,
     );
     expect(body.tools.some((item: { id: string }) => item.id === "compare_team_test")).toBe(
       true,
     );
-    expect(body.envNames).toContain("DEEPSEEK_API_KEY");
+    expect(body.envNames[0]).toBe("AI_GATEWAY_API_KEY");
+    expect(body.envNames).toContain("VERCEL_OIDC_TOKEN");
+    expect(body.envNames.at(-1)).toBe("DEEPSEEK_API_KEY");
     expect(JSON.stringify(body)).not.toMatch(/sk-|gsk-/);
   });
 

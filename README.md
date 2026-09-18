@@ -78,17 +78,18 @@ Ver `.env.example`. Nunca commitear valores reales.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave pública (cliente) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave de servicio (solo servidor) |
 | `DATABASE_URL` | Postgres directo (tests de migración en CI) |
-| `DEEPSEEK_API_KEY` | Modelo por defecto del harness e impersonación (AI SDK) |
+| `AI_GATEWAY_API_KEY` | Camino feliz: Vercel AI Gateway sirviendo DeepSeek |
+| `VERCEL_OIDC_TOKEN` | Auth Gateway vía OIDC (`vercel env pull`; automático en Vercel) |
 | `GROQ_API_KEY` | Fallback de modelo |
 | `GOOGLE_API_KEY` | Fallback Gemini |
-| `AI_GATEWAY_API_KEY` | Gateway opcional (AI SDK) |
+| `DEEPSEEK_API_KEY` | Último recurso opcional — no es el camino principal |
 | `ELEVENLABS_CONVAI_ENABLED` | Opt-in del agente ConvAI (vacío = llamada con micrófono del navegador + TTS) |
 | `NEXT_PUBLIC_APP_URL` | URL base de la app |
 
 ### KAN-91 — harness, equipos y PREFILLED
 
 - **Backend** owns the AI SDK harness (`lib/agent`), teams (`lib/teams`) and same-test comparison.
-- **Default model:** DeepSeek (`deepseek-v4-flash`). Auto runtime falls back to Groq, Gemini, then local (no spend).
+- **Happy path:** Vercel AI SDK through Vercel AI Gateway. DeepSeek is the model the gateway serves (`deepseek/deepseek-v4-flash`). Auth: `AI_GATEWAY_API_KEY` or `VERCEL_OIDC_TOKEN`. Fallbacks: Groq, Gemini, last-resort direct `DEEPSEEK_API_KEY`, then local (no spend).
 - **Roles:** agent / user / context stay in separate channels. The frontend does not invent comparison text.
 - **Frontend:** Agente = first-run auto setup + Settings. Equipos = create team, add members, same exam, compare.
 - **PREFILLED:** Mariana, Rodrigo and Efraín keep their names; the situations are rewritten so each one asks different questions.
@@ -97,7 +98,8 @@ Smoke:
 
 1. `npm run dev` → **Entrenar** and start Mariana / Rodrigo / Efraín (ready without chat).
 2. **Agente** → leave Settings on auto → send `Crea un gerente de banco que no quiere pauta digital` → save.
-3. **Equipos** → create team, add Jaime + another member, create the same Mariana exam, enter two scores, **Comparar**.
+3. Optional: set `AI_GATEWAY_API_KEY` (or `vercel env pull` for `VERCEL_OIDC_TOKEN`) and repeat — runtime should report Gateway → DeepSeek.
+4. **Equipos** → create team, add Jaime + another member, create the same Mariana exam, enter two scores, **Comparar**.
 
 ### Esquema de base de datos
 

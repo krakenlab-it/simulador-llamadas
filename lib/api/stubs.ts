@@ -42,7 +42,7 @@ import {
 } from "@/lib/agent/settings";
 import { AGENT_TOOL_CATALOG, createToolSession } from "@/lib/agent/tools";
 import { AGENT_ENV_NAMES } from "@/lib/agent/availability";
-import { DEFAULT_DEEPSEEK_MODEL } from "@/lib/agent/models";
+import { DEFAULT_GATEWAY_DEEPSEEK_MODEL } from "@/lib/agent/models";
 import { runLocalAgentTurn } from "@/lib/agent/local-fallback";
 import { composeRuntimeSystemPrompt } from "@/lib/agent/prompts";
 import { packAgentContext } from "@/lib/agent/context";
@@ -646,7 +646,7 @@ export function resetStubSessions(): void {
 export function stubGetAgentHarness() {
   return {
     defaultSettings: DEFAULT_AGENT_SETTINGS,
-    defaultModel: DEFAULT_DEEPSEEK_MODEL,
+    defaultModel: DEFAULT_GATEWAY_DEEPSEEK_MODEL,
     presets: Object.values(AGENT_PRESETS),
     tools: AGENT_TOOL_CATALOG,
     availability: {

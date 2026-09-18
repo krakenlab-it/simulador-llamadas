@@ -1,6 +1,7 @@
 export {
   AGENT_ENV_NAMES,
   isDeepSeekAvailable,
+  isGatewayAvailable,
   readProviderAvailability,
   resolveAgentProvider,
   resolveAgentRuntime,
@@ -11,6 +12,7 @@ export { generateImpersonatedReply, isCloneReply } from "./impersonation";
 export { AGENT_PRESETS, defaultPromptForPreset, matchPresetByPrompt } from "./presets";
 export {
   DEFAULT_DEEPSEEK_MODEL,
+  DEFAULT_GATEWAY_DEEPSEEK_MODEL,
   FALLBACK_GEMINI_MODEL,
   FALLBACK_GROQ_MODEL,
 } from "./models";

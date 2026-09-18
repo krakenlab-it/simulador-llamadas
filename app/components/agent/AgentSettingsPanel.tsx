@@ -26,8 +26,8 @@ const RUNTIME_OPTIONS: Array<{ id: AgentRuntimeMode; label: string }> = [
 ];
 
 const PROVIDER_OPTIONS: Array<{ id: AgentProviderPreference; label: string }> = [
-  { id: "auto", label: "Auto (DeepSeek)" },
-  { id: "deepseek", label: "DeepSeek" },
+  { id: "auto", label: "Auto (Gateway → DeepSeek)" },
+  { id: "deepseek", label: "DeepSeek (vía Gateway)" },
   { id: "groq", label: "Groq" },
   { id: "gemini", label: "Gemini" },
 ];
@@ -104,10 +104,13 @@ export function AgentSettingsPanel({
       {settings.visibility.advancedOpen ? (
         <div className="agent-settings__advanced">
           <p className="agent-settings__hint">
-            Modelo por defecto: DeepSeek.{" "}
-            {availability?.hasModel
-              ? "Hay una clave de modelo en el servidor."
-              : "Sin clave: el backend usa el modo local (sin gasto)."}
+            Camino feliz: Vercel AI Gateway → DeepSeek
+            (AI_GATEWAY_API_KEY o VERCEL_OIDC_TOKEN).{" "}
+            {availability?.gateway
+              ? "Gateway disponible en el servidor."
+              : availability?.hasModel
+                ? "Sin Gateway: hay un fallback (Groq, Gemini o DeepSeek directo)."
+                : "Sin Gateway: el backend usa el modo local (sin gasto)."}
           </p>
 
           <fieldset className="agent-fieldset">

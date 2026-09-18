@@ -5,24 +5,25 @@ import {
   runAgentChat,
 } from "@/lib/agent";
 
-const savedDeepseek = process.env.DEEPSEEK_API_KEY;
-const savedGroq = process.env.GROQ_API_KEY;
-const savedGoogle = process.env.GOOGLE_API_KEY;
+const KEYS = [
+  "AI_GATEWAY_API_KEY",
+  "VERCEL_OIDC_TOKEN",
+  "DEEPSEEK_API_KEY",
+  "GROQ_API_KEY",
+  "GOOGLE_API_KEY",
+] as const;
+const saved = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
 
 afterEach(() => {
-  if (savedDeepseek === undefined) delete process.env.DEEPSEEK_API_KEY;
-  else process.env.DEEPSEEK_API_KEY = savedDeepseek;
-  if (savedGroq === undefined) delete process.env.GROQ_API_KEY;
-  else process.env.GROQ_API_KEY = savedGroq;
-  if (savedGoogle === undefined) delete process.env.GOOGLE_API_KEY;
-  else process.env.GOOGLE_API_KEY = savedGoogle;
+  for (const key of KEYS) {
+    if (saved[key] === undefined) delete process.env[key];
+    else process.env[key] = saved[key];
+  }
 });
 
 describe("runAgentChat", () => {
   it("uses local runtime when auto has no keys", async () => {
-    delete process.env.DEEPSEEK_API_KEY;
-    delete process.env.GROQ_API_KEY;
-    delete process.env.GOOGLE_API_KEY;
+    for (const key of KEYS) delete process.env[key];
     const response = await runAgentChat({
       messages: [{ role: "user", content: "arma un caso de farmacia" }],
       settings: DEFAULT_AGENT_SETTINGS,
@@ -36,9 +37,7 @@ describe("runAgentChat", () => {
   });
 
   it("throws when AI SDK is forced without keys", async () => {
-    delete process.env.DEEPSEEK_API_KEY;
-    delete process.env.GROQ_API_KEY;
-    delete process.env.GOOGLE_API_KEY;
+    for (const key of KEYS) delete process.env[key];
     await expect(
       runAgentChat({
         messages: [{ role: "user", content: "hola" }],

@@ -143,7 +143,8 @@ export function AgentHarnessScreen({
         <h1 className="page-hero__title">Arma el escenario o practica ya</h1>
         <p className="page-hero__subtitle">
           Los casos PREFILLED ya están listos. El chat es para un caso nuevo.
-          El backend usa DeepSeek cuando hay clave; si no, modo local.
+          El camino feliz es Vercel AI Gateway sirviendo DeepSeek. Sin
+          Gateway, el backend usa modo local.
         </p>
       </header>
 
@@ -168,7 +169,7 @@ export function AgentHarnessScreen({
             {messages.length === 0 ? (
               <p className="agent-chat__empty">
                 Ejemplo: «Crea un gerente de banco que no quiere pauta digital».
-                Sin claves el backend arma el caso en local.
+                Sin Gateway el backend arma el caso en local.
               </p>
             ) : (
               messages.map((message, index) => (
