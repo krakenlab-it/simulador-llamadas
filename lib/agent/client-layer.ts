@@ -166,6 +166,62 @@ export interface CatalogClientPackSeed {
   sellerObjective: string;
 }
 
+function parsePackStringList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+/** Persist/read Jaime pack constraints from scenario config JSONB. */
+export function parseCatalogClientPackSeed(
+  raw: unknown,
+): CatalogClientPackSeed | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const source = raw as Record<string, unknown>;
+  const decisionRole =
+    typeof source.decisionRole === "string" && isDecisionRole(source.decisionRole)
+      ? source.decisionRole
+      : undefined;
+  const howTheyWorkToday =
+    typeof source.howTheyWorkToday === "string"
+      ? source.howTheyWorkToday.trim()
+      : "";
+  const onTheirMind =
+    typeof source.onTheirMind === "string" ? source.onTheirMind.trim() : "";
+  const realObjection =
+    typeof source.realObjection === "string" ? source.realObjection.trim() : "";
+  const grantConditions =
+    typeof source.grantConditions === "string"
+      ? source.grantConditions.trim()
+      : "";
+  const sellerObjective =
+    typeof source.sellerObjective === "string"
+      ? source.sellerObjective.trim()
+      : "";
+  if (
+    !decisionRole ||
+    !howTheyWorkToday ||
+    !onTheirMind ||
+    !realObjection ||
+    !grantConditions ||
+    !sellerObjective
+  ) {
+    return undefined;
+  }
+  return {
+    decisionRole,
+    howTheyWorkToday,
+    onTheirMind,
+    allowedFacts: parsePackStringList(source.allowedFacts),
+    forbiddenClaims: parsePackStringList(source.forbiddenClaims),
+    realObjection,
+    grantConditions,
+    sellerObjective,
+  };
+}
+
 export function toneHint(toneId: ClientToneId, temperament: string): string {
   switch (toneId) {
     case "auto":

@@ -38,6 +38,16 @@ describeIfDb("scenario authoring (integration)", () => {
         objections: ["Muy caro"],
         winCriteria: "Visita de diagnóstico el jueves a las 9",
         callType: "discovery",
+        clientPack: {
+          decisionRole: "decisor",
+          howTheyWorkToday: "Pase libre y promociones; la gente no vuelve",
+          onTheirMind: "El piso se ve vacío a las 18:00",
+          allowedFacts: ["Baja retención a 60 días"],
+          forbiddenClaims: ["garantía de socios"],
+          realObjection: "Pagó pauta de marca y el piso sigue flojo",
+          grantConditions: "Que hablen de asistencia a clase",
+          sellerObjective: "Clase prueba el viernes a las 18",
+        },
       }),
     );
 
@@ -47,6 +57,10 @@ describeIfDb("scenario authoring (integration)", () => {
     expect(created.config.rounds).toHaveLength(5);
     expect(created.config.callType).toBe("discovery");
     expect(created.config.dimensionGuides?.apertura_contrato).toBeTruthy();
+    expect(created.config.clientPack?.forbiddenClaims).toContain(
+      "garantía de socios",
+    );
+    expect(created.config.clientPack?.sellerObjective).toMatch(/viernes/);
 
     const updated = await repo.updateCustom({
       slug: created.slug,
@@ -71,6 +85,7 @@ describeIfDb("scenario authoring (integration)", () => {
         ...created.config.dimensionGuides,
         cierre_siguiente_paso: "Clase prueba con horario concreto.",
       },
+      clientPack: created.config.clientPack,
     });
 
     expect(updated.slug).toBe(created.slug);
@@ -88,6 +103,9 @@ describeIfDb("scenario authoring (integration)", () => {
     expect(reloaded?.winCriteria).toBe(updated.winCriteria);
     expect(reloaded?.config.dimensionGuides?.cierre_siguiente_paso).toContain(
       "Clase prueba",
+    );
+    expect(reloaded?.config.clientPack?.forbiddenClaims).toContain(
+      "garantía de socios",
     );
   });
 

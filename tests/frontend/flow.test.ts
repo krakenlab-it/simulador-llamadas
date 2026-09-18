@@ -99,6 +99,13 @@ describe("app flow state machine", () => {
     expect(openAgent(enterCall())).toEqual(enterCall());
   });
 
+  it("closeBuilder is a noop on Agente — saved cases must resetToTrain", () => {
+    const agent = openAgent(initialFlowState());
+    expect(closeBuilder(agent).view).toBe("agent");
+    expect(resetToTrain().view).toBe("train");
+    expect(closeAgent(agent).view).toBe("train");
+  });
+
   it("allows navigating to agent and teams when idle", () => {
     const state = initialFlowState();
     expect(canNavigateTo(state, "agent")).toBe(true);

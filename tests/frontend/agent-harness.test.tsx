@@ -83,6 +83,11 @@ describe("AgentHarnessScreen", () => {
       expect.objectContaining({
         clientName: "Valeria Soto",
         productSold: expect.stringMatching(/Kraken Flow/i),
+        clientPack: expect.objectContaining({
+          decisionRole: "decisor",
+          forbiddenClaims: expect.arrayContaining(["reemplazar el ERP"]),
+          sellerObjective: expect.stringMatching(/jueves/i),
+        }),
       }),
     );
   });

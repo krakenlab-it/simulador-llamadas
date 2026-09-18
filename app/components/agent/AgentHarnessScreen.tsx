@@ -149,7 +149,7 @@ export function AgentHarnessScreen({
   };
 
   const loadExample = (pack: ExamplePack) => {
-    setDraft(pack.draft);
+    setDraft({ ...pack.draft, clientPack: pack.clientPack });
     setMessages([
       {
         role: "assistant",

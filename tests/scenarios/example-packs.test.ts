@@ -29,6 +29,7 @@ describe("Jaime example packs", () => {
     expect(pack?.draft.clientName).toBe("Valeria Soto");
     expect(pack?.draft.productSold).toMatch(/Kraken Flow/i);
     expect(pack?.clientPack.forbiddenClaims).toContain("reemplazar el ERP");
+    expect(pack?.draft.clientPack).toEqual(pack?.clientPack);
     expect(getExamplePack("unknown")).toBeUndefined();
   });
 });

@@ -255,8 +255,8 @@ function SimulatorShell() {
     (slug: string) => {
       setScenarioRefresh((k) => k + 1);
       setSelectedSlugOnLoad(slug);
-      setFlow((prev) => closeBuilder(prev));
-      showToast("Escenario guardado. Selecciónalo e inicia la llamada.", "success");
+      setFlow(resetToTrain);
+      showToast("Caso listo para practicar.", "success");
     },
     [showToast],
   );

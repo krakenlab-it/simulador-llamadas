@@ -289,11 +289,18 @@ export const EXAMPLE_PACKS: Record<ExamplePackId, ExamplePack> = {
   },
 };
 
+function withPackOnDraft(pack: ExamplePack): ExamplePack {
+  return {
+    ...pack,
+    draft: { ...pack.draft, clientPack: pack.clientPack },
+  };
+}
+
 export function listExamplePacks(): ExamplePack[] {
-  return EXAMPLE_PACK_IDS.map((id) => EXAMPLE_PACKS[id]);
+  return EXAMPLE_PACK_IDS.map((id) => withPackOnDraft(EXAMPLE_PACKS[id]));
 }
 
 export function getExamplePack(id: string): ExamplePack | undefined {
   if (!(EXAMPLE_PACK_IDS as readonly string[]).includes(id)) return undefined;
-  return EXAMPLE_PACKS[id as ExamplePackId];
+  return withPackOnDraft(EXAMPLE_PACKS[id as ExamplePackId]);
 }

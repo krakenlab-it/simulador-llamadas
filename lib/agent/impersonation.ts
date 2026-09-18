@@ -9,6 +9,7 @@ import type { ClientReaction } from "@/lib/scoring/rondas";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import {
   DEFAULT_CLIENT_LAYER_SETTINGS,
+  parseCatalogClientPackSeed,
   toneHint,
   type ClientLayerSettings,
 } from "./client-layer";
@@ -73,7 +74,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     clientTitle: preset?.title,
     company: preset?.company,
     config: input.config,
-    seed: preset?.clientPack,
+    seed: preset?.clientPack ?? parseCatalogClientPackSeed(input.config.clientPack),
     difficultyLevel: difficulty,
     mode: input.mode,
     maxTurns: input.config.rounds.length || 5,

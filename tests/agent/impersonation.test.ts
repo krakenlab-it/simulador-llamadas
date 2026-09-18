@@ -74,6 +74,37 @@ describe("impersonation", () => {
     expect(text).toBe("Ya tenemos agencia y caseta.");
   });
 
+  it("uses persisted config.clientPack on custom slugs", () => {
+    const config = buildPresetScenarioConfig("mariana");
+    expect(config).not.toBeNull();
+    const customConfig = {
+      ...config!,
+      clientPack: {
+        decisionRole: "guardian" as const,
+        howTheyWorkToday: "Excel de proveedores y un reporte anual",
+        onTheirMind: "Auditoría el próximo trimestre",
+        allowedFacts: ["Proveedores sin evidencia de origen"],
+        forbiddenClaims: ["certificación garantizada"],
+        realObjection: "Ya tienen reporte ESG y no quieren otro deck",
+        grantConditions: "Evidencia de origen por proveedor",
+        sellerObjective: "Revisión el miércoles a las 16",
+      },
+    };
+    const roles = buildImpersonationRoles({
+      config: customConfig,
+      round: customConfig.rounds[0],
+      reaction: "medio",
+      clientName: "Andrés Peña",
+      traineeUtterance: "Buenos días, le llamo por la auditoría.",
+      roundNumber: 1,
+      scenarioSlug: "andres-pena-sostenibilidad",
+    });
+    expect(roles.agent).toMatch(/guardian/);
+    expect(roles.context).toMatch(/certificación garantizada/);
+    expect(roles.context).toMatch(/Evidencia de origen/);
+    expect(roles.context).not.toMatch(/garantía de visitas a caseta/);
+  });
+
   it("detects clone replies", () => {
     expect(isCloneReply("ok", [])).toBe(true);
     expect(
