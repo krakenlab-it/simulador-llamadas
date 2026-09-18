@@ -100,11 +100,14 @@ export function inferVoiceGender(input: {
 export function pickCuratedSlot(
   gender: VoiceGender,
   input: { characterName?: string | null; scenarioSlug?: string | null },
+  genderPreference: VoiceGenderPreference = "auto",
 ): CuratedVoiceSlot {
   const slug = input.scenarioSlug?.trim().toLowerCase();
-  if (slug === "mariana") return "female_a";
-  if (slug === "rodrigo") return "male_a";
-  if (slug === "efrain") return "male_b";
+  if (genderPreference === "auto") {
+    if (slug === "mariana") return "female_a";
+    if (slug === "rodrigo") return "male_a";
+    if (slug === "efrain") return "male_b";
+  }
 
   const seed = `${slug ?? ""}:${firstNameOf(input.characterName)}`;
   const useB = seed.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0) % 2 === 1;
@@ -133,7 +136,7 @@ export function resolveCuratedVoiceId(input: {
           scenarioSlug: input.scenarioSlug,
         })
       : preference;
-  return resolveSlotVoiceId(pickCuratedSlot(gender, input));
+  return resolveSlotVoiceId(pickCuratedSlot(gender, input, preference));
 }
 
 export function curatedVoiceForId(voiceId: string): (typeof CURATED_VOICE_SLOTS)[number] | undefined {
