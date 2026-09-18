@@ -119,6 +119,14 @@ export function memoryRecordResult(
   testId: string,
   input: RecordResultInput,
 ): PracticeTeamResult {
+  const test = memoryFindTest(testId);
+  if (!test) {
+    throw new TeamStoreError("Examen no encontrado en este equipo.");
+  }
+  const snapshot = memoryGetSnapshot(test.teamId);
+  if (!snapshot.members.some((member) => member.id === input.memberId)) {
+    throw new TeamStoreError("Miembro no encontrado en este equipo.");
+  }
   const existing = memory.results.find(
     (item) => item.testId === testId && item.memberId === input.memberId,
   );

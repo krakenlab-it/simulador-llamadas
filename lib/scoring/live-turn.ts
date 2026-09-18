@@ -130,6 +130,21 @@ function resolveScoringRoundType(input: LiveTurnInput): RoundType | null {
   return isClinicRoundType(phaseKey) ? phaseKey : null;
 }
 
+function buildImpersonationHistory(priorLines: TranscriptLine[]): {
+  recentReplies: string[];
+  askedQuestions: string[];
+} {
+  const clientLines = priorLines
+    .filter((line) => line.role === "client")
+    .map((line) => line.text.trim())
+    .filter(Boolean);
+  const askedQuestions = clientLines.filter((text) => text.includes("?"));
+  return {
+    recentReplies: clientLines.slice(-4),
+    askedQuestions,
+  };
+}
+
 export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
   const analytics = computeTurnAnalytics({
     utterance: input.utterance,
@@ -180,8 +195,9 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
         scenarioSlug: input.scenarioSlug,
       };
       if (isDeepSeekAvailable()) {
+        const history = buildImpersonationHistory(input.priorLines);
         clientReply = await generateImpersonatedReply(
-          impersonationInput,
+          { ...impersonationInput, ...history },
           templatedReply,
         );
       } else if (isGroqAvailable()) {

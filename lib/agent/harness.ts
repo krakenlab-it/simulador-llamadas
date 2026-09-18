@@ -1,6 +1,6 @@
 import { generateText, isStepCount, tool } from "ai";
 import { packAgentContext } from "./context";
-import { runLocalAgentTurn } from "./local-fallback";
+import { runLocalAgentTurn, type LocalAgentTeamOps } from "./local-fallback";
 import { composeRuntimeSystemPrompt } from "./prompts";
 import { createAgentModel } from "./provider";
 import { resolveHarnessState } from "./states";
@@ -8,6 +8,11 @@ import {
   executeCompareTeamTest,
   executeListTeams,
 } from "./team-tools";
+
+const SERVER_LOCAL_TEAM_OPS: LocalAgentTeamOps = {
+  listTeams: executeListTeams,
+  compareTeamTest: executeCompareTeamTest,
+};
 import {
   applyScenarioSchema,
   compareTeamTestSchema,
@@ -307,6 +312,7 @@ export async function runAgentChat(
       systemPromptUsed: packed.systemPromptUsed,
       contextPack: packed.contextPack,
       roles: packed.roles,
+      teamOps: SERVER_LOCAL_TEAM_OPS,
     });
   }
 
@@ -333,6 +339,7 @@ export async function runAgentChat(
       systemPromptUsed: packed.systemPromptUsed,
       contextPack: packed.contextPack,
       roles: packed.roles,
+      teamOps: SERVER_LOCAL_TEAM_OPS,
     });
   }
 }

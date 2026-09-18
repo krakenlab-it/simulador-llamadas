@@ -29,6 +29,16 @@ function canUseDatabase(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
 }
 
+function isPostgresQueryError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code: unknown }).code === "string" &&
+    /^\d{5}$/.test((error as { code: string }).code)
+  );
+}
+
 async function withOptionalDb<T>(
   fn: (client: PoolClient) => Promise<T>,
   fallback: () => T | Promise<T>,
@@ -36,7 +46,10 @@ async function withOptionalDb<T>(
   if (!canUseDatabase()) return fallback();
   try {
     return await withPgClient(fn);
-  } catch {
+  } catch (error) {
+    if (error instanceof TeamStoreError || isPostgresQueryError(error)) {
+      throw error;
+    }
     return fallback();
   }
 }

@@ -75,12 +75,82 @@ function looksLikeTeams(text: string): boolean {
   return /\b(equipos?|members?|miembros)\b/i.test(text);
 }
 
+function shouldProposeScenario(
+  text: string,
+  session: AgentToolSession,
+): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (session.draft && looksLikeSave(trimmed)) return false;
+  if (looksLikeReset(trimmed)) return false;
+  if (looksLikeCompare(trimmed)) return false;
+  if (looksLikeTeams(trimmed)) return false;
+  return true;
+}
+
+export type LocalAgentTeamOps = {
+  listTeams: () => Promise<{ ok: boolean; summary: string }>;
+  compareTeamTest: (
+    session: AgentToolSession,
+    input: { teamId: string; testId: string },
+  ) => Promise<{ ok: boolean; summary: string }>;
+};
+
+async function listTeamsWithMemory(): Promise<{ ok: boolean; summary: string }> {
+  const teams = memoryListTeams();
+  return {
+    ok: true,
+    summary:
+      teams.length === 0
+        ? "No hay equipos todavía."
+        : `${teams.length} equipo(s): ${teams.map((team) => team.name).join(", ")}`,
+  };
+}
+
+async function compareTeamTestWithMemory(
+  session: AgentToolSession,
+  input: { teamId: string; testId: string },
+): Promise<{ ok: boolean; summary: string }> {
+  try {
+    const snapshot = memoryGetSnapshot(input.teamId);
+    const test = memoryFindTest(input.testId);
+    if (!test || test.teamId !== input.teamId) {
+      throw new Error("Examen no encontrado en este equipo.");
+    }
+    const results = memoryListResults(input.testId);
+    session.comparison = buildDeterministicComparison({
+      teamName: snapshot.team.name,
+      teamId: input.teamId,
+      testId: input.testId,
+      scenarioSlug: test.scenarioSlug,
+      title: test.title,
+      members: snapshot.members.map((member) => {
+        const result = results.find((item) => item.memberId === member.id);
+        return {
+          memberId: member.id,
+          displayName: member.displayName,
+          totalScore: result?.totalScore ?? 0,
+          won: result?.won ?? false,
+          turnsCompleted: result?.turnsCompleted ?? 0,
+        };
+      }),
+    });
+    return { ok: true, summary: session.comparison.narrative };
+  } catch (error) {
+    return {
+      ok: false,
+      summary: error instanceof Error ? error.message : "No se pudo comparar.",
+    };
+  }
+}
+
 export async function runLocalAgentTurn(input: {
   request: AgentChatRequest;
   session: AgentToolSession;
   systemPromptUsed: string;
   contextPack: string;
   roles: AgentChatResponse["roles"];
+  teamOps?: LocalAgentTeamOps;
 }): Promise<AgentChatResponse> {
   const text = latestUserText(input.request.messages);
   const enabled = new Set(input.request.settings.enabledTools);
@@ -96,15 +166,17 @@ export async function runLocalAgentTurn(input: {
     traces.push({ toolId: "list_catalog", ok: result.ok, summary: result.summary });
   }
 
+  const teamOps = input.teamOps ?? {
+    listTeams: listTeamsWithMemory,
+    compareTeamTest: compareTeamTestWithMemory,
+  };
+
   if (enabled.has("list_teams") && looksLikeTeams(text)) {
-    const teams = memoryListTeams();
+    const listed = await teamOps.listTeams();
     traces.push({
       toolId: "list_teams",
-      ok: true,
-      summary:
-        teams.length === 0
-          ? "No hay equipos todavía."
-          : `${teams.length} equipo(s): ${teams.map((team) => team.name).join(", ")}`,
+      ok: listed.ok,
+      summary: listed.summary,
     });
   }
 
@@ -114,45 +186,18 @@ export async function runLocalAgentTurn(input: {
     input.session.teamId &&
     input.session.testId
   ) {
-    try {
-      const snapshot = memoryGetSnapshot(input.session.teamId);
-      const test = memoryFindTest(input.session.testId);
-      if (!test || test.teamId !== input.session.teamId) {
-        throw new Error("Examen no encontrado en este equipo.");
-      }
-      const results = memoryListResults(input.session.testId);
-      input.session.comparison = buildDeterministicComparison({
-        teamName: snapshot.team.name,
-        teamId: input.session.teamId,
-        testId: input.session.testId,
-        scenarioSlug: test.scenarioSlug,
-        title: test.title,
-        members: snapshot.members.map((member) => {
-          const result = results.find((item) => item.memberId === member.id);
-          return {
-            memberId: member.id,
-            displayName: member.displayName,
-            totalScore: result?.totalScore ?? 0,
-            won: result?.won ?? false,
-            turnsCompleted: result?.turnsCompleted ?? 0,
-          };
-        }),
-      });
-      traces.push({
-        toolId: "compare_team_test",
-        ok: true,
-        summary: input.session.comparison.narrative,
-      });
-    } catch (error) {
-      traces.push({
-        toolId: "compare_team_test",
-        ok: false,
-        summary: error instanceof Error ? error.message : "No se pudo comparar.",
-      });
-    }
+    const compared = await teamOps.compareTeamTest(input.session, {
+      teamId: input.session.teamId,
+      testId: input.session.testId,
+    });
+    traces.push({
+      toolId: "compare_team_test",
+      ok: compared.ok,
+      summary: compared.summary,
+    });
   }
 
-  if (enabled.has("propose_scenario") && text.trim()) {
+  if (enabled.has("propose_scenario") && shouldProposeScenario(text, input.session)) {
     const hint = INDUSTRY_HINTS.find((item) => item.pattern.test(text));
     const proposed = executeProposeScenario(input.session, {
       clientName: extractName(text),

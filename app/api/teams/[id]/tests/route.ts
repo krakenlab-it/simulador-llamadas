@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
-import { createTeamTest, recordResult, TeamStoreError } from "@/lib/teams";
+import {
+  createTeamTest,
+  findTest,
+  getTeamSnapshot,
+  recordResult,
+  TeamStoreError,
+} from "@/lib/teams";
 
 export async function POST(
   request: Request,
@@ -21,6 +27,16 @@ export async function POST(
     };
 
     if (body.result && body.testId) {
+      const test = await findTest(body.testId);
+      if (!test || test.teamId !== id) {
+        throw new TeamStoreError("Examen no encontrado en este equipo.");
+      }
+      const snapshot = await getTeamSnapshot(id);
+      if (
+        !snapshot.members.some((member) => member.id === body.result!.memberId)
+      ) {
+        throw new TeamStoreError("Miembro no encontrado en este equipo.");
+      }
       const result = await recordResult(body.testId, body.result);
       return NextResponse.json(result, { status: 201 });
     }

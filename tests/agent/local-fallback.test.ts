@@ -48,7 +48,8 @@ describe("local agent fallback", () => {
       catalog: [],
       draft: first.draft,
     });
-    expect(second.appliedInput?.clientName).toBeTruthy();
+    expect(second.appliedInput?.industry).toMatch(/Banca/i);
+    expect(second.appliedInput?.clientProblem).toMatch(/pauta digital/i);
     expect(second.state).toBe("ready");
   });
 });
