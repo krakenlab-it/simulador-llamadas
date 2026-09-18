@@ -30,6 +30,54 @@ describe("impersonation", () => {
     expect(roles.context).not.toBe(roles.agent);
   });
 
+  it("uses texto channel when mode is texto", () => {
+    const config = buildPresetScenarioConfig("mariana");
+    const roles = buildImpersonationRoles({
+      config: config!,
+      round: config!.rounds[0],
+      reaction: "medio",
+      clientName: "Mariana Escobedo",
+      traineeUtterance: "Buenos días",
+      roundNumber: 1,
+      scenarioSlug: "mariana",
+      mode: "texto",
+    });
+    expect(roles.context).toMatch(/Canal: texto/);
+  });
+
+  it("carries emotional meters from prior trainee turns", () => {
+    const config = buildPresetScenarioConfig("mariana");
+    const intro =
+      "Buenos días, soy Ana, le llamo por las visitas a caseta. ¿Tiene un minuto?";
+    const question = "¿Qué le preocupa más de su caseta hoy?";
+    const withoutPrior = buildImpersonationRoles({
+      config: config!,
+      round: config!.rounds[1] ?? config!.rounds[0],
+      reaction: "bien",
+      clientName: "Mariana Escobedo",
+      traineeUtterance: question,
+      roundNumber: 2,
+      scenarioSlug: "mariana",
+    });
+    const withPrior = buildImpersonationRoles({
+      config: config!,
+      round: config!.rounds[1] ?? config!.rounds[0],
+      reaction: "bien",
+      clientName: "Mariana Escobedo",
+      traineeUtterance: question,
+      roundNumber: 2,
+      scenarioSlug: "mariana",
+      priorTurns: [{ role: "trainee", text: intro }],
+    });
+    const confianzaWithoutPrior = Number(
+      /Confianza: ([\d.]+)/.exec(withoutPrior.context)?.[1] ?? "0",
+    );
+    const confianzaWithPrior = Number(
+      /Confianza: ([\d.]+)/.exec(withPrior.context)?.[1] ?? "0",
+    );
+    expect(confianzaWithPrior).toBeGreaterThan(confianzaWithoutPrior);
+  });
+
   it("keeps a granted meeting granted and does not re-ask the day", () => {
     const config = buildPresetScenarioConfig("mariana");
     const roles = buildImpersonationRoles({

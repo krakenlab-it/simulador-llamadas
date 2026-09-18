@@ -1,4 +1,4 @@
-import type { DifficultyLevel, RoundType } from "@/lib/db/types";
+import type { DifficultyLevel, PracticeMode, RoundType } from "@/lib/db/types";
 import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import {
   temperamentWithPersonality,
@@ -37,6 +37,7 @@ export interface LiveTurnInput {
   roundNumber?: number;
   priorLines: TranscriptLine[];
   voiceAgent?: VoiceAgentSettings;
+  mode?: PracticeMode;
 }
 
 export interface LiveTurnCoaching {
@@ -206,7 +207,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
         scenarioSlug: input.scenarioSlug,
         priorTurns: priorTurnsFromLines(input.priorLines),
         difficultyLevel: input.difficultyLevel,
-        mode: "voz" as const,
+        mode: input.mode ?? "voz",
         clientLayer: input.voiceAgent?.clientLayer,
       };
       const motorOn = input.voiceAgent?.clientLayer?.motorEnabled !== false;
@@ -245,7 +246,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       roundNumber: resolveTurnNumber(input),
       priorTurns: priorTurnsFromLines(input.priorLines),
       difficultyLevel: input.difficultyLevel,
-      mode: "voz",
+      mode: input.mode ?? "voz",
       clientLayer: input.voiceAgent?.clientLayer,
     });
   } else {

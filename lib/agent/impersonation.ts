@@ -80,11 +80,25 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
   });
   const priorTurns = input.priorTurns ?? [];
   const logistics = analyzeMeetingLogistics(priorTurns, input.traineeUtterance);
-  const meters = updateEmotionalMeters(
-    initialEmotionalMeters(difficulty),
+  let meters = initialEmotionalMeters(difficulty);
+  let traineeTurnIndex = 0;
+  for (const turn of priorTurns) {
+    if (turn.role !== "trainee") continue;
+    traineeTurnIndex += 1;
+    meters = updateEmotionalMeters(
+      meters,
+      turn.text,
+      pack.temperament,
+      traineeTurnIndex,
+    );
+  }
+  const currentTurn =
+    input.roundNumber > 0 ? input.roundNumber : traineeTurnIndex + 1;
+  meters = updateEmotionalMeters(
+    meters,
     input.traineeUtterance,
     pack.temperament,
-    input.roundNumber,
+    currentTurn,
   );
   const liveBlock = buildLiveStateBlock({
     meters,

@@ -37,6 +37,17 @@ describe("live client motor", () => {
     expect(afterPitch.paciencia).toBeLessThanOrEqual(start.paciencia);
   });
 
+  it("does not treat casual acks as meeting acceptance when only the seller mentioned reunión", () => {
+    const turns = [
+      {
+        role: "trainee" as const,
+        text: "¿Le parece una reunión para revisar caseta la próxima semana?",
+      },
+      { role: "client" as const, text: "Ok, cuénteme." },
+    ];
+    expect(clientAcceptedMeeting(turns)).toBe(false);
+  });
+
   it("treats a granted meeting as granted and asks for logistics, not a second date", () => {
     const turns = [
       {
@@ -66,5 +77,20 @@ describe("live client motor", () => {
     expect(block).toMatch(/Cita aceptada: sí/);
     expect(block).toMatch(/correo o WhatsApp/);
     expect(block).toMatch(/No pidas otra vez la fecha/);
+  });
+
+  it("accumulates emotional meters across prior trainee turns", () => {
+    const start = initialEmotionalMeters(1);
+    const intro =
+      "Buenos días, soy Ana, le llamo por las visitas a caseta. ¿Tiene un minuto?";
+    const afterFirst = updateEmotionalMeters(start, intro, "Escéptica", 1);
+    const afterSecond = updateEmotionalMeters(
+      afterFirst,
+      "¿Qué le preocupa más de su caseta hoy?",
+      "Escéptica",
+      2,
+    );
+    expect(afterSecond.confianza).toBeGreaterThan(start.confianza);
+    expect(afterSecond.interes).toBeGreaterThan(start.interes);
   });
 });

@@ -52,6 +52,8 @@ export function initialEmotionalMeters(
 
 const CLIENT_ACCEPTANCE =
   /\b(?:va|sale|listo|de acuerdo|perfecto|agendado|quedamos|nos vemos|le espero|está bien|adelante|ok)\b|acepto|agendemos/i;
+const EXPLICIT_MEETING_ACCEPTANCE =
+  /\b(?:agendado|quedamos|nos vemos|le espero|agendemos)\b|acepto/i;
 const MEETING_CONTEXT =
   /\b(?:cita|reuni[oó]n|videollamada|llamada|demo|junta|agenda|calendario|invitaci[oó]n)\b/i;
 const SELLER_CONTACT =
@@ -68,10 +70,10 @@ export function clientAcceptedMeeting(
 ): boolean {
   const recent = clientLines(turns).slice(-4);
   if (recent.length === 0) return false;
-  const thread = turns.map((turn) => turn.text).join("\n");
   return recent.some((line) => {
+    if (EXPLICIT_MEETING_ACCEPTANCE.test(line)) return true;
     if (!CLIENT_ACCEPTANCE.test(line)) return false;
-    return MEETING_CONTEXT.test(line) || MEETING_CONTEXT.test(thread);
+    return MEETING_CONTEXT.test(line);
   });
 }
 
