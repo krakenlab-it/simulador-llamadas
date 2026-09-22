@@ -3,7 +3,9 @@ import {
   analyzeMeetingLogistics,
   buildLiveStateBlock,
   clientAcceptedMeeting,
+  DATE_DEMAND_AFTER_ACCEPT,
   initialEmotionalMeters,
+  repairDateDemandAfterAccept,
   updateEmotionalMeters,
 } from "@/lib/agent/client-motor";
 
@@ -65,6 +67,47 @@ describe("live client motor", () => {
     expect(block).toMatch(/ESTADO EN VIVO/);
     expect(block).toMatch(/Cita aceptada: sí/);
     expect(block).toMatch(/correo o WhatsApp/);
-    expect(block).toMatch(/No pidas otra vez la fecha/);
+    expect(block).toMatch(/sin día y hora/);
+  });
+
+  it("accepts viernes a las 9 de la mañana after a presentation yes", () => {
+    const turns = [
+      {
+        role: "trainee" as const,
+        text: "Podemos hacer una presentación del tablero de visitas a caseta.",
+      },
+      {
+        role: "client" as const,
+        text: "Sí, adelante, pueden presentar.",
+      },
+    ];
+    expect(clientAcceptedMeeting(turns)).toBe(true);
+
+    const logistics = analyzeMeetingLogistics(
+      turns,
+      "¿Le parece el viernes a las 9 de la mañana?",
+    );
+    expect(logistics.presentationAccepted).toBe(true);
+    expect(logistics.dayTimeMentioned).toBe(true);
+    expect(logistics.shouldAcknowledgeSlot).toBe(true);
+
+    const block = buildLiveStateBlock({
+      meters: { confianza: 5, interes: 5, paciencia: 6 },
+      logistics,
+      turnNumber: 5,
+      maxTurns: 5,
+    });
+    expect(block).toMatch(/Confirma ESE día y hora/);
+    expect(block).not.toMatch(/Cita aceptada: no/);
+
+    const demand =
+      "Sin día y hora en mi agenda no hay revisión de caseta.";
+    const repaired = repairDateDemandAfterAccept(
+      demand,
+      "viernes a las 9 de la mañana",
+    );
+    expect(repaired).toBeTruthy();
+    expect(repaired).toMatch(/viernes/i);
+    expect(repaired).not.toMatch(DATE_DEMAND_AFTER_ACCEPT);
   });
 });

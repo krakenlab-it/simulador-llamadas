@@ -1,4 +1,9 @@
 import type { DifficultyLevel } from "@/lib/db/types";
+import {
+  utteranceHasConcreteDayAndTime,
+  utteranceHasDay,
+  utteranceHasTime,
+} from "@/lib/scoring/keywords";
 import { mapDifficultyToJaime } from "./client-layer";
 
 export interface EmotionalMeters {
@@ -9,8 +14,11 @@ export interface EmotionalMeters {
 
 export interface MeetingLogisticsState {
   meetingAccepted: boolean;
+  presentationAccepted: boolean;
   dayTimeMentioned: boolean;
   sellerAskingContact: boolean;
+  /** Presentation/meeting already granted and a concrete slot is on the table. */
+  shouldAcknowledgeSlot: boolean;
 }
 
 export interface ConversationTurn {
@@ -51,16 +59,41 @@ export function initialEmotionalMeters(
 }
 
 const CLIENT_ACCEPTANCE =
-  /\b(?:va|sale|listo|de acuerdo|perfecto|agendado|quedamos|nos vemos|le espero|está bien|adelante|ok)\b|acepto|agendemos/i;
-const MEETING_CONTEXT =
-  /\b(?:cita|reuni[oó]n|videollamada|llamada|demo|junta|agenda|calendario|invitaci[oó]n)\b/i;
+  /\b(?:va|sale|listo|de acuerdo|perfecto|agendado|quedamos|nos vemos|le espero|está bien|me parece|suena bien|me late|adelante|ok|pueden presentar|puede presentar|sí pueden|si pueden)\b|acepto|agendemos/i;
+const NEXT_STEP_CONTEXT =
+  /\b(?:cita|reuni[oó]n|videollamada|llamada|demo|junta|agenda|calendario|invitaci[oó]n|presentaci[oó]n|presentar|revisi[oó]n|revisar|tablero|mesa|piloto|siguiente paso)\b/i;
 const SELLER_CONTACT =
   /\b(?:correo|e-?mail|whatsapp|whats\s*app|calendario|invitaci[oó]n)\b/i;
-const DAY_TIME =
-  /\b(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|ma[nñ]ana|tarde|jueves|lunes)\b.*\b(?:\d{1,2}|diez|once|doce|ocho|nueve)\b|\b(?:\d{1,2}:\d{2}|a las \d{1,2})\b/i;
+const SHORT_AFFIRMATION = /\b(?:sí|si|va|listo|de acuerdo|perfecto|adelante)\b/i;
+
+export const DATE_DEMAND_AFTER_ACCEPT =
+  /sin fecha|no hay reun[ió]n|no hay revisi[oó]n|fecha en (?:la )?agenda|sin d[ií]a y hora|d[ií]a y hora concret|qu[eé] d[ií]a|a qu[eé] hora|primero d[ií]game qu[eé] d[ií]a|en mi agenda no hay/i;
+
+export const SLOT_ACK_LINES = [
+  "Ese horario me sirve. Traiga el tablero de caseta, no un pitch.",
+  "Queda. Envíeme la invitación y vemos la revisión de caseta.",
+  "De acuerdo, ese día y hora. Siguiente: logística del tablero.",
+] as const;
+
+function transcriptText(turns: readonly ConversationTurn[]): string {
+  return turns.map((turn) => turn.text).join("\n");
+}
 
 function clientLines(turns: readonly ConversationTurn[]): string[] {
   return turns.filter((turn) => turn.role === "client").map((turn) => turn.text);
+}
+
+export function mentionsDayAndTime(text: string): boolean {
+  return (
+    utteranceHasConcreteDayAndTime(text) ||
+    (utteranceHasDay(text) && utteranceHasTime(text))
+  );
+}
+
+function traineeOfferedNextStep(turns: readonly ConversationTurn[]): boolean {
+  return turns.some(
+    (turn) => turn.role === "trainee" && NEXT_STEP_CONTEXT.test(turn.text),
+  );
 }
 
 export function clientAcceptedMeeting(
@@ -68,10 +101,15 @@ export function clientAcceptedMeeting(
 ): boolean {
   const recent = clientLines(turns).slice(-4);
   if (recent.length === 0) return false;
-  const thread = turns.map((turn) => turn.text).join("\n");
+  const sellerOffered = traineeOfferedNextStep(turns);
   return recent.some((line) => {
-    if (!CLIENT_ACCEPTANCE.test(line)) return false;
-    return MEETING_CONTEXT.test(line) || MEETING_CONTEXT.test(thread);
+    if (CLIENT_ACCEPTANCE.test(line) && NEXT_STEP_CONTEXT.test(line)) {
+      return true;
+    }
+    if (!CLIENT_ACCEPTANCE.test(line) && !SHORT_AFFIRMATION.test(line)) {
+      return false;
+    }
+    return NEXT_STEP_CONTEXT.test(line) || sellerOffered;
   });
 }
 
@@ -80,12 +118,43 @@ export function analyzeMeetingLogistics(
   traineeUtterance: string,
   persistedAccepted = false,
 ): MeetingLogisticsState {
-  const corpus = `${turns.map((turn) => turn.text).join("\n")}\n${traineeUtterance}`;
+  const presentationAccepted =
+    persistedAccepted || clientAcceptedMeeting(turns);
+  const corpus = `${transcriptText(turns)}\n${traineeUtterance}`;
+  const dayTimeMentioned = mentionsDayAndTime(corpus);
+  const meetingAccepted = presentationAccepted;
   return {
-    meetingAccepted: persistedAccepted || clientAcceptedMeeting(turns),
-    dayTimeMentioned: DAY_TIME.test(corpus),
+    meetingAccepted,
+    presentationAccepted,
+    dayTimeMentioned,
     sellerAskingContact: SELLER_CONTACT.test(traineeUtterance),
+    shouldAcknowledgeSlot: presentationAccepted && dayTimeMentioned,
   };
+}
+
+export function extractOfferedSlot(text: string): string | null {
+  const match = text.match(
+    /\b((?:el\s+)?(?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)(?:\s+a\s+las?\s+(?:\d{1,2}(?::\d{2})?|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce))?(?:\s*(?:am|pm|hrs?))?(?:\s+de\s+la\s+(?:ma[nñ]ana|tarde|noche))?)/i,
+  );
+  return match?.[1]?.trim() ?? null;
+}
+
+export function acknowledgeOfferedSlot(utterance: string, seed = 0): string {
+  const slot = extractOfferedSlot(utterance);
+  if (slot) {
+    return `${slot.charAt(0).toUpperCase()}${slot.slice(1)}. Traiga el tablero de caseta.`;
+  }
+  const index = Math.abs(seed) % SLOT_ACK_LINES.length;
+  return SLOT_ACK_LINES[index];
+}
+
+export function repairDateDemandAfterAccept(
+  line: string,
+  utterance = "",
+  seed = 0,
+): string | null {
+  if (!DATE_DEMAND_AFTER_ACCEPT.test(line)) return null;
+  return acknowledgeOfferedSlot(utterance, seed);
 }
 
 export function buildLiveStateBlock(input: {
@@ -99,11 +168,16 @@ export function buildLiveStateBlock(input: {
     `Turno: ${input.turnNumber} de ${input.maxTurns}`,
     `Confianza: ${input.meters.confianza.toFixed(1)} · Interés: ${input.meters.interes.toFixed(1)} · Paciencia: ${input.meters.paciencia.toFixed(1)}`,
     `Cita aceptada: ${input.logistics.meetingAccepted ? "sí" : "no"}`,
+    `Presentación aceptada: ${input.logistics.presentationAccepted ? "sí" : "no"}`,
     `Día y hora mencionados: ${input.logistics.dayTimeMentioned ? "sí" : "no"}`,
   ];
-  if (input.logistics.meetingAccepted) {
+  if (input.logistics.shouldAcknowledgeSlot) {
     lines.push(
-      "La cita ya existe. No pidas otra vez la fecha ni digas «sin fecha no hay reunión».",
+      "El vendedor ya ofreció un horario concreto después de que aceptaste la presentación. Confirma ESE día y hora y pasa a logística (tablero de caseta / invitación). Nunca digas ni parafrasees «sin día y hora… caseta».",
+    );
+  } else if (input.logistics.meetingAccepted) {
+    lines.push(
+      "El siguiente paso ya existe. No pidas otra vez la fecha ni digas «sin fecha no hay reunión».",
     );
   }
   if (input.logistics.meetingAccepted && input.logistics.sellerAskingContact) {

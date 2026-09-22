@@ -5,7 +5,14 @@ import {
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
 import { isDeepSeekAvailable } from "@/lib/agent/availability";
+import {
+  acknowledgeOfferedSlot,
+  analyzeMeetingLogistics,
+  DATE_DEMAND_AFTER_ACCEPT,
+  repairDateDemandAfterAccept,
+} from "@/lib/agent/client-motor";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
+import { utteranceHasConcreteDayAndTime } from "./keywords";
 import {
   generateClientReply,
   generateGroqClientReply,
@@ -76,9 +83,21 @@ const ROUND_LABELS: Record<string, string> = {
   cierre: "Cierre",
 };
 
-function reactionFromAnalytics(analytics: CallAnalytics, utterance: string): ClientReaction {
+function isCierreLikeRound(input: LiveTurnInput): boolean {
+  if (input.roundType === "cierre" || input.isLastRound) return true;
+  return phaseKeyFromPersistenceKey(input.roundKey) === "cierre";
+}
+
+function reactionFromAnalytics(
+  analytics: CallAnalytics,
+  utterance: string,
+  input: LiveTurnInput,
+): ClientReaction {
   const trimmed = utterance.trim();
   if (trimmed.length < 12) return "mal";
+  if (isCierreLikeRound(input) && utteranceHasConcreteDayAndTime(trimmed)) {
+    return "bien";
+  }
   if (analytics.questionTypes.open + analytics.questionTypes.clarifying >= 1) return "bien";
   if (analytics.talkPercent > 85) return "mal";
   if (trimmed.length > 80) return "medio";
@@ -162,7 +181,9 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     priorLines: input.priorLines,
   });
 
-  const clientReaction = reactionFromAnalytics(analytics, input.utterance);
+  const priorTurns = priorTurnsFromLines(input.priorLines);
+  const logistics = analyzeMeetingLogistics(priorTurns, input.utterance);
+  const clientReaction = reactionFromAnalytics(analytics, input.utterance, input);
   const coachingNote = buildCoachingNote(
     analytics,
     input.roundLabel,
@@ -176,11 +197,17 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     if (!roundType) {
       throw new Error(`Unknown clinic round for key ${input.roundKey}`);
     }
-    const templatedReply = getClientReply(
+    let templatedReply = getClientReply(
       input.scenarioSlug,
       roundType,
       clientReaction,
     );
+    if (
+      logistics.shouldAcknowledgeSlot ||
+      (logistics.meetingAccepted && DATE_DEMAND_AFTER_ACCEPT.test(templatedReply))
+    ) {
+      templatedReply = acknowledgeOfferedSlot(input.utterance);
+    }
 
     clientReply = templatedReply;
     const presetConfig = applyVoiceAgentPersonality(
@@ -204,7 +231,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
         traineeUtterance: input.utterance,
         roundNumber: resolveTurnNumber(input),
         scenarioSlug: input.scenarioSlug,
-        priorTurns: priorTurnsFromLines(input.priorLines),
+        priorTurns,
         difficultyLevel: input.difficultyLevel,
         mode: "voz" as const,
         clientLayer: input.voiceAgent?.clientLayer,
@@ -243,7 +270,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       clientName: input.clientName,
       traineeUtterance: input.utterance,
       roundNumber: resolveTurnNumber(input),
-      priorTurns: priorTurnsFromLines(input.priorLines),
+      priorTurns,
       difficultyLevel: input.difficultyLevel,
       mode: "voz",
       clientLayer: input.voiceAgent?.clientLayer,
@@ -261,6 +288,15 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
           input.clientName,
         )
       : "Entiendo.";
+  }
+
+  if (logistics.shouldAcknowledgeSlot || logistics.meetingAccepted) {
+    const repaired = repairDateDemandAfterAccept(
+      clientReply,
+      input.utterance,
+      resolveTurnNumber(input),
+    );
+    if (repaired) clientReply = repaired;
   }
 
   return {

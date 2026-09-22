@@ -51,9 +51,38 @@ describe("impersonation", () => {
         },
       ],
     });
-    expect(roles.agent).toMatch(/Ya aceptaste la cita/);
+    expect(roles.agent).toMatch(/Ya aceptaste|Confirma ESE día y hora/);
+    expect(roles.agent).not.toMatch(/Aún no concedas la cita/);
     expect(roles.context).toMatch(/Cita aceptada: sí/);
     expect(roles.context).toMatch(/correo o WhatsApp/);
+  });
+
+  it("after presentation accept, a Friday 9am offer is not a caseta day/time re-ask", () => {
+    const config = buildPresetScenarioConfig("mariana");
+    const roles = buildImpersonationRoles({
+      config: config!,
+      round: config!.rounds[4] ?? config!.rounds[0],
+      reaction: "medio",
+      clientName: "Mariana Escobedo",
+      traineeUtterance: "¿Le parece el viernes a las 9 de la mañana?",
+      roundNumber: 5,
+      scenarioSlug: "mariana",
+      priorTurns: [
+        {
+          role: "trainee",
+          text: "Podemos hacer una presentación del tablero de caseta.",
+        },
+        {
+          role: "client",
+          text: "Sí, adelante, pueden presentar.",
+        },
+      ],
+    });
+    expect(roles.agent).toMatch(/Confirma ESE día y hora/);
+    expect(roles.agent).not.toMatch(/Aún no concedas la cita/);
+    expect(roles.context).toMatch(/Presentación aceptada: sí/);
+    expect(roles.context).toMatch(/Día y hora mencionados: sí/);
+    expect(roles.context).not.toMatch(/sin fecha no hay reunión/);
   });
 
   it("returns the scripted line when the trainer turns the motor off", async () => {

@@ -17,8 +17,10 @@ import {
   analyzeMeetingLogistics,
   buildLiveStateBlock,
   initialEmotionalMeters,
+  repairDateDemandAfterAccept,
   updateEmotionalMeters,
   type ConversationTurn,
+  type MeetingLogisticsState,
 } from "./client-motor";
 import { buildClientPack, formatClientPack } from "./client-pack";
 import { composeSeparatedSystemPrompt } from "./roles";
@@ -44,6 +46,16 @@ export interface ImpersonationInput {
   difficultyLevel?: DifficultyLevel;
   mode?: PracticeMode;
   clientLayer?: ClientLayerSettings;
+}
+
+function logisticsGrantInstruction(logistics: MeetingLogisticsState): string {
+  if (logistics.shouldAcknowledgeSlot) {
+    return "El vendedor ofreció un horario concreto después de que aceptaste la presentación. Confirma ESE día y hora y avanza a logística (tablero de caseta / invitación). Nunca pidas otra vez día y hora ni digas «sin día y hora… caseta».";
+  }
+  if (logistics.meetingAccepted) {
+    return "Ya aceptaste el siguiente paso. No pidas otra vez día y hora.";
+  }
+  return "Aún no concedas la cita si faltan las condiciones del pack.";
 }
 
 export function buildImpersonationRoles(input: ImpersonationInput): {
@@ -103,9 +115,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     "Modo CLIENTE del motor: una sola intervención, 1-3 oraciones. Nunca coach ni evaluador.",
     "Nunca hables como el vendedor. Nunca des coaching. Solo la réplica del cliente.",
     "No inventes datos fuera del pack. Lo que ya aceptaste sigue aceptado.",
-    logistics.meetingAccepted
-      ? "Ya aceptaste la cita. No pidas otra vez día y hora."
-      : "Aún no concedas la cita si faltan las condiciones del pack.",
+    logisticsGrantInstruction(logistics),
     "No repitas una pregunta que ya hiciste. No clones la última réplica.",
     unused[0]
       ? `Si preguntas algo, usa una variante de: ${unused[0]}`
@@ -161,6 +171,10 @@ export async function generateImpersonatedReply(
   if (!model) return fallbackText;
 
   const roles = buildImpersonationRoles(input);
+  const logistics = analyzeMeetingLogistics(
+    input.priorTurns ?? [],
+    input.traineeUtterance,
+  );
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), IMPERSONATION_TIMEOUT_MS);
 
@@ -175,6 +189,14 @@ export async function generateImpersonatedReply(
     const text = result.text?.trim() ?? "";
     if (text.length < 8 || text.length > 400) return fallbackText;
     if (isCloneReply(text, input.recentReplies ?? [])) return fallbackText;
+    if (logistics.meetingAccepted || logistics.shouldAcknowledgeSlot) {
+      const repaired = repairDateDemandAfterAccept(
+        text,
+        input.traineeUtterance,
+        input.roundNumber,
+      );
+      if (repaired) return repaired;
+    }
     return text;
   } catch {
     return fallbackText;
