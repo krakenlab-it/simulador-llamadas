@@ -110,4 +110,59 @@ describe("live client motor", () => {
     expect(repaired).toMatch(/viernes/i);
     expect(repaired).not.toMatch(DATE_DEMAND_AFTER_ACCEPT);
   });
+
+  it("does not treat a bare sí or si as meeting acceptance", () => {
+    const offered = [
+      {
+        role: "trainee" as const,
+        text: "Podemos hacer una presentación del tablero de visitas a caseta.",
+      },
+    ];
+    expect(
+      clientAcceptedMeeting([...offered, { role: "client", text: "Sí" }]),
+    ).toBe(false);
+    expect(
+      clientAcceptedMeeting([...offered, { role: "client", text: "Si" }]),
+    ).toBe(false);
+    expect(
+      clientAcceptedMeeting([...offered, { role: "client", text: "sí." }]),
+    ).toBe(false);
+    expect(
+      clientAcceptedMeeting([
+        ...offered,
+        { role: "client", text: "Sí, adelante, pueden presentar." },
+      ]),
+    ).toBe(true);
+  });
+
+  it("does not treat time-only 9 de la mañana as an offered slot", () => {
+    const turns = [
+      {
+        role: "trainee" as const,
+        text: "Podemos hacer una presentación del tablero de visitas a caseta.",
+      },
+      {
+        role: "client" as const,
+        text: "Sí, adelante, pueden presentar.",
+      },
+    ];
+    const timeOnly = analyzeMeetingLogistics(turns, "9 de la mañana");
+    expect(timeOnly.presentationAccepted).toBe(true);
+    expect(timeOnly.meetingAccepted).toBe(true);
+    expect(timeOnly.dayTimeMentioned).toBe(false);
+    expect(timeOnly.shouldAcknowledgeSlot).toBe(false);
+
+    const noSlot = analyzeMeetingLogistics(
+      turns,
+      "Le mando el one-pager del tablero.",
+    );
+    expect(noSlot.meetingAccepted).toBe(true);
+    expect(noSlot.shouldAcknowledgeSlot).toBe(false);
+
+    const fakeDemand =
+      "Sin día y hora en mi agenda no hay revisión de caseta.";
+    expect(repairDateDemandAfterAccept(fakeDemand, "Le mando el one-pager.")).toBe(
+      "Ese horario me sirve. Traiga el tablero de caseta, no un pitch.",
+    );
+  });
 });
