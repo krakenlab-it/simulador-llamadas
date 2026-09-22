@@ -8,6 +8,18 @@ import {
 import type { ClientReaction } from "@/lib/scoring/rondas";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import {
+  analyzeBuyerPsych,
+  buildBuyerPsychBlock,
+  buildBuyerRoleLock,
+  BUYER_LIVE_TEMPERATURE,
+  BUYER_MAX_OUTPUT_TOKENS,
+  enforceBuyerTurnPolicy,
+} from "./buyer-psych";
+import {
+  buyerToolsPromptHint,
+  createBuyerAiSdkTools,
+} from "./buyer-tools";
+import {
   DEFAULT_CLIENT_LAYER_SETTINGS,
   parseCatalogClientPackSeed,
   toneHint,
@@ -106,20 +118,33 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     maxTurns: pack.maxTurns,
   });
   const tone = toneHint(layer.toneId, mood);
+  const psych = analyzeBuyerPsych({
+    traineeUtterance: input.traineeUtterance,
+    priorTurns,
+    roundNumber: input.roundNumber,
+    scenarioSlug: input.scenarioSlug,
+    pack,
+    logistics,
+  });
 
   const agent = [
-    `Eres ${input.clientName}. Interpretas a ESTE comprador, no a un cliente genérico.`,
+    buildBuyerRoleLock({
+      name: input.clientName,
+      title: pack.clientTitle || preset?.title,
+      setting: pack.company || preset?.company,
+      hiddenGoals: pack.grantConditions,
+      state: psych,
+    }),
     `Temperamento: ${pack.temperament}. Tono: ${tone}.`,
     `Rol en la decisión: ${pack.decisionRole}.`,
     buildLanguageLockSystemPrompt(language),
-    "Modo CLIENTE del motor: una sola intervención, 1-3 oraciones. Nunca coach ni evaluador.",
-    "Nunca hables como el vendedor. Nunca des coaching. Solo la réplica del cliente.",
     "No inventes datos fuera del pack. Lo que ya aceptaste sigue aceptado.",
     logisticsGrantInstruction(logistics),
+    buyerToolsPromptHint(),
     "No repitas una pregunta que ya hiciste. No clones la última réplica.",
-    unused[0]
-      ? `Si preguntas algo, usa una variante de: ${unused[0]}`
-      : "Si preguntas, cambia el ángulo (número, riesgo, plazo, quién decide).",
+    unused[0] && (psych.phase === "opening_id" || psych.phase === "reason_probe")
+      ? `Si preguntas algo, una sola variante de: ${unused[0]}`
+      : "Este turno termina en afirmación o salida suave, no en otra pregunta.",
   ].join("\n");
 
   const user = `El vendedor (usuario) dijo: "${input.traineeUtterance}"`;
@@ -127,13 +152,11 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
   const context = [
     formatClientPack(pack),
     liveBlock,
-    `Fase: ${input.round.label} (turno ${input.roundNumber})`,
-    input.round.whatGoodLooksLike
-      ? `Qué se espera del vendedor: ${input.round.whatGoodLooksLike}`
-      : "",
+    buildBuyerPsychBlock(psych),
+    `Turno de práctica: ${input.round.label} (${input.roundNumber})`,
     recent.length ? `Réplicas recientes (NO clones):\n- ${recent.join("\n- ")}` : "",
     questions.length
-      ? `Banco de preguntas de este cliente (elige una no usada):\n- ${questions.join("\n- ")}`
+      ? `Banco de este cliente (no es un quiz; usa una solo si la fase pide pregunta):\n- ${questions.join("\n- ")}`
       : "",
   ]
     .filter(Boolean)
@@ -149,7 +172,8 @@ export function buildImpersonationPrompt(input: ImpersonationInput): string {
 
 export function isCloneReply(candidate: string, recentReplies: string[]): boolean {
   const normalized = candidate.trim().toLowerCase().replace(/\s+/g, " ");
-  if (normalized.length < 8) return true;
+  if (!normalized) return true;
+  if (/^(ok|okay|s[ií]|vale|claro|entendido)\.?$/.test(normalized)) return true;
   return recentReplies.some((item) => {
     const other = item.trim().toLowerCase().replace(/\s+/g, " ");
     return other === normalized || (other.length > 12 && normalized.includes(other));
@@ -175,29 +199,48 @@ export async function generateImpersonatedReply(
     input.priorTurns ?? [],
     input.traineeUtterance,
   );
+  const psych = analyzeBuyerPsych({
+    traineeUtterance: input.traineeUtterance,
+    priorTurns: input.priorTurns,
+    roundNumber: input.roundNumber,
+    scenarioSlug: input.scenarioSlug,
+    logistics,
+  });
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), IMPERSONATION_TIMEOUT_MS);
+  let toolSpoken = "";
+  const tools = createBuyerAiSdkTools(psych, input.traineeUtterance, (result) => {
+    toolSpoken = result.spoken;
+  });
 
   try {
     const result = await generateText({
       model,
       system: composeSeparatedSystemPrompt(roles),
       messages: [{ role: "user", content: roles.user }],
-      temperature: 0.85,
+      tools: tools as Parameters<typeof generateText>[0]["tools"],
+      temperature: BUYER_LIVE_TEMPERATURE,
+      maxOutputTokens: BUYER_MAX_OUTPUT_TOKENS,
       abortSignal: controller.signal,
     });
-    const text = result.text?.trim() ?? "";
-    if (text.length < 8 || text.length > 400) return fallbackText;
+    const text = (result.text?.trim() || toolSpoken).trim();
+    if (!text || text.length > 400) return fallbackText;
     if (isCloneReply(text, input.recentReplies ?? [])) return fallbackText;
+    const policed = enforceBuyerTurnPolicy(
+      text,
+      psych,
+      input.traineeUtterance,
+      input.recentReplies ?? [],
+    );
     if (logistics.shouldAcknowledgeSlot) {
       const repaired = repairDateDemandAfterAccept(
-        text,
+        policed,
         input.traineeUtterance,
         input.roundNumber,
       );
       if (repaired) return repaired;
     }
-    return text;
+    return policed;
   } catch {
     return fallbackText;
   } finally {

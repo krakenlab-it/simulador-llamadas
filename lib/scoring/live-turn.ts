@@ -6,6 +6,10 @@ import {
 } from "@/lib/voice/agent-settings";
 import { isDeepSeekAvailable } from "@/lib/agent/availability";
 import {
+  analyzeBuyerPsych,
+  enforceBuyerTurnPolicy,
+} from "@/lib/agent/buyer-psych";
+import {
   acknowledgeOfferedSlot,
   analyzeMeetingLogistics,
   repairDateDemandAfterAccept,
@@ -285,6 +289,15 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
         )
       : "Entiendo.";
   }
+
+  const psych = analyzeBuyerPsych({
+    traineeUtterance: input.utterance,
+    priorTurns,
+    roundNumber: resolveTurnNumber(input),
+    scenarioSlug: input.scenarioSlug,
+    logistics,
+  });
+  clientReply = enforceBuyerTurnPolicy(clientReply, psych, input.utterance);
 
   if (logistics.shouldAcknowledgeSlot) {
     const repaired = repairDateDemandAfterAccept(

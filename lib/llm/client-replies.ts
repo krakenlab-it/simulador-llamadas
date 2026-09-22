@@ -1,3 +1,7 @@
+import {
+  analyzeBuyerPsych,
+  enforceBuyerTurnPolicy,
+} from "@/lib/agent/buyer-psych";
 import type { ClientLayerSettings } from "@/lib/agent/client-layer";
 import type { ConversationTurn } from "@/lib/agent/client-motor";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
@@ -132,7 +136,7 @@ export async function generateGroqClientReply(
     if (!llmReply || llmReply.length < 8 || llmReply.length > 400) {
       return fallbackText;
     }
-    return llmReply;
+    return policeClientReply(input, llmReply);
   } catch {
     return fallbackText;
   } finally {
@@ -171,7 +175,17 @@ export async function generateClientReply(
     return fallback;
   }
 
-  return llmReply;
+  return policeClientReply(input, llmReply);
+}
+
+function policeClientReply(input: GenerateReplyInput, reply: string): string {
+  const psych = analyzeBuyerPsych({
+    traineeUtterance: input.traineeUtterance,
+    priorTurns: input.priorTurns,
+    roundNumber: input.roundNumber,
+    scenarioSlug: input.scenarioSlug,
+  });
+  return enforceBuyerTurnPolicy(reply, psych, input.traineeUtterance);
 }
 
 export function getOpeningLine(config: ScenarioConfig): string {

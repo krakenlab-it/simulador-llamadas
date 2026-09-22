@@ -38,6 +38,11 @@ describe("PREFILLED catalog presets", () => {
       "influenciador",
       "guardian",
     ]);
+    expect(presets.map((item) => item.resistanceStyle)).toEqual([
+      "stall",
+      "block",
+      "curious_guarded",
+    ]);
     expect(new Set(presets.map((item) => item.clientPack.realObjection)).size).toBe(
       3,
     );

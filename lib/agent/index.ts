@@ -16,6 +16,11 @@ export {
 } from "./client-layer";
 export { packAgentContext } from "./context";
 export { AgentHarnessError, runAgentChat } from "./harness";
+export {
+  analyzeBuyerPsych,
+  enforceBuyerTurnPolicy,
+  resolveBuyerPhase,
+} from "./buyer-psych";
 export { generateImpersonatedReply, isCloneReply } from "./impersonation";
 export { AGENT_PRESETS, defaultPromptForPreset, matchPresetByPrompt } from "./presets";
 export {

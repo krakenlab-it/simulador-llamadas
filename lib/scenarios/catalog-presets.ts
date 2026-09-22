@@ -6,6 +6,14 @@ import { CLINIC_PRESET_SLUGS } from "./types";
 
 export type CatalogBadge = "hard" | "medium";
 
+/** Humă 2023: block (push to end) vs stall (delay) vs curious-but-guarded. */
+export const BUYER_RESISTANCE_STYLES = [
+  "block",
+  "stall",
+  "curious_guarded",
+] as const;
+export type BuyerResistanceStyle = (typeof BUYER_RESISTANCE_STYLES)[number];
+
 /**
  * After the trainee already got a yes on the presentation, the live client
  * confirms the offered day/time. Pack + motor share this so stock defaults
@@ -33,6 +41,8 @@ export interface CatalogPreset {
   winCriteria: string;
   practiceBrief: string;
   voiceGender: "female" | "male";
+  /** Stable Humă-style resistance for team compare — not random mid-call. */
+  resistanceStyle: BuyerResistanceStyle;
   /** Jaime pack extras — what the live client is allowed to know. */
   clientPack: CatalogClientPackSeed;
   pains: string[];
@@ -59,6 +69,7 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     practiceBrief:
       "Mariana ya paga agencia y no ve gente en caseta. No le vendas marca. Atribuye visitas reales, habla de CAC y cierra jueves o viernes con hora para el tablero. Si acepta la presentación y ofreces un slot, ella lo confirma — no te lo vuelve a pedir.",
     voiceGender: "female",
+    resistanceStyle: "stall",
     clientPack: {
       decisionRole: "decisor",
       howTheyWorkToday:
@@ -148,6 +159,7 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     practiceBrief:
       "Rodrigo filtra para el director. Tiene dos minutos y dos aperturas de proximidad que no levantan. Si oye marca, cuelga. Habla de tickets y m²; él te puede dejar 20 minutos lunes o martes — el director firma después. Si ya dijo que sí a ver el plan y ofreces hora, confirma y se lo pasa.",
     voiceGender: "male",
+    resistanceStyle: "block",
     clientPack: {
       decisionRole: "influenciador",
       howTheyWorkToday:
@@ -233,6 +245,7 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     practiceBrief:
       "Efraín cuida el showroom: sin él no hay visita al dueño. Marketing le tira clics; el sábado el piso está vacío. Traduce digital a cabezas en piso y agenda miércoles con hora. Si ya aceptó ver el plan y ofreces el slot, confirma — no te recita que el piso no espera.",
     voiceGender: "male",
+    resistanceStyle: "curious_guarded",
     clientPack: {
       decisionRole: "guardian",
       howTheyWorkToday:
