@@ -14,6 +14,7 @@ import {
   analyzeMeetingLogistics,
   repairDateDemandAfterAccept,
 } from "@/lib/agent/client-motor";
+import { buyerPsychPackForScenario } from "@/lib/agent/client-pack";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
 import { utteranceHasConcreteDayAndTime } from "./keywords";
 import {
@@ -295,6 +296,13 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     priorTurns,
     roundNumber: resolveTurnNumber(input),
     scenarioSlug: input.scenarioSlug,
+    pack: buyerPsychPackForScenario({
+      scenarioSlug: input.scenarioSlug,
+      config: input.config,
+      clientName: input.clientName,
+      difficultyLevel: input.difficultyLevel,
+      mode: "voz",
+    }),
     logistics,
   });
   clientReply = enforceBuyerTurnPolicy(clientReply, psych, input.utterance);

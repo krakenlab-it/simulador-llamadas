@@ -74,6 +74,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
   agent: string;
   user: string;
   context: string;
+  psych: ReturnType<typeof analyzeBuyerPsych>;
 } {
   const language = resolveScenarioLanguage(input.config);
   const preset = input.scenarioSlug
@@ -162,7 +163,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     .filter(Boolean)
     .join("\n\n");
 
-  return { agent, user, context };
+  return { agent, user, context, psych };
 }
 
 export function buildImpersonationPrompt(input: ImpersonationInput): string {
@@ -199,13 +200,7 @@ export async function generateImpersonatedReply(
     input.priorTurns ?? [],
     input.traineeUtterance,
   );
-  const psych = analyzeBuyerPsych({
-    traineeUtterance: input.traineeUtterance,
-    priorTurns: input.priorTurns,
-    roundNumber: input.roundNumber,
-    scenarioSlug: input.scenarioSlug,
-    logistics,
-  });
+  const psych = roles.psych;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), IMPERSONATION_TIMEOUT_MS);
   let toolSpoken = "";

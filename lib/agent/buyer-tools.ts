@@ -83,11 +83,30 @@ export function applyBuyerTool(
       };
     }
     case "acknowledge_slot": {
+      if (!state.slotOffered) {
+        return {
+          toolId,
+          spoken: "La otra semana, a ver si hay hueco.",
+          next: { phase: state.phase },
+        };
+      }
       const parsed = acknowledgeSlotSchema.safeParse(raw);
-      const day = parsed.success ? parsed.data.day : state.offeredSlot ?? "ese día";
-      const time = parsed.success ? parsed.data.time : "";
       const stance = parsed.success ? parsed.data.stance : "accept";
-      const slot = extractOfferedSlot(traineeUtterance) ?? `${day} ${time}`.trim();
+      const fromTool =
+        parsed.success
+          ? extractOfferedSlot(`${parsed.data.day} ${parsed.data.time}`)
+          : null;
+      const slot =
+        state.offeredSlot ??
+        extractOfferedSlot(traineeUtterance) ??
+        fromTool;
+      if (!slot) {
+        return {
+          toolId,
+          spoken: "La otra semana, a ver si hay hueco.",
+          next: { phase: "schedule_or_exit" },
+        };
+      }
       if (stance === "block") {
         return {
           toolId,
@@ -104,7 +123,7 @@ export function applyBuyerTool(
       }
       return {
         toolId,
-        spoken: acknowledgeOfferedSlot(traineeUtterance || slot),
+        spoken: acknowledgeOfferedSlot(slot),
         next: { slotResolved: true, phase: "closing" },
       };
     }

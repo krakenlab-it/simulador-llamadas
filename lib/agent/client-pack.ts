@@ -6,6 +6,7 @@ import {
   channelFromMode,
   encounterFromCallType,
   mapDifficultyToJaime,
+  parseCatalogClientPackSeed,
   type CatalogClientPackSeed,
   type ClientLayerSettings,
   type ClientScenarioPack,
@@ -109,6 +110,44 @@ export function formatClientPack(pack: ClientScenarioPack): string {
 
 export function packDecisionRole(preset: CatalogPreset): DecisionRole {
   return preset.clientPack.decisionRole;
+}
+
+export function buyerPsychPackForScenario(input: {
+  scenarioSlug?: string;
+  config?: ScenarioConfig | null;
+  clientName?: string;
+  difficultyLevel?: DifficultyLevel;
+  mode?: PracticeMode | null;
+}): Pick<ClientScenarioPack, "decisionRole" | "encounterType" | "temperament"> | undefined {
+  const difficulty = input.difficultyLevel ?? 1;
+  const mode = input.mode ?? "voz";
+  const fromSlug =
+    input.scenarioSlug &&
+    buildClientPackFromSlug(input.scenarioSlug, difficulty, mode);
+  if (fromSlug) {
+    return {
+      decisionRole: fromSlug.decisionRole,
+      encounterType: fromSlug.encounterType,
+      temperament: fromSlug.temperament,
+    };
+  }
+  if (!input.config || !input.clientName) return undefined;
+  const preset = input.scenarioSlug ? getCatalogPreset(input.scenarioSlug) : undefined;
+  const pack = buildClientPack({
+    clientName: input.clientName,
+    clientTitle: preset?.title,
+    company: preset?.company,
+    config: input.config,
+    seed: preset?.clientPack ?? parseCatalogClientPackSeed(input.config.clientPack),
+    difficultyLevel: difficulty,
+    mode,
+    maxTurns: input.config.rounds.length || 5,
+  });
+  return {
+    decisionRole: pack.decisionRole,
+    encounterType: pack.encounterType,
+    temperament: pack.temperament,
+  };
 }
 
 export function describeClientLayerForTrainer(

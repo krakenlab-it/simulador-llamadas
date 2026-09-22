@@ -9,6 +9,7 @@ import type { ClientReaction } from "@/lib/scoring/rondas";
 import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { templateClientReply } from "@/lib/feedback/evaluation";
 import { isDeepSeekAvailable } from "@/lib/agent/availability";
+import { buyerPsychPackForScenario } from "@/lib/agent/client-pack";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
 import { callLlm, isLlmAvailable } from "@/lib/llm/provider";
 import { getCatalogPreset } from "@/lib/scenarios/catalog-presets";
@@ -184,6 +185,13 @@ function policeClientReply(input: GenerateReplyInput, reply: string): string {
     priorTurns: input.priorTurns,
     roundNumber: input.roundNumber,
     scenarioSlug: input.scenarioSlug,
+    pack: buyerPsychPackForScenario({
+      scenarioSlug: input.scenarioSlug,
+      config: input.config,
+      clientName: input.clientName,
+      difficultyLevel: input.difficultyLevel,
+      mode: input.mode,
+    }),
   });
   return enforceBuyerTurnPolicy(reply, psych, input.traineeUtterance);
 }

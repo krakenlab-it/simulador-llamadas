@@ -36,7 +36,7 @@ export const BUYER_DEFAULT_TOKEN_BUDGET = 40;
 export const BUYER_RANT_TOKEN_BUDGET = 80;
 
 export const ASSISTANT_CLOSING =
-  /en qu[eé] m[aá]s (?:te|le) puedo ayudar|aqu[ií] estoy|no dudes en|estoy para ayudarte|con gusto te ayudo|hay algo m[aá]s(?: en lo)? que (?:pueda|puedo)|claro[,!]?\s+aqu[ií]/i;
+  /en qu[eé] m[aá]s (?:te|le) puedo ayudar|no dudes en|estoy para ayudarte|con gusto te ayudo|hay algo m[aá]s(?: en lo)? que (?:pueda|puedo)/i;
 
 export const AI_OR_SCENARIO_LEAK =
   /\b(?:soy una? (?:ia|inteligencia)|soy un modelo|esto es (?:un )?(?:entrenamiento|simulaci[oó]n|escenario)|como (?:ia|asistente)|estoy aqu[ií] para ayudarte a (?:vender|practicar))\b/i;
@@ -51,7 +51,7 @@ const REASON_CUES =
 const HARD_BLOCK =
   /\b(?:no me interesa|ya tenemos (?:proveedor|agencia)|cuelgo|no busco otra cosa|ahora no puedo)\b/i;
 const SLOT_RESOLVE =
-  /\b(?:quedamos|agendado|nos vemos|ese horario|me sirve|no puedo (?:ese|ese d[ií]a)|mejor (?:el|el lunes|martes|mi[eé]rcoles|jueves|viernes))\b/i;
+  /\b(?:quedamos|agendado|nos vemos el|ese horario(?:\s+me)?\s+sirve|(?<!\bno )me sirve|no puedo (?:ese|ese d[ií]a)|mejor (?:el|el lunes|martes|mi[eé]rcoles|jueves|viernes))\b/i;
 const CHANNEL_STALL = /\b(?:m[aá]ndame|correo|whatsapp|whats\s*app|la otra semana)\b/i;
 const LONG_PITCH_WORDS = 40;
 
@@ -385,24 +385,24 @@ export function enforceBuyerTurnPolicy(
   let text = reply.trim();
   if (!text) return text;
 
+  const rememberedSlot =
+    state.offeredSlot ?? extractOfferedSlot(traineeUtterance) ?? null;
+
+  if (STALL_NO_SLOT.test(text) && state.slotOffered && rememberedSlot) {
+    return clipBuyerTurn(acknowledgeOfferedSlot(rememberedSlot), state);
+  }
+
+  if (DATE_DEMAND_AFTER_ACCEPT.test(text) && state.slotOffered && rememberedSlot) {
+    return clipBuyerTurn(acknowledgeOfferedSlot(rememberedSlot), state);
+  }
+
   if (hasForbiddenBuyerLeak(text)) {
+    if (state.slotOffered && ASSISTANT_CLOSING.test(text) && rememberedSlot) {
+      return clipBuyerTurn(acknowledgeOfferedSlot(rememberedSlot), state);
+    }
     text = state.phase === "opening_id"
       ? "Este… ¿quién habla? Estoy ocupada."
       : "Mira, ahora no puedo con eso.";
-  }
-
-  if (STALL_NO_SLOT.test(text) && state.slotOffered) {
-    const slot = extractOfferedSlot(traineeUtterance) ?? state.offeredSlot;
-    if (slot) {
-      return acknowledgeOfferedSlot(traineeUtterance || slot);
-    }
-  }
-
-  if (DATE_DEMAND_AFTER_ACCEPT.test(text) && state.slotOffered) {
-    const slot = extractOfferedSlot(traineeUtterance) ?? state.offeredSlot;
-    if (slot) {
-      return acknowledgeOfferedSlot(traineeUtterance || slot);
-    }
   }
 
   if (state.phase === "closing" && endsWithQuestion(text)) {
