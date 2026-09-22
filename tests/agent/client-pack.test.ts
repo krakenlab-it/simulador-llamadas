@@ -30,10 +30,16 @@ describe("client scenario pack", () => {
   it("keeps Rodrigo and Efraín as distinct packs", () => {
     const rodrigo = buildClientPackFromSlug("rodrigo", 3, "texto");
     const efrain = buildClientPackFromSlug("efrain", 1, "voz");
+    expect(rodrigo?.decisionRole).toBe("influenciador");
+    expect(efrain?.decisionRole).toBe("guardian");
     expect(rodrigo?.realObjection).not.toBe(efrain?.realObjection);
     expect(rodrigo?.channel).toBe("texto");
     expect(rodrigo?.difficultyJaime).toBe(5);
     expect(efrain?.sellerObjective).toMatch(/miércoles/i);
+    expect(rodrigo?.grantConditions).toMatch(/director/i);
+    expect(efrain?.grantConditions).toMatch(/dueño|filtras/i);
+    expect(rodrigo?.grantConditions).toMatch(/viernes a las 9/i);
+    expect(efrain?.grantConditions).toMatch(/confirma ESE slot/i);
     expect(buildClientPackFromSlug("unknown", 1)).toBeNull();
   });
 

@@ -27,6 +27,7 @@ describe("impersonation", () => {
     expect(roles.context).toMatch(/PACK DEL ESCENARIO/);
     expect(roles.context).toMatch(/ESTADO EN VIVO/);
     expect(roles.context).toMatch(/caseta/i);
+    expect(roles.context).toMatch(/confirma ESE slot/i);
     expect(roles.context).not.toBe(roles.agent);
   });
 

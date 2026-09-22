@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   catalogQuestionBanks,
+  catalogReactionLines,
   questionsOverlapAcrossPresets,
   reactionsOverlapAcrossPresets,
   listCatalogPresets,
+  SLOT_GRANT_AFTER_PRESENTATION,
 } from "@/lib/scenarios/catalog-presets";
 import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
 import { CLIENTS } from "@/lib/clients";
@@ -33,11 +35,22 @@ describe("PREFILLED catalog presets", () => {
     ]);
     expect(presets.map((item) => item.clientPack.decisionRole)).toEqual([
       "decisor",
-      "decisor",
-      "decisor",
+      "influenciador",
+      "guardian",
     ]);
     expect(new Set(presets.map((item) => item.clientPack.realObjection)).size).toBe(
       3,
+    );
+    expect(new Set(presets.map((item) => item.clientPack.grantConditions)).size).toBe(
+      3,
+    );
+    for (const preset of presets) {
+      expect(preset.clientPack.grantConditions).toContain(
+        SLOT_GRANT_AFTER_PRESENTATION,
+      );
+    }
+    expect(catalogReactionLines()).not.toContain(
+      "Sin día y hora en mi agenda no hay revisión de caseta.",
     );
   });
 

@@ -7,9 +7,17 @@ import { CLINIC_PRESET_SLUGS } from "./types";
 export type CatalogBadge = "hard" | "medium";
 
 /**
+ * After the trainee already got a yes on the presentation, the live client
+ * confirms the offered day/time. Pack + motor share this so stock defaults
+ * do not loop «sin día y hora… caseta» (KAN-94).
+ */
+export const SLOT_GRANT_AFTER_PRESENTATION =
+  "Si ya aceptaste la presentación y el vendedor ofrece un día y hora concretos (por ejemplo viernes a las 9 de la mañana), confirma ESE slot y avanza. No pidas otro horario ni digas que sin día y hora no hay revisión.";
+
+/**
  * PREFILLED catalog — single source of truth for the three clinic situations.
- * Names/slugs stay stable (seed + tests). The situations themselves are
- * rewritten so each case is distinct, practice-ready, and not a clone of the others.
+ * Names/slugs stay stable (seed + tests). Each case is a distinct buyer with
+ * a real pack, not a cloned stub.
  */
 export interface CatalogPreset {
   slug: ClinicPresetSlug;
@@ -49,17 +57,19 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     winCriteria:
       "Agenda una revisión de 25 minutos el jueves o viernes, con hora concreta, para ver el tablero de visitas a caseta.",
     practiceBrief:
-      "Practica atribuir visitas reales a caseta — no un pitch de branding. Mariana ya tiene agencia y solo abre la agenda si le hablas de CAC y de gente que sí llega al desarrollo.",
+      "Mariana ya paga agencia y no ve gente en caseta. No le vendas marca. Atribuye visitas reales, habla de CAC y cierra jueves o viernes con hora para el tablero. Si acepta la presentación y ofreces un slot, ella lo confirma — no te lo vuelve a pedir.",
     voiceGender: "female",
     clientPack: {
       decisionRole: "decisor",
       howTheyWorkToday:
-        "Agencia de branding y caseta propia; no miden si el formulario llega al desarrollo",
-      onTheirMind: "Está entre juntas; el CAC subió y no quiere otro retainer",
+        "Agencia de branding y caseta propia; el formulario «llega» y nadie cruza el desarrollo",
+      onTheirMind:
+        "Salió de un comité: el CAC subió 40% y el sábado la caseta estuvo vacía otra vez",
       allowedFacts: [
-        "Costo por prospecto +40%",
+        "Costo por prospecto +40% este trimestre",
         "Formularios que no visitan la caseta",
-        "Espectaculares sin medición",
+        "Espectaculares en periférico sin medición",
+        "Ella firma la revisión de 25 minutos",
       ],
       forbiddenClaims: [
         "garantía de visitas a caseta",
@@ -68,8 +78,7 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
       ],
       realObjection:
         "Ya pagó agencia y no ve gente en caseta; no quiere volver a pagar por likes",
-      grantConditions:
-        "Que expliquen cómo se mide una visita real a caseta, no un clic",
+      grantConditions: `Que expliquen cómo se mide una visita real a caseta, no un clic. ${SLOT_GRANT_AFTER_PRESENTATION}`,
       sellerObjective:
         "Conseguir una revisión de 25 minutos esta semana con día y hora",
     },
@@ -88,11 +97,11 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
       "Si no me dices cómo mides una visita real, cuelgo.",
     ],
     questionBank: [
-      "¿Cuántas de esas visitas a caseta son de gente que ya pidió información?",
-      "¿Cómo separan un lead de Facebook de alguien que sí cruzó la caseta?",
-      "¿Qué harían la primera semana sin pedirme más presupuesto de pauta?",
-      "Si el CAC no baja en 30 días, ¿quién absorbe el riesgo?",
-      "¿Tienen un número de visitas calificadas o solo impresiones?",
+      "De los que llenan el formulario, ¿cuántos cruzan la caseta el sábado?",
+      "Mi agencia me vende leads. ¿Ustedes me venden gente en el desarrollo?",
+      "Si el CAC no baja en treinta días, ¿quién pone el dinero?",
+      "¿Qué apagan la primera semana sin pedirme más pauta?",
+      "No me hable de impresiones. ¿Cuál es el número de visitas calificadas?",
     ],
     reactions: {
       apertura: {
@@ -117,7 +126,8 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
       },
       cierre: {
         bien: "Jueves 10:30. Traiga el tablero de caseta, no un pitch.",
-        medio: "Sin día y hora en mi agenda no hay revisión de caseta.",
+        medio:
+          "Si ya me dio jueves o viernes con hora, lo dejo en Outlook. Traiga el tablero de una página.",
         mal: "No agendo nada sin una hora concreta. Adiós.",
       },
     },
@@ -136,17 +146,19 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     winCriteria:
       "Deja un slot de 20 minutos el lunes o martes, con hora, para revisar el plan de dos aperturas de proximidad.",
     practiceBrief:
-      "Practica vender tráfico a tienda y venta por m². Rodrigo cuelga si oye branding. Cada pregunta suya es de piso, no de awareness.",
+      "Rodrigo filtra para el director. Tiene dos minutos y dos aperturas de proximidad que no levantan. Si oye marca, cuelga. Habla de tickets y m²; él te puede dejar 20 minutos lunes o martes — el director firma después. Si ya dijo que sí a ver el plan y ofreces hora, confirma y se lo pasa.",
     voiceGender: "male",
     clientPack: {
-      decisionRole: "decisor",
+      decisionRole: "influenciador",
       howTheyWorkToday:
-        "Pauta nacional de awareness; las dos aperturas de proximidad no levantan ticket",
-      onTheirMind: "Tiene dos minutos; si oye branding cuelga",
+        "Pauta nacional de awareness; las dos aperturas de proximidad no levantan ticket y el director aún no vio un plan de piso",
+      onTheirMind:
+        "Le quedan dos minutos antes del reporte de apertura; si oye branding cuelga",
       allowedFacts: [
         "Dos aperturas de proximidad que no levantan",
-        "Ya pagó awareness",
+        "Ya pagó awareness nacional",
         "Mide venta por m² y tickets de piso",
+        "El director firma presupuesto; Rodrigo solo cede 20 minutos",
       ],
       forbiddenClaims: [
         "garantía de venta por m²",
@@ -154,9 +166,8 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
         "cifras inventadas de tickets",
       ],
       realObjection:
-        "Pagó awareness y el piso de las aperturas sigue flojo; no cree en marca",
-      grantConditions:
-        "Que hablen de tickets y m² en las dos aperturas, no de awareness",
+        "Pagó awareness y el piso de las aperturas sigue flojo; no cree en marca y no va a quemar al director con otro video",
+      grantConditions: `Que hablen de tickets y m² en las dos aperturas, no de awareness. Tú no firmas presupuesto: si el plan convence, se lo pasas al director. ${SLOT_GRANT_AFTER_PRESENTATION}`,
       sellerObjective:
         "Dejar 20 minutos el lunes o martes, con hora, para el plan de las dos aperturas",
     },
@@ -171,11 +182,11 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
       "No voy a oír otro discurso de marca nacional.",
     ],
     questionBank: [
-      "¿En cuál de las dos aperturas de proximidad empezarían y por qué?",
-      "¿Qué número de tickets por hora esperan el primer fin de semana?",
-      "¿Cómo evitan canibalizar la sucursal de a dos cuadras?",
-      "¿Quién en piso les confirma que el tráfico no es solo gente preguntando precio?",
-      "Si el m² no se mueve en 21 días, ¿qué apagan?",
+      "¿En cuál de las dos aperturas de proximidad empiezan y por qué esa?",
+      "El sábado a las 11, ¿qué número de tickets por hora me dejan?",
+      "La sucursal de a dos cuadras ya existe. ¿Cómo no la canibalizan?",
+      "¿Quién en piso les confirma que no es gente preguntando precio?",
+      "Si el m² no se mueve en 21 días, ¿qué apagan antes de hablarle al director?",
     ],
     reactions: {
       apertura: {
@@ -200,7 +211,8 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
       },
       cierre: {
         bien: "Lunes 8:15. Traiga las dos aperturas, no un video de marca.",
-        medio: "Si no hay hora el lunes o martes, no hay revisión de piso.",
+        medio:
+          "Si ya hay lunes o martes con hora, se lo paso al director. No necesito otro discurso.",
         mal: "Sin hora exacta no cierro. Cuelgo.",
       },
     },
@@ -219,17 +231,19 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     winCriteria:
       "Acepta una visita o llamada el miércoles, con hora, para ver el plan de gente en piso — no un reporte de leads.",
     practiceBrief:
-      "Practica traducir digital a gente en el showroom. Efraín no cree en clics. Gana si agenda con día y hora un plan de piso, no un dashboard de leads.",
+      "Efraín cuida el showroom: sin él no hay visita al dueño. Marketing le tira clics; el sábado el piso está vacío. Traduce digital a cabezas en piso y agenda miércoles con hora. Si ya aceptó ver el plan y ofreces el slot, confirma — no te recita que el piso no espera.",
     voiceGender: "male",
     clientPack: {
-      decisionRole: "decisor",
+      decisionRole: "guardian",
       howTheyWorkToday:
-        "Marketing le manda leads y clics; él mira el showroom vacío",
-      onTheirMind: "El piso está flojo; no le interesan los reportes web",
+        "Marketing le manda leads y sesiones web; él decide quién pisa el showroom y quién habla con el dueño",
+      onTheirMind:
+        "El sábado el piso estuvo flojo otra vez; no va a gastar la agenda del dueño en un dashboard",
       allowedFacts: [
-        "Piso con menos gente",
+        "Piso con menos gente el sábado",
         "Leads que no cruzan la puerta",
         "Desconfía de clics y sesiones web",
+        "Filtra visitas; el dueño no se sienta si él no abre la puerta",
       ],
       forbiddenClaims: [
         "garantía de gente en piso",
@@ -237,9 +251,8 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
         "cifras de leads inventadas",
       ],
       realObjection:
-        "Marketing presume clics y el sábado el showroom sigue vacío",
-      grantConditions:
-        "Que traduzcan digital a cabezas en piso el sábado, no a un dashboard",
+        "Marketing presume clics y el sábado el showroom sigue vacío; él no deja pasar a quien vende internet",
+      grantConditions: `Que traduzcan digital a cabezas en piso el sábado, no a un dashboard. Tú filtras: sin gente real no hay dueño. ${SLOT_GRANT_AFTER_PRESENTATION}`,
       sellerObjective:
         "Una visita o llamada el miércoles, con hora, para el plan de gente en piso",
     },
@@ -256,9 +269,9 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     questionBank: [
       "¿Cuánta gente extra en piso el sábado, no cuántos clics?",
       "¿Quién recibe a esa gente: el closer o el hostess?",
-      "¿Cómo evitan que el lead se quede en WhatsApp y no cruce la puerta?",
+      "El lead se queda en WhatsApp y no cruza. ¿Ustedes qué hacen distinto?",
       "¿Qué modelo o demostración pondrían en el piso esa semana?",
-      "Si el sábado sigue vacío, ¿qué cambian el lunes?",
+      "Si el sábado sigue vacío, ¿qué cambian el lunes antes de pedirme al dueño?",
     ],
     reactions: {
       apertura: {
@@ -283,7 +296,8 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
       },
       cierre: {
         bien: "Miércoles 17:00. Traiga el plan de gente en piso.",
-        medio: "Sin día y hora no hay visita al showroom.",
+        medio:
+          "Si ya dijo miércoles con hora, confirmo. El piso no espera un «luego les aviso».",
         mal: "Sin hora no hay reunión. El piso no espera.",
       },
     },
@@ -339,6 +353,12 @@ export function reactionsOverlapAcrossPresets(): string[] {
     .map(([line]) => line);
 }
 
+export function catalogReactionLines(): string[] {
+  return listCatalogPresets().flatMap((preset) =>
+    Object.values(preset.reactions).flatMap((round) => Object.values(round)),
+  );
+}
+
 export function buildCatalogScenarioConfig(slug: string): ScenarioConfig | null {
   const preset = getCatalogPreset(slug);
   if (!preset) return null;
@@ -357,5 +377,6 @@ export function buildCatalogScenarioConfig(slug: string): ScenarioConfig | null 
     language: "es",
     callType: "fria",
     dimensionGuides: {},
+    clientPack: { ...preset.clientPack },
   };
 }

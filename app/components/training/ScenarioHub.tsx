@@ -8,10 +8,10 @@ import { CLIENTS, getClientBySlug, type ClientPersona } from "@/lib/clients";
 import { listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
+import { resolveHubVoiceAgent } from "@/lib/scenarios/catalog-defaults";
 import {
   DEFAULT_VOICE_AGENT_SETTINGS,
   parseVoiceAgentSettings,
-  voiceAgentFromRecord,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
 import { DEFAULT_CLIENT_LAYER_SETTINGS } from "@/lib/agent/client-layer";
@@ -171,7 +171,7 @@ export function ScenarioHub({
 
   useEffect(() => {
     if (!selected) return;
-    const restored = voiceAgentFromRecord(selected);
+    const restored = resolveHubVoiceAgent(selected);
     setVoiceAgent(restored);
     setLevel(restored.difficultyLevel);
   }, [selected]);
