@@ -189,7 +189,7 @@ export async function generateImpersonatedReply(
     const text = result.text?.trim() ?? "";
     if (text.length < 8 || text.length > 400) return fallbackText;
     if (isCloneReply(text, input.recentReplies ?? [])) return fallbackText;
-    if (logistics.meetingAccepted || logistics.shouldAcknowledgeSlot) {
+    if (logistics.shouldAcknowledgeSlot) {
       const repaired = repairDateDemandAfterAccept(
         text,
         input.traineeUtterance,

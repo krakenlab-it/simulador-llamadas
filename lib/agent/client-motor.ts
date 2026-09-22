@@ -64,7 +64,7 @@ const NEXT_STEP_CONTEXT =
   /\b(?:cita|reuni[oó]n|videollamada|llamada|demo|junta|agenda|calendario|invitaci[oó]n|presentaci[oó]n|presentar|revisi[oó]n|revisar|tablero|mesa|piloto|siguiente paso)\b/i;
 const SELLER_CONTACT =
   /\b(?:correo|e-?mail|whatsapp|whats\s*app|calendario|invitaci[oó]n)\b/i;
-const SHORT_AFFIRMATION = /\b(?:sí|si|va|listo|de acuerdo|perfecto|adelante)\b/i;
+const SHORT_AFFIRMATION = /\b(?:va|listo|de acuerdo|perfecto|adelante)\b/i;
 
 export const DATE_DEMAND_AFTER_ACCEPT =
   /sin fecha|no hay reun[ió]n|no hay revisi[oó]n|fecha en (?:la )?agenda|sin d[ií]a y hora|d[ií]a y hora concret|qu[eé] d[ií]a|a qu[eé] hora|primero d[ií]game qu[eé] d[ií]a|en mi agenda no hay/i;

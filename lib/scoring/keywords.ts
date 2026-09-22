@@ -53,7 +53,7 @@ export const KEYWORD_MATCHERS: readonly KeywordMatcher[] = [
 ] as const;
 
 export const DAY_PATTERN =
-  /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s+de)/i;
+  /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s+de(?!\s+la\s+(?:ma[nñ]ana|tarde|noche)))/i;
 
 const CLOCK_WORDS = "una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce";
 

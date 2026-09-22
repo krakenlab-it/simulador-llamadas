@@ -8,7 +8,6 @@ import { isDeepSeekAvailable } from "@/lib/agent/availability";
 import {
   acknowledgeOfferedSlot,
   analyzeMeetingLogistics,
-  DATE_DEMAND_AFTER_ACCEPT,
   repairDateDemandAfterAccept,
 } from "@/lib/agent/client-motor";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
@@ -202,10 +201,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       roundType,
       clientReaction,
     );
-    if (
-      logistics.shouldAcknowledgeSlot ||
-      (logistics.meetingAccepted && DATE_DEMAND_AFTER_ACCEPT.test(templatedReply))
-    ) {
+    if (logistics.shouldAcknowledgeSlot) {
       templatedReply = acknowledgeOfferedSlot(input.utterance);
     }
 
@@ -290,7 +286,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       : "Entiendo.";
   }
 
-  if (logistics.shouldAcknowledgeSlot || logistics.meetingAccepted) {
+  if (logistics.shouldAcknowledgeSlot) {
     const repaired = repairDateDemandAfterAccept(
       clientReply,
       input.utterance,
