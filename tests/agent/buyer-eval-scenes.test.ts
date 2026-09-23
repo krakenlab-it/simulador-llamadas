@@ -10,7 +10,7 @@ import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
 import { DEFAULT_VOICE_AGENT_SETTINGS } from "@/lib/voice/agent-settings";
 
 describe("KAN-95 eval scenes E1–E8", () => {
-  it("E1 cold open at the caseta asks who/where in short turns", () => {
+  it("E1 cold open at the local asks who/where in short turns", () => {
     const state = analyzeBuyerPsych({
       traineeUtterance: "Buenos días, ¿tiene un minuto para una solución integral?",
       roundNumber: 1,
@@ -34,7 +34,7 @@ describe("KAN-95 eval scenes E1–E8", () => {
 
   it("E2 uses the sin día y hora stall once, then escalates", () => {
     const state = analyzeBuyerPsych({
-      traineeUtterance: "Queremos revisar el tablero de visitas a caseta.",
+      traineeUtterance: "Queremos revisar el tablero de visitas al local.",
       roundNumber: 3,
       scenarioSlug: "mariana",
     });
@@ -46,13 +46,13 @@ describe("KAN-95 eval scenes E1–E8", () => {
     });
     expect(once.pass).toBe(true);
     const looped = enforceBuyerTurnPolicy(
-      "Sin día y hora en mi agenda no hay revisión de caseta.",
+      "Sin día y hora en mi agenda no hay revisión del local.",
       state,
       "Queremos revisar el tablero.",
       [
-        "Sin día y hora en mi agenda no hay revisión de caseta.",
-        "Sin día y hora en mi agenda no hay revisión de caseta.",
-        "Sin día y hora en mi agenda no hay revisión de caseta.",
+        "Sin día y hora en mi agenda no hay revisión del local.",
+        "Sin día y hora en mi agenda no hay revisión del local.",
+        "Sin día y hora en mi agenda no hay revisión del local.",
       ],
     );
     expect(looped).toMatch(/correo|WhatsApp/i);
@@ -66,7 +66,7 @@ describe("KAN-95 eval scenes E1–E8", () => {
       priorTurns: [
         {
           role: "trainee",
-          text: "Podemos hacer una presentación del tablero de caseta.",
+          text: "Podemos hacer una presentación del tablero del local.",
         },
         { role: "client", text: "Sí, adelante, pueden presentar." },
       ],
@@ -75,7 +75,7 @@ describe("KAN-95 eval scenes E1–E8", () => {
     });
     expect(state.slotOffered).toBe(true);
     const policed = enforceBuyerTurnPolicy(
-      "Sin día y hora en mi agenda no hay revisión de caseta.",
+      "Sin día y hora en mi agenda no hay revisión del local.",
       state,
       "¿Le parece el viernes a las 9 de la mañana?",
     );
@@ -103,7 +103,7 @@ describe("KAN-95 eval scenes E1–E8", () => {
       priorLines: [
         {
           role: "trainee",
-          text: "Podemos hacer una presentación del tablero de visitas a caseta.",
+          text: "Podemos hacer una presentación del tablero de visitas al local.",
         },
         { role: "client", text: "Sí, adelante, pueden presentar." },
       ],
@@ -191,11 +191,11 @@ describe("KAN-95 eval scenes E1–E8", () => {
 
   it("E7 interrupts a long pitch instead of coaching through it", () => {
     const pitch =
-      "Somos la mejor agencia y líderes en soluciones integrales de atribución. Le cuento todo el portafolio sin preguntarle nada: branding, pauta, retainer, workshops y casos de éxito. Después le explico por qué deberían firmar hoy mismo sin revisar su caseta ni su CAC ni su agenda de esta semana.";
+      "Somos la mejor agencia y líderes en soluciones integrales de atribución. Le cuento todo el portafolio sin preguntarle nada: branding, pauta, retainer, workshops y casos de éxito. Después le explico por qué deberían firmar hoy mismo sin revisar su local ni su CAC ni su agenda de esta semana.";
     const state = analyzeBuyerPsych({
       traineeUtterance: pitch,
       priorTurns: [
-        { role: "trainee", text: "Le llamo por las visitas a caseta." },
+        { role: "trainee", text: "Le llamo por las visitas al local." },
         { role: "client", text: "Este… a ver." },
       ],
       roundNumber: 2,

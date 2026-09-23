@@ -61,7 +61,7 @@ export function applyBuyerTool(
         toolId,
         spoken:
           channel === "whatsapp"
-            ? "Mándame un WhatsApp. Así no te atiendo en la caseta."
+            ? "Mándame un WhatsApp. Así no te atiendo en el local."
             : "Mándame un correo. Luego lo veo.",
         next: { phase: state.slotOffered ? "schedule_or_exit" : "resist" },
       };

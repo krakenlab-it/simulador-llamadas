@@ -17,7 +17,7 @@ export type BuyerResistanceStyle = (typeof BUYER_RESISTANCE_STYLES)[number];
 /**
  * After the trainee already got a yes on the presentation, the live client
  * confirms the offered day/time. Pack + motor share this so stock defaults
- * do not loop «sin día y hora… caseta» (KAN-94).
+ * do not loop «sin día y hora… local» (KAN-94).
  */
 export const SLOT_GRANT_AFTER_PRESENTATION =
   "Si ya aceptaste la presentación y el vendedor ofrece un día y hora concretos (por ejemplo viernes a las 9 de la mañana), confirma ESE slot y avanza. No pidas otro horario ni digas que sin día y hora no hay revisión.";
@@ -60,36 +60,36 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     company: "Desarrolladora de vivienda media",
     difficulty: "Difícil",
     badge: "hard",
-    indicator: "Visitas a caseta",
+    indicator: "Visitas al local",
     industry: "Desarrollo inmobiliario de vivienda media",
-    productSold: "Atribución de visitas a caseta y costo por prospecto calificado",
+    productSold: "Atribución de visitas al local y costo por prospecto calificado",
     temperament: "Escéptica, entre juntas, ya tiene agencia",
     winCriteria:
-      "Agenda una revisión de 25 minutos el jueves o viernes, con hora concreta, para ver el tablero de visitas a caseta.",
+      "Agenda una revisión de 25 minutos el jueves o viernes, con hora concreta, para ver el tablero de visitas al local.",
     practiceBrief:
-      "Mariana ya paga agencia y no ve gente en caseta. No le vendas marca. Atribuye visitas reales, habla de CAC y cierra jueves o viernes con hora para el tablero. Si acepta la presentación y ofreces un slot, ella lo confirma — no te lo vuelve a pedir.",
+      "Mariana ya paga agencia y no ve gente en el local. No le vendas marca. Atribuye visitas reales, habla de CAC y cierra jueves o viernes con hora para el tablero. Si acepta la presentación y ofreces un slot, ella lo confirma — no te lo vuelve a pedir.",
     voiceGender: "female",
     resistanceStyle: "stall",
     clientPack: {
       decisionRole: "decisor",
       howTheyWorkToday:
-        "Agencia de branding y caseta propia; el formulario «llega» y nadie cruza el desarrollo",
+        "Agencia de branding y local propio; el formulario «llega» y nadie cruza el desarrollo",
       onTheirMind:
-        "Salió de un comité: el CAC subió 40% y el sábado la caseta estuvo vacía otra vez",
+        "Salió de un comité: el CAC subió 40% y el sábado el local estuvo vacío otra vez",
       allowedFacts: [
         "Costo por prospecto +40% este trimestre",
-        "Formularios que no visitan la caseta",
+        "Formularios que no visitan el local",
         "Espectaculares en periférico sin medición",
         "Ella firma la revisión de 25 minutos",
       ],
       forbiddenClaims: [
-        "garantía de visitas a caseta",
+        "garantía de visitas al local",
         "nombres de agencias o competidores",
         "cifras de ventas del desarrollo",
       ],
       realObjection:
-        "Ya pagó agencia y no ve gente en caseta; no quiere volver a pagar por likes",
-      grantConditions: `Que expliquen cómo se mide una visita real a caseta, no un clic. ${SLOT_GRANT_AFTER_PRESENTATION}`,
+        "Ya pagó agencia y no ve gente en el local; no quiere volver a pagar por likes",
+      grantConditions: `Que expliquen cómo se mide una visita real al local, no un clic. ${SLOT_GRANT_AFTER_PRESENTATION}`,
       sellerObjective:
         "Conseguir una revisión de 25 minutos esta semana con día y hora",
     },
@@ -100,15 +100,15 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     ],
     openings: [
       "¿Quién habla? Estoy entre juntas.",
-      "Ya tenemos agencia y caseta. No busco otra cosa.",
+      "Ya tenemos agencia y local. No busco otra cosa.",
     ],
     objections: [
-      "Ya tenemos agencia y caseta; no voy a pagar otro retainer.",
-      "Los formularios suben y la caseta sigue vacía.",
+      "Ya tenemos agencia y local; no voy a pagar otro retainer.",
+      "Los formularios suben y el local sigue vacío.",
       "Si no me dices cómo mides una visita real, cuelgo.",
     ],
     questionBank: [
-      "De los que llenan el formulario, ¿cuántos cruzan la caseta el sábado?",
+      "De los que llenan el formulario, ¿cuántos cruzan el local el sábado?",
       "Mi agencia me vende leads. ¿Ustedes me venden gente en el desarrollo?",
       "Si el CAC no baja en treinta días, ¿quién pone el dinero?",
       "¿Qué apagan la primera semana sin pedirme más pauta?",
@@ -116,27 +116,27 @@ export const CATALOG_PRESETS: Record<ClinicPresetSlug, CatalogPreset> = {
     ],
     reactions: {
       apertura: {
-        bien: "Tiene un minuto. Hable de visitas a caseta con datos, no de marca.",
+        bien: "Tiene un minuto. Hable de visitas al local con datos, no de marca.",
         medio: "¿Quién habla? Estoy entre juntas.",
-        mal: "Ya tenemos agencia y caseta. No busco otra cosa.",
+        mal: "Ya tenemos agencia y local. No busco otra cosa.",
       },
       objecion: {
-        bien: "Eso sí se parece a mi CAC. ¿Qué indicador moverían primero en caseta?",
-        medio: "Los formularios ya me los vende mi agencia. ¿Qué cambia en la caseta?",
+        bien: "Eso sí se parece a mi CAC. ¿Qué indicador moverían primero en el local?",
+        medio: "Los formularios ya me los vende mi agencia. ¿Qué cambia en el local?",
         mal: "Suena a otro retainer. No tengo tiempo para eso.",
       },
       claridad: {
         bien: "Bien. ¿Cómo sabríamos el martes si una visita fue calificada o no?",
         medio: "Dígame en una frase cómo miden una visita real, no un clic.",
-        mal: "Sigo oyendo branding. No veo el problema de la caseta.",
+        mal: "Sigo oyendo branding. No veo el problema del local.",
       },
       correo: {
         bien: "Mándeme un tablero de una página, no un PDF de 20.",
-        medio: "Si es un one-pager de visitas a caseta, lo leo. Si es un brochure, no.",
+        medio: "Si es un one-pager de visitas al local, lo leo. Si es un brochure, no.",
         mal: "No quiero más decks de agencia. Cuelgo.",
       },
       cierre: {
-        bien: "Jueves 10:30. Traiga el tablero de caseta, no un pitch.",
+        bien: "Jueves 10:30. Traiga el tablero del local, no un pitch.",
         medio:
           "Si ya me dio jueves o viernes con hora, lo dejo en Outlook. Traiga el tablero de una página.",
         mal: "No agendo nada sin una hora concreta. Adiós.",

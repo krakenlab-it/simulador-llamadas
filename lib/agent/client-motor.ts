@@ -70,8 +70,8 @@ export const DATE_DEMAND_AFTER_ACCEPT =
   /sin fecha|no hay reun[ió]n|no hay revisi[oó]n|fecha en (?:la )?agenda|sin d[ií]a y hora|d[ií]a y hora concret|qu[eé] d[ií]a|a qu[eé] hora|primero d[ií]game qu[eé] d[ií]a|en mi agenda no hay/i;
 
 export const SLOT_ACK_LINES = [
-  "Ese horario me sirve. Traiga el tablero de caseta, no un pitch.",
-  "Queda. Envíeme la invitación y vemos la revisión de caseta.",
+  "Ese horario me sirve. Traiga el tablero del local, no un pitch.",
+  "Queda. Envíeme la invitación y vemos la revisión del local.",
   "De acuerdo, ese día y hora. Siguiente: logística del tablero.",
 ] as const;
 
@@ -142,7 +142,7 @@ export function extractOfferedSlot(text: string): string | null {
 export function acknowledgeOfferedSlot(utterance: string, seed = 0): string {
   const slot = extractOfferedSlot(utterance);
   if (slot) {
-    return `${slot.charAt(0).toUpperCase()}${slot.slice(1)}. Traiga el tablero de caseta.`;
+    return `${slot.charAt(0).toUpperCase()}${slot.slice(1)}. Traiga el tablero del local.`;
   }
   const index = Math.abs(seed) % SLOT_ACK_LINES.length;
   return SLOT_ACK_LINES[index];
@@ -173,7 +173,7 @@ export function buildLiveStateBlock(input: {
   ];
   if (input.logistics.shouldAcknowledgeSlot) {
     lines.push(
-      "El vendedor ya ofreció un horario concreto después de que aceptaste la presentación. Confirma ESE día y hora y pasa a logística (tablero de caseta / invitación). Nunca digas ni parafrasees «sin día y hora… caseta».",
+      "El vendedor ya ofreció un horario concreto después de que aceptaste la presentación. Confirma ESE día y hora y pasa a logística (tablero del local / invitación). Nunca digas ni parafrasees «sin día y hora… local».",
     );
   } else if (input.logistics.meetingAccepted) {
     lines.push(

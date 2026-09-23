@@ -23,7 +23,7 @@ describe("live client motor", () => {
     const start = initialEmotionalMeters(1);
     const afterIntro = updateEmotionalMeters(
       start,
-      "Buenos días, soy Ana, le llamo por las visitas a caseta. ¿Tiene un minuto?",
+      "Buenos días, soy Ana, le llamo por las visitas al local. ¿Tiene un minuto?",
       "Escéptica, entre juntas",
       1,
     );
@@ -31,7 +31,7 @@ describe("live client motor", () => {
 
     const afterPitch = updateEmotionalMeters(
       start,
-      "Somos la mejor agencia y líderes en soluciones integrales. Le cuento todo el portafolio sin preguntarle nada: branding, pauta, retainer, workshops, un discurso muy largo sobre cómo operamos en todo el mercado nacional, los casos de éxito inventados, la garantía de resultados y por qué deberían firmar hoy mismo sin revisar su caseta ni su CAC ni su agenda de esta semana.",
+      "Somos la mejor agencia y líderes en soluciones integrales. Le cuento todo el portafolio sin preguntarle nada: branding, pauta, retainer, workshops, un discurso muy largo sobre cómo operamos en todo el mercado nacional, los casos de éxito inventados, la garantía de resultados y por qué deberían firmar hoy mismo sin revisar su local ni su CAC ni su agenda de esta semana.",
       "Escéptica, entre juntas",
       1,
     );
@@ -74,7 +74,7 @@ describe("live client motor", () => {
     const turns = [
       {
         role: "trainee" as const,
-        text: "Podemos hacer una presentación del tablero de visitas a caseta.",
+        text: "Podemos hacer una presentación del tablero de visitas al local.",
       },
       {
         role: "client" as const,
@@ -101,7 +101,7 @@ describe("live client motor", () => {
     expect(block).not.toMatch(/Cita aceptada: no/);
 
     const demand =
-      "Sin día y hora en mi agenda no hay revisión de caseta.";
+      "Sin día y hora en mi agenda no hay revisión del local.";
     const repaired = repairDateDemandAfterAccept(
       demand,
       "viernes a las 9 de la mañana",
@@ -115,7 +115,7 @@ describe("live client motor", () => {
     const offered = [
       {
         role: "trainee" as const,
-        text: "Podemos hacer una presentación del tablero de visitas a caseta.",
+        text: "Podemos hacer una presentación del tablero de visitas al local.",
       },
     ];
     expect(
@@ -139,7 +139,7 @@ describe("live client motor", () => {
     const turns = [
       {
         role: "trainee" as const,
-        text: "Podemos hacer una presentación del tablero de visitas a caseta.",
+        text: "Podemos hacer una presentación del tablero de visitas al local.",
       },
       {
         role: "client" as const,
@@ -160,9 +160,9 @@ describe("live client motor", () => {
     expect(noSlot.shouldAcknowledgeSlot).toBe(false);
 
     const fakeDemand =
-      "Sin día y hora en mi agenda no hay revisión de caseta.";
+      "Sin día y hora en mi agenda no hay revisión del local.";
     expect(repairDateDemandAfterAccept(fakeDemand, "Le mando el one-pager.")).toBe(
-      "Ese horario me sirve. Traiga el tablero de caseta, no un pitch.",
+      "Ese horario me sirve. Traiga el tablero del local, no un pitch.",
     );
   });
 });

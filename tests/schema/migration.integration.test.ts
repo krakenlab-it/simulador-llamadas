@@ -192,7 +192,7 @@ describeIfDb("schema migration (integration)", () => {
       `,
     );
     expect(rows[0].saludo).toBe("¿Quién habla? Estoy entre juntas.");
-    expect(rows[1].saludo).toBe("Ya tenemos agencia y caseta. No busco otra cosa.");
+    expect(rows[1].saludo).toBe("Ya tenemos agencia y local. No busco otra cosa.");
   });
 
   it("enforces exactly-three-scenarios trigger exists", async () => {

@@ -18,7 +18,7 @@ describe("impersonation", () => {
       traineeUtterance: "Buenos días, le llamo de Kraken.",
       roundNumber: 1,
       scenarioSlug: "mariana",
-      recentReplies: ["Ya tenemos agencia y caseta."],
+      recentReplies: ["Ya tenemos agencia y local."],
     });
     expect(roles.agent).toMatch(/Mariana Escobedo/);
     expect(roles.agent).toMatch(/Nunca hables como el vendedor/);
@@ -26,7 +26,7 @@ describe("impersonation", () => {
     expect(roles.user).toMatch(/vendedor/);
     expect(roles.context).toMatch(/PACK DEL ESCENARIO/);
     expect(roles.context).toMatch(/ESTADO EN VIVO/);
-    expect(roles.context).toMatch(/caseta/i);
+    expect(roles.context).toMatch(/local/i);
     expect(roles.context).toMatch(/confirma ESE slot/i);
     expect(roles.context).not.toBe(roles.agent);
   });
@@ -44,7 +44,7 @@ describe("impersonation", () => {
       priorTurns: [
         {
           role: "trainee",
-          text: "¿Le parece el jueves a las 10 para ver el tablero de caseta?",
+          text: "¿Le parece el jueves a las 10 para ver el tablero del local?",
         },
         {
           role: "client",
@@ -58,7 +58,7 @@ describe("impersonation", () => {
     expect(roles.context).toMatch(/correo o WhatsApp/);
   });
 
-  it("after presentation accept, a Friday 9am offer is not a caseta day/time re-ask", () => {
+  it("after presentation accept, a Friday 9am offer is not a local day/time re-ask", () => {
     const config = buildPresetScenarioConfig("mariana");
     const roles = buildImpersonationRoles({
       config: config!,
@@ -71,7 +71,7 @@ describe("impersonation", () => {
       priorTurns: [
         {
           role: "trainee",
-          text: "Podemos hacer una presentación del tablero de caseta.",
+          text: "Podemos hacer una presentación del tablero del local.",
         },
         {
           role: "client",
@@ -99,9 +99,9 @@ describe("impersonation", () => {
         scenarioSlug: "mariana",
         clientLayer: { motorEnabled: false, toneId: "auto" },
       },
-      "Ya tenemos agencia y caseta.",
+      "Ya tenemos agencia y local.",
     );
-    expect(text).toBe("Ya tenemos agencia y caseta.");
+    expect(text).toBe("Ya tenemos agencia y local.");
   });
 
   it("uses persisted config.clientPack on custom slugs", () => {
@@ -132,19 +132,19 @@ describe("impersonation", () => {
     expect(roles.agent).toMatch(/guardian/);
     expect(roles.context).toMatch(/certificación garantizada/);
     expect(roles.context).toMatch(/Evidencia de origen/);
-    expect(roles.context).not.toMatch(/garantía de visitas a caseta/);
+    expect(roles.context).not.toMatch(/garantía de visitas al local/);
   });
 
   it("detects clone replies", () => {
     expect(isCloneReply("ok", [])).toBe(true);
     expect(
-      isCloneReply("Ya tenemos agencia y caseta.", [
-        "Ya tenemos agencia y caseta.",
+      isCloneReply("Ya tenemos agencia y local.", [
+        "Ya tenemos agencia y local.",
       ]),
     ).toBe(true);
     expect(
       isCloneReply("El sábado necesito gente en piso, no clics.", [
-        "Ya tenemos agencia y caseta.",
+        "Ya tenemos agencia y local.",
       ]),
     ).toBe(false);
   });

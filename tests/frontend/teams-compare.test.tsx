@@ -105,7 +105,7 @@ describe("TeamCompareScreen", () => {
       ],
       leaderName: "Jaime",
       gaps: ["La diferencia es 30 puntos."],
-      coaching: ["Hablen de visitas a caseta."],
+      coaching: ["Hablen de visitas al local."],
       narrative: "Jaime va adelante en el mismo examen.",
     });
 
@@ -129,7 +129,7 @@ describe("TeamCompareScreen", () => {
     await user.type(jaimeScore, "80");
     await user.click(screen.getAllByRole("button", { name: "Guardar" })[0]);
     expect(await screen.findByText(/Jaime va adelante/i)).toBeInTheDocument();
-    expect(screen.getByText(/caseta/i)).toBeInTheDocument();
+    expect(screen.getByText(/local/i)).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Puntaje" })).toBeInTheDocument();
   });
 

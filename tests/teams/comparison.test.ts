@@ -45,6 +45,6 @@ describe("same-test team comparison", () => {
     expect(comparison.members).toHaveLength(2);
     expect(comparison.narrative).toMatch(/Jaime/);
     expect(comparison.gaps.some((gap) => /28 puntos|Ana/i.test(gap))).toBe(true);
-    expect(comparison.coaching.join(" ")).toMatch(/caseta/i);
+    expect(comparison.coaching.join(" ")).toMatch(/local/i);
   });
 });

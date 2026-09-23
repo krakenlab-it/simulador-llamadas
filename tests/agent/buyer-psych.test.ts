@@ -23,7 +23,7 @@ describe("buyer psych harness", () => {
     const prompt = buildBuyerRoleLock({
       name: "Mariana Escobedo",
       title: "Directora de Mercadotecnia",
-      setting: "una caseta de vivienda",
+      setting: "el local del desarrollo",
       hiddenGoals: "Solo abre agenda si hay día y hora",
       state,
     });
@@ -119,12 +119,12 @@ describe("buyer psych harness", () => {
     ).toBe("closing");
   });
 
-  it("latches a concrete Friday 9am offer and bans the caseta stall", () => {
+  it("latches a concrete Friday 9am offer and bans the local stall", () => {
     const offered = detectSlotOffered(
       [
         {
           role: "trainee",
-          text: "Podemos hacer una presentación del tablero de caseta.",
+          text: "Podemos hacer una presentación del tablero del local.",
         },
         { role: "client", text: "Sí, adelante, pueden presentar." },
       ],
@@ -138,7 +138,7 @@ describe("buyer psych harness", () => {
       priorTurns: [
         {
           role: "trainee",
-          text: "Podemos hacer una presentación del tablero de caseta.",
+          text: "Podemos hacer una presentación del tablero del local.",
         },
         { role: "client", text: "Sí, adelante, pueden presentar." },
       ],
@@ -148,7 +148,7 @@ describe("buyer psych harness", () => {
     expect(state.slotOffered).toBe(true);
     expect(state.phase).toBe("schedule_or_exit");
     const repaired = enforceBuyerTurnPolicy(
-      "Sin día y hora en mi agenda no hay revisión de caseta.",
+      "Sin día y hora en mi agenda no hay revisión del local.",
       state,
       "¿Le parece el viernes a las 9 de la mañana?",
     );
@@ -163,7 +163,7 @@ describe("buyer psych harness", () => {
       priorTurns: [
         {
           role: "trainee",
-          text: "Podemos hacer una presentación del tablero de caseta.",
+          text: "Podemos hacer una presentación del tablero del local.",
         },
         { role: "client", text: "Sí, adelante, pueden presentar." },
       ],
@@ -172,7 +172,7 @@ describe("buyer psych harness", () => {
     });
     expect(state.slotOffered).toBe(false);
     const kept = enforceBuyerTurnPolicy(
-      "Sin día y hora en mi agenda no hay revisión de caseta.",
+      "Sin día y hora en mi agenda no hay revisión del local.",
       state,
       "Le mando el one-pager del tablero.",
     );

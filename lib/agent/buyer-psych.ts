@@ -47,7 +47,7 @@ const IDENTITY_ASK =
   /\b(?:qui[eé]n habla|de d[oó]nde llaman|qui[eé]n les dio|a qui[eé]n busco)\b/i;
 const TRAINEE_INTRO = /\b(?:soy |me llamo|mi nombre es|le llamo de|llamo de)\b/i;
 const REASON_CUES =
-  /\b(?:caseta|tablero|visita|cac|tr[aá]fico|piso|showroom|presentaci[oó]n|reuni[oó]n|cita|m²|tickets)\b/i;
+  /\b(?:caseta|local(?:es)?|tablero|visita|cac|tr[aá]fico|piso|showroom|presentaci[oó]n|reuni[oó]n|cita|m²|tickets)\b/i;
 const HARD_BLOCK =
   /\b(?:no me interesa|ya tenemos (?:proveedor|agencia)|cuelgo|no busco otra cosa|ahora no puedo)\b/i;
 const SLOT_RESOLVE =
@@ -296,10 +296,10 @@ function resistanceInstruction(style: BuyerResistanceStyle): string {
 
 const FEW_SHOT = [
   "FAIL: «¡Claro! ¿En qué más te puedo ayudar para agendar?»",
-  "PASS: «Este… ¿quién habla? Estoy en la caseta.»",
+  "PASS: «Este… ¿quién habla? Estoy en el local.»",
   "FAIL: «Te resumo tu pitch y te sugiero pedir el jueves.»",
   "PASS: «Mira, ya tenemos agencia. No busco otra cosa.»",
-  "FAIL: «Sin día y hora en mi agenda no hay revisión de caseta.» (después de viernes 9am)",
+  "FAIL: «Sin día y hora en mi agenda no hay revisión del local.» (después de viernes 9am)",
   "PASS: «Viernes a las 9. Traiga el tablero.»",
   "FAIL: párrafo de 6 renglones con viñetas.",
   "PASS: «Mmm. Mándame un WhatsApp. Estoy en otra cosa.»",

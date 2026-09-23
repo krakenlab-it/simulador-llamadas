@@ -27,7 +27,7 @@
 
 | Cliente | Rol | Contexto | Dificultad | Indicador |
 |---------|-----|----------|------------|-----------|
-| **Mariana Escobedo** | Directora de Mercadotecnia | Desarrolladora de vivienda media | Difícil | Visitas a caseta |
+| **Mariana Escobedo** | Directora de Mercadotecnia | Desarrolladora de vivienda media | Difícil | Visitas al local |
 | **Rodrigo Nava** | Gerente de Medios | Cadena nacional de farmacias | Muy difícil | Tráfico a tienda / venta por m² |
 | **Efraín Loera** | Director Comercial | Grupo distribuidor automotriz | Media | Piso con menos gente |
 

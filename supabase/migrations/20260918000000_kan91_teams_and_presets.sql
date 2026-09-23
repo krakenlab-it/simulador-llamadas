@@ -51,19 +51,19 @@ COMMENT ON TABLE practice_team_tests IS 'One shared exam (same scenario) for a t
 UPDATE scenarios
 SET
   industry = 'Desarrollo inmobiliario de vivienda media',
-  product_sold = 'Atribución de visitas a caseta y costo por prospecto calificado',
+  product_sold = 'Atribución de visitas al local y costo por prospecto calificado',
   temperament = 'Escéptica, entre juntas, ya tiene agencia',
   client_problem = 'Costo por prospecto +40%. Formularios que no visitan. Espectaculares sin medición.',
   objections = ARRAY[
-    'Ya tenemos agencia y caseta; no voy a pagar otro retainer.',
-    'Los formularios suben y la caseta sigue vacía.',
+    'Ya tenemos agencia y local; no voy a pagar otro retainer.',
+    'Los formularios suben y el local sigue vacío.',
     'Si no me dices cómo mides una visita real, cuelgo.'
   ],
-  win_criteria = 'Agenda una revisión de 25 minutos el jueves o viernes, con hora concreta, para ver el tablero de visitas a caseta.',
+  win_criteria = 'Agenda una revisión de 25 minutos el jueves o viernes, con hora concreta, para ver el tablero de visitas al local.',
   config = COALESCE(config, '{}'::jsonb) || jsonb_build_object(
     'industry', 'Desarrollo inmobiliario de vivienda media',
-    'productSold', 'Atribución de visitas a caseta y costo por prospecto calificado',
-    'practiceBrief', 'Practica atribuir visitas reales a caseta — no un pitch de branding.'
+    'productSold', 'Atribución de visitas al local y costo por prospecto calificado',
+    'practiceBrief', 'Practica atribuir visitas reales al local — no un pitch de branding.'
   )
 WHERE slug = 'mariana';
 
@@ -107,8 +107,8 @@ WHERE slug = 'efrain';
 
 UPDATE scenario_fichas
 SET
-  resumen = 'Directora de Mercadotecnia. El CAC subió 40% y la caseta no recibe visitas calificadas. Ya tiene agencia.',
-  notas_formador = 'No pitch de branding. Hablar visitas a caseta, CAC y tablero semanal. Éxito = día y hora para revisar el tablero.'
+  resumen = 'Directora de Mercadotecnia. El CAC subió 40% y el local no recibe visitas calificadas. Ya tiene agencia.',
+  notas_formador = 'No pitch de branding. Hablar visitas al local, CAC y tablero semanal. Éxito = día y hora para revisar el tablero.'
 WHERE scenario_id = (SELECT id FROM scenarios WHERE slug = 'mariana');
 
 UPDATE scenario_fichas

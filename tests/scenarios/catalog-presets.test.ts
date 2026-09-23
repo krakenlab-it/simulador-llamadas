@@ -27,7 +27,7 @@ describe("PREFILLED catalog presets", () => {
     const briefs = presets.map((item) => item.practiceBrief);
     expect(new Set(briefs).size).toBe(3);
     expect(CLIENTS).toHaveLength(3);
-    expect(CLIENTS[0].practiceBrief).toContain("caseta");
+    expect(CLIENTS[0].practiceBrief).toContain("local");
     expect(presets.map((item) => item.voiceGender)).toEqual([
       "female",
       "male",
@@ -55,7 +55,7 @@ describe("PREFILLED catalog presets", () => {
       );
     }
     expect(catalogReactionLines()).not.toContain(
-      "Sin día y hora en mi agenda no hay revisión de caseta.",
+      "Sin día y hora en mi agenda no hay revisión del local.",
     );
   });
 
@@ -63,7 +63,7 @@ describe("PREFILLED catalog presets", () => {
     expect(questionsOverlapAcrossPresets()).toEqual([]);
     expect(reactionsOverlapAcrossPresets()).toEqual([]);
     const banks = catalogQuestionBanks();
-    expect(banks.mariana[0]).toMatch(/caseta/i);
+    expect(banks.mariana[0]).toMatch(/local/i);
     expect(banks.rodrigo[0]).toMatch(/proximidad|tienda|m²|m2/i);
     expect(banks.efrain[0]).toMatch(/piso|clics/i);
   });

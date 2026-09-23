@@ -179,14 +179,14 @@ describe("voice ladder — ElevenLabs", () => {
 
 describe("pronunciation dictionary", () => {
   it("normalizes clinic terms for TTS", () => {
-    expect(applyPronunciationHints("Visitas a caseta y m² en showroom")).toContain(
-      "caseta",
-    );
+    expect(
+      applyPronunciationHints("Visita al local de ventas y m² en showroom"),
+    ).toContain("local de ventas");
     expect(applyPronunciationHints("ROI y KPI")).toContain("ROI");
   });
 
   it("exposes clinic term list", () => {
-    expect(getPronunciationTerms()).toContain("caseta");
+    expect(getPronunciationTerms()).toContain("local de ventas");
     expect(getPronunciationTerms()).toContain("showroom");
   });
 });

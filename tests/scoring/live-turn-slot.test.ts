@@ -23,7 +23,7 @@ describe("live turn: accept presentation then offer datetime", () => {
     expect(utteranceHasDay("9 de enero")).toBe(true);
   });
 
-  it("does not re-demand caseta day/time after presentation accept + Friday 9am", async () => {
+  it("does not re-demand local day/time after presentation accept + Friday 9am", async () => {
     const config = buildPresetScenarioConfig("mariana");
     const result = await scoreLiveTurn({
       utterance: "¿Le parece el viernes a las 9 de la mañana?",
@@ -41,7 +41,7 @@ describe("live turn: accept presentation then offer datetime", () => {
       priorLines: [
         {
           role: "trainee",
-          text: "Podemos hacer una presentación del tablero de visitas a caseta.",
+          text: "Podemos hacer una presentación del tablero de visitas al local.",
         },
         {
           role: "client",
@@ -56,10 +56,10 @@ describe("live turn: accept presentation then offer datetime", () => {
 
     expect(result.clientReaction).toBe("bien");
     expect(result.clientReply).toMatch(/viernes/i);
-    expect(result.clientReply).toMatch(/caseta|tablero|invitaci/i);
+    expect(result.clientReply).toMatch(/local|tablero|invitaci/i);
     expect(result.clientReply).not.toMatch(DATE_DEMAND_AFTER_ACCEPT);
     expect(result.clientReply).not.toMatch(
-      /Sin día y hora en mi agenda no hay revisión de caseta/i,
+      /Sin día y hora en mi agenda no hay revisión del local/i,
     );
   });
 
@@ -81,7 +81,7 @@ describe("live turn: accept presentation then offer datetime", () => {
       priorLines: [
         {
           role: "trainee",
-          text: "Podemos hacer una presentación del tablero de visitas a caseta.",
+          text: "Podemos hacer una presentación del tablero de visitas al local.",
         },
         {
           role: "client",

@@ -34,7 +34,7 @@ describe("API stubs", () => {
     });
 
     const utterances = [
-      "Entiendo el problema de medición en visitas a caseta. ¿Qué le cuesta más hoy?",
+      "Entiendo el problema de medición en visitas al local. ¿Qué le cuesta más hoy?",
       "Comprendo su duda. ¿Qué ha probado para mejorar el tráfico al piso?",
       "¿Qué impacto tendría si el problema sigue tres meses más?",
       "Con su permiso le envío un caso breve y hablamos el jueves.",

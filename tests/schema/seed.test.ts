@@ -56,6 +56,6 @@ describe("clinic content seed (static)", () => {
 
   it("ports prototype saludos for mariana", () => {
     expect(sql).toContain("¿Quién habla? Estoy entre juntas.");
-    expect(sql).toContain("Ya tenemos agencia y caseta. No busco otra cosa.");
+    expect(sql).toContain("Ya tenemos agencia y local. No busco otra cosa.");
   });
 });

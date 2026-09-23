@@ -25,7 +25,11 @@ const INDUSTRY_HINTS: Array<{ pattern: RegExp; industry: string; product: string
   { pattern: /banco|banca|fintech/i, industry: "Banca", product: "Pauta digital y captación de cuentas" },
   { pattern: /gimnasio|gym|fitness/i, industry: "Fitness", product: "Membresías y retención" },
   { pattern: /farmacia/i, industry: "Retail de farmacias", product: "Tráfico a tienda" },
-  { pattern: /inmobil|vivienda|caseta/i, industry: "Desarrollo inmobiliario", product: "Visitas a caseta" },
+  {
+    pattern: /inmobil|vivienda|caseta|local(?:es)?/i,
+    industry: "Desarrollo inmobiliario",
+    product: "Visitas al local",
+  },
   { pattern: /auto|concesion|showroom/i, industry: "Automotriz", product: "Gente en piso" },
   { pattern: /seguro/i, industry: "Seguros", product: "Citas en sucursal" },
   { pattern: /saas|software/i, industry: "SaaS", product: "Demo con fecha" },

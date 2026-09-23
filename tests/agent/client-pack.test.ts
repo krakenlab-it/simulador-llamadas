@@ -18,8 +18,8 @@ describe("client scenario pack", () => {
     expect(pack?.channel).toBe("voz");
     expect(pack?.encounterType).toBe("fria");
     expect(pack?.realObjection).toMatch(/agencia/i);
-    expect(pack?.allowedFacts.some((fact) => /caseta/i.test(fact))).toBe(true);
-    expect(pack?.forbiddenClaims).toContain("garantía de visitas a caseta");
+    expect(pack?.allowedFacts.some((fact) => /local/i.test(fact))).toBe(true);
+    expect(pack?.forbiddenClaims).toContain("garantía de visitas al local");
 
     const formatted = formatClientPack(pack!);
     expect(formatted).toMatch(/PACK DEL ESCENARIO/);

@@ -8,7 +8,7 @@ export const marianaScenarioFixture: ScenarioRecord = {
   clientTitle: "Directora de Operaciones",
   companyContext: "Clínica de Citas",
   difficultyLabel: "Media",
-  indicator: "Visitas a caseta",
+  indicator: "Visitas al local",
   painPoints: ["Medición", "ROI", "KPI"],
   industry: null,
   productSold: null,

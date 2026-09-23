@@ -100,7 +100,7 @@ export function LandingPage() {
                 No tengo tiempo para otra demo genérica. ¿Qué miden exactamente?
               </div>
               <div className={`${styles.bubble} ${styles.bubbleYou}`}>
-                Entiendo. En su sector medimos visitas a caseta y costo por lead
+                Entiendo. En su sector medimos visitas al local y costo por lead
                 calificado, no vanity metrics.
               </div>
             </div>

@@ -62,7 +62,7 @@ export interface ImpersonationInput {
 
 function logisticsGrantInstruction(logistics: MeetingLogisticsState): string {
   if (logistics.shouldAcknowledgeSlot) {
-    return "El vendedor ofreció un horario concreto después de que aceptaste la presentación. Confirma ESE día y hora y avanza a logística (tablero de caseta / invitación). Nunca pidas otra vez día y hora ni digas «sin día y hora… caseta».";
+    return "El vendedor ofreció un horario concreto después de que aceptaste la presentación. Confirma ESE día y hora y avanza a logística (tablero del local / invitación). Nunca pidas otra vez día y hora ni digas «sin día y hora… local».";
   }
   if (logistics.meetingAccepted) {
     return "Ya aceptaste el siguiente paso. No pidas otra vez día y hora.";

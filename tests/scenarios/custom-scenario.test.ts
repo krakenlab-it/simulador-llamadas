@@ -22,7 +22,7 @@ describe("custom scenarios", () => {
     expect(tireShopConfig.language).toBe("es");
   });
 
-  it("scores tire shop utterance on 6 dimensions, not caseta keywords", async () => {
+  it("scores tire shop utterance on 6 dimensions, not local keywords", async () => {
     const utterance =
       "Entiendo la rotación lenta en su taller de llantas. ¿Qué ha probado para mover inventario Michelin y qué resultado vio?";
     const live = await scoreLiveTurn({
