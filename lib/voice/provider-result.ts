@@ -22,6 +22,9 @@ export function providerSkipped<T>(reason: string): ProviderOutcome<T> {
  */
 const SECRET_ENV_KEYS = [
   "ELEVENLABS_API_KEY",
+  "AI_GATEWAY_API_KEY",
+  "VERCEL_OIDC_TOKEN",
+  "DEEPSEEK_API_KEY",
   "GROQ_API_KEY",
   "GOOGLE_API_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",

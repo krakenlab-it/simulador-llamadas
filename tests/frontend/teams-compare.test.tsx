@@ -128,6 +128,17 @@ describe("TeamCompareScreen", () => {
     expect(jaimeScore).toBeInTheDocument();
     await user.type(jaimeScore, "80");
     await user.click(screen.getAllByRole("button", { name: "Guardar" })[0]);
+    await waitFor(() =>
+      expect(recordTeamResult).toHaveBeenCalledWith(
+        "team-1",
+        "test-1",
+        expect.objectContaining({
+          memberId: "m-jaime",
+          totalScore: 80,
+          won: false,
+        }),
+      ),
+    );
     expect(await screen.findByText(/Jaime va adelante/i)).toBeInTheDocument();
     expect(screen.getByText(/local/i)).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Puntaje" })).toBeInTheDocument();

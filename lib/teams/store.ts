@@ -11,6 +11,7 @@ import {
   memoryRecordResult,
   TeamStoreError,
 } from "./memory";
+import { teamScoreError } from "./form";
 import type {
   AddMemberInput,
   CreateTeamInput,
@@ -24,6 +25,22 @@ import type {
 } from "./types";
 
 export { resetTeamMemory, TeamStoreError } from "./memory";
+
+export function teamErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof TeamStoreError) return error.message;
+  return fallback;
+}
+
+async function assertTeamExists(
+  client: PoolClient,
+  teamId: string,
+): Promise<void> {
+  const { rows } = await client.query<{ id: string }>(
+    `SELECT id FROM practice_teams WHERE id = $1`,
+    [teamId],
+  );
+  if (!rows[0]) throw new TeamStoreError("Equipo no encontrado.");
+}
 
 function canUseDatabase(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
@@ -122,7 +139,7 @@ export async function addMember(
 ): Promise<PracticeTeamMember> {
   return withOptionalDb(
     async (client) => {
-      await getTeamSnapshot(teamId);
+      await assertTeamExists(client, teamId);
       const displayName = input.displayName.trim();
       if (!displayName) throw new TeamStoreError("El miembro necesita un nombre.");
       const { rows } = await client.query<PracticeTeamMember>(
@@ -144,7 +161,7 @@ export async function createTeamTest(
 ): Promise<PracticeTeamTest> {
   return withOptionalDb(
     async (client) => {
-      await getTeamSnapshot(teamId);
+      await assertTeamExists(client, teamId);
       const scenarioSlug = input.scenarioSlug.trim();
       if (!scenarioSlug) throw new TeamStoreError("El examen necesita un escenario.");
       const title = input.title?.trim() || `Mismo examen · ${scenarioSlug}`;
@@ -167,6 +184,25 @@ export async function recordResult(
 ): Promise<PracticeTeamResult> {
   return withOptionalDb(
     async (client) => {
+      const scoreError = teamScoreError(input.totalScore);
+      if (scoreError) throw new TeamStoreError(scoreError);
+      const totalScore = Math.round(input.totalScore);
+
+      const test = await client.query<{ team_id: string }>(
+        `SELECT team_id FROM practice_team_tests WHERE id = $1`,
+        [testId],
+      );
+      if (!test.rows[0]) {
+        throw new TeamStoreError("Examen no encontrado en este equipo.");
+      }
+      const member = await client.query<{ team_id: string }>(
+        `SELECT team_id FROM practice_team_members WHERE id = $1`,
+        [input.memberId],
+      );
+      if (!member.rows[0] || member.rows[0].team_id !== test.rows[0].team_id) {
+        throw new TeamStoreError("Miembro no encontrado en este equipo.");
+      }
+
       const { rows } = await client.query<PracticeTeamResult>(
         `INSERT INTO practice_team_results
            (test_id, member_id, call_attempt_id, total_score, won, turns_completed, notes)
@@ -185,7 +221,7 @@ export async function recordResult(
           testId,
           input.memberId,
           input.callAttemptId ?? null,
-          Math.round(input.totalScore),
+          totalScore,
           input.won === true,
           input.turnsCompleted ?? 0,
           input.notes ?? null,

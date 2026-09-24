@@ -4,6 +4,7 @@ import {
   findTest,
   getTeamSnapshot,
   recordResult,
+  teamErrorMessage,
   TeamStoreError,
 } from "@/lib/teams";
 
@@ -48,8 +49,7 @@ export async function POST(
     return NextResponse.json(test, { status: 201 });
   } catch (error) {
     const status = error instanceof TeamStoreError ? 400 : 500;
-    const message =
-      error instanceof Error ? error.message : "No se pudo crear el examen.";
+    const message = teamErrorMessage(error, "No se pudo crear el examen.");
     return NextResponse.json({ error: message }, { status });
   }
 }

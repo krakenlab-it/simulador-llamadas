@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { generateTeamComparison, TeamStoreError } from "@/lib/teams";
+import {
+  generateTeamComparison,
+  teamErrorMessage,
+  TeamStoreError,
+} from "@/lib/teams";
 
 export async function GET(
   request: Request,
@@ -18,8 +22,7 @@ export async function GET(
     return NextResponse.json(comparison);
   } catch (error) {
     const status = error instanceof TeamStoreError ? 404 : 500;
-    const message =
-      error instanceof Error ? error.message : "No se pudo comparar.";
+    const message = teamErrorMessage(error, "No se pudo comparar.");
     return NextResponse.json({ error: message }, { status });
   }
 }

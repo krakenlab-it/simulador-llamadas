@@ -52,4 +52,38 @@ describe("local agent fallback", () => {
     expect(second.appliedInput?.clientProblem).toMatch(/pauta digital/i);
     expect(second.state).toBe("ready");
   });
+
+  it("does not save the draft just because the sentence contains ya", async () => {
+    const first = await runAgentChat({
+      messages: [
+        {
+          role: "user",
+          content: "Crea un gerente de banco que no quiere pauta digital",
+        },
+      ],
+      settings: { ...DEFAULT_AGENT_SETTINGS, runtime: "local" },
+      catalog: [],
+      draft: null,
+    });
+    const second = await runAgentChat({
+      messages: [
+        {
+          role: "user",
+          content: "Crea un gerente de banco que no quiere pauta digital",
+        },
+        first.assistantMessage,
+        {
+          role: "user",
+          content: "El cliente ya tiene agencia y no quiere otro retainer",
+        },
+      ],
+      settings: { ...DEFAULT_AGENT_SETTINGS, runtime: "local" },
+      catalog: [],
+      draft: first.draft,
+    });
+    expect(second.appliedInput).toBeFalsy();
+    expect(second.traces.some((trace) => trace.toolId === "apply_scenario")).toBe(
+      false,
+    );
+  });
 });
