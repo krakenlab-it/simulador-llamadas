@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
-import { createTeam, listTeams, TeamStoreError } from "@/lib/teams";
+import {
+  createTeam,
+  listTeams,
+  teamErrorMessage,
+  TeamStoreError,
+} from "@/lib/teams";
 
 export async function GET() {
   try {
     const teams = await listTeams();
     return NextResponse.json({ teams });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "No se pudieron listar los equipos.";
+    const message = teamErrorMessage(
+      error,
+      "No se pudieron listar los equipos.",
+    );
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -22,8 +29,7 @@ export async function POST(request: Request) {
     return NextResponse.json(team, { status: 201 });
   } catch (error) {
     const status = error instanceof TeamStoreError ? 400 : 500;
-    const message =
-      error instanceof Error ? error.message : "No se pudo crear el equipo.";
+    const message = teamErrorMessage(error, "No se pudo crear el equipo.");
     return NextResponse.json({ error: message }, { status });
   }
 }

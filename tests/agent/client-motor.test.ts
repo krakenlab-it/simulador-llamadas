@@ -111,6 +111,33 @@ describe("live client motor", () => {
     expect(repaired).not.toMatch(DATE_DEMAND_AFTER_ACCEPT);
   });
 
+  it("does not treat a refusal or a casual «va» as accepting the meeting", () => {
+    const offered = [
+      {
+        role: "trainee" as const,
+        text: "Podemos hacer una presentación del tablero de visitas al local.",
+      },
+    ];
+    expect(
+      clientAcceptedMeeting([
+        ...offered,
+        { role: "client", text: "No va a haber reunión." },
+      ]),
+    ).toBe(false);
+    expect(
+      clientAcceptedMeeting([
+        ...offered,
+        { role: "client", text: "¿Cómo va el local?" },
+      ]),
+    ).toBe(false);
+    expect(
+      clientAcceptedMeeting([
+        ...offered,
+        { role: "client", text: "No quedamos. Cuelgo." },
+      ]),
+    ).toBe(false);
+  });
+
   it("does not treat a bare sí or si as meeting acceptance", () => {
     const offered = [
       {

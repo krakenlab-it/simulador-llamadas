@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { addMember, TeamStoreError } from "@/lib/teams";
+import { addMember, teamErrorMessage, TeamStoreError } from "@/lib/teams";
 
 export async function POST(
   request: Request,
@@ -18,8 +18,7 @@ export async function POST(
     return NextResponse.json(member, { status: 201 });
   } catch (error) {
     const status = error instanceof TeamStoreError ? 400 : 500;
-    const message =
-      error instanceof Error ? error.message : "No se pudo agregar el miembro.";
+    const message = teamErrorMessage(error, "No se pudo agregar el miembro.");
     return NextResponse.json({ error: message }, { status });
   }
 }

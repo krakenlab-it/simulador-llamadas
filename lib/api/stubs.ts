@@ -47,7 +47,10 @@ import { runLocalAgentTurn } from "@/lib/agent/local-fallback";
 import { composeRuntimeSystemPrompt } from "@/lib/agent/prompts";
 import { packAgentContext } from "@/lib/agent/context";
 import type { AgentChatRequest } from "@/lib/agent/types";
-import { buildDeterministicComparison } from "@/lib/teams/comparison";
+import {
+  buildDeterministicComparison,
+  splitComparisonMembers,
+} from "@/lib/teams/comparison";
 import {
   memoryAddMember,
   memoryCreateTeam,
@@ -735,21 +738,17 @@ export async function stubCompareTeamTest(teamId: string, testId: string) {
     throw new Error("Examen no encontrado en este equipo.");
   }
   const results = memoryListResults(testId);
+  const { recorded, pendingNames } = splitComparisonMembers(
+    snapshot.members,
+    results,
+  );
   return buildDeterministicComparison({
     teamName: snapshot.team.name,
     teamId,
     testId,
     scenarioSlug: test.scenarioSlug,
     title: test.title,
-    members: snapshot.members.map((member) => {
-      const result = results.find((item) => item.memberId === member.id);
-      return {
-        memberId: member.id,
-        displayName: member.displayName,
-        totalScore: result?.totalScore ?? 0,
-        won: result?.won ?? false,
-        turnsCompleted: result?.turnsCompleted ?? 0,
-      };
-    }),
+    pendingNames,
+    members: recorded,
   });
 }

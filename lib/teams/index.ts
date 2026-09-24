@@ -8,6 +8,7 @@ export {
   listTeams,
   recordResult,
   resetTeamMemory,
+  teamErrorMessage,
   TeamStoreError,
 } from "./store";
 export { buildDeterministicComparison } from "./comparison";

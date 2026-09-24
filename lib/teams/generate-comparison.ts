@@ -1,4 +1,7 @@
-import { buildDeterministicComparison } from "./comparison";
+import {
+  buildDeterministicComparison,
+  splitComparisonMembers,
+} from "./comparison";
 import {
   findTest,
   getTeamSnapshot,
@@ -17,16 +20,10 @@ export async function generateTeamComparison(
     throw new TeamStoreError("Examen no encontrado en este equipo.");
   }
   const results = await listResults(testId);
-  const members = snapshot.members.map((member) => {
-    const result = results.find((item) => item.memberId === member.id);
-    return {
-      memberId: member.id,
-      displayName: member.displayName,
-      totalScore: result?.totalScore ?? 0,
-      won: result?.won ?? false,
-      turnsCompleted: result?.turnsCompleted ?? 0,
-    };
-  });
+  const { recorded, pendingNames } = splitComparisonMembers(
+    snapshot.members,
+    results,
+  );
 
   return buildDeterministicComparison({
     teamName: snapshot.team.name,
@@ -34,6 +31,7 @@ export async function generateTeamComparison(
     testId,
     scenarioSlug: test.scenarioSlug,
     title: test.title,
-    members,
+    pendingNames,
+    members: recorded,
   });
 }

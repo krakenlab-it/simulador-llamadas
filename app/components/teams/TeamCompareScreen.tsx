@@ -23,6 +23,7 @@ import {
   memberInitials,
   memberNameError,
   teamNameError,
+  teamScoreError,
 } from "@/lib/teams/form";
 import type {
   PracticeTeam,
@@ -54,6 +55,7 @@ export function TeamCompareScreen({
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   const [comparison, setComparison] = useState<TeamComparisonView | null>(null);
   const [scoreDrafts, setScoreDrafts] = useState<Record<string, string>>({});
+  const [wonDrafts, setWonDrafts] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<"team" | "member" | "exam" | "score" | null>(
     null,
   );
@@ -192,13 +194,18 @@ export function TeamCompareScreen({
 
   const handleRecord = async (memberId: string) => {
     if (!selectedId || !selectedTestId) return;
-    const score = Number(scoreDrafts[memberId] ?? "0");
+    const score = Number(scoreDrafts[memberId] ?? "");
+    const scoreIssue = teamScoreError(score);
+    if (scoreIssue) {
+      showToast(scoreIssue, "error");
+      return;
+    }
     setBusy("score");
     try {
       await recordTeamResult(selectedId, selectedTestId, {
         memberId,
         totalScore: score,
-        won: score >= 70,
+        won: wonDrafts[memberId] === true,
         turnsCompleted: 5,
       });
       setComparison(await compareTeamTest(selectedId, selectedTestId));
@@ -492,6 +499,20 @@ export function TeamCompareScreen({
                 }
                 aria-label={`Puntaje de ${member.displayName}`}
               />
+              <label className="team-score-row__won">
+                <input
+                  type="checkbox"
+                  checked={wonDrafts[member.id] === true}
+                  onChange={(event) =>
+                    setWonDrafts((prev) => ({
+                      ...prev,
+                      [member.id]: event.target.checked,
+                    }))
+                  }
+                  aria-label={`${member.displayName} cerró con día y hora`}
+                />
+                Cerró con día y hora
+              </label>
               <Button
                 loading={busy === "score"}
                 onClick={() => void handleRecord(member.id)}
@@ -530,7 +551,7 @@ export function TeamCompareScreen({
                 <tr key={member.memberId}>
                   <th scope="row">{member.displayName}</th>
                   <td>{member.totalScore} pts</td>
-                  <td>{member.won ? "Ganó" : "Pendiente"}</td>
+                  <td>{member.won ? "Ganó" : "No ganó"}</td>
                 </tr>
               ))}
             </tbody>

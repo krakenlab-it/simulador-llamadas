@@ -1,5 +1,8 @@
 import { validateAuthoringDraft } from "@/lib/scenarios/authoring";
-import { buildDeterministicComparison } from "@/lib/teams/comparison";
+import {
+  buildDeterministicComparison,
+  splitComparisonMembers,
+} from "@/lib/teams/comparison";
 import {
   memoryFindTest,
   memoryGetSnapshot,
@@ -64,7 +67,9 @@ function extractProblem(text: string): string {
 }
 
 function looksLikeSave(text: string): boolean {
-  return /\b(guarda|guárdalo|guardar|ya|listo|aplícalo|aplicar)\b/i.test(text);
+  return /\b(guarda|guárdalo|guardar|aplícalo|aplicar|confírmalo|confirmar)\b/i.test(
+    text,
+  );
 }
 
 function looksLikeReset(text: string): boolean {
@@ -122,22 +127,18 @@ async function compareTeamTestWithMemory(
       throw new Error("Examen no encontrado en este equipo.");
     }
     const results = memoryListResults(input.testId);
+    const { recorded, pendingNames } = splitComparisonMembers(
+      snapshot.members,
+      results,
+    );
     session.comparison = buildDeterministicComparison({
       teamName: snapshot.team.name,
       teamId: input.teamId,
       testId: input.testId,
       scenarioSlug: test.scenarioSlug,
       title: test.title,
-      members: snapshot.members.map((member) => {
-        const result = results.find((item) => item.memberId === member.id);
-        return {
-          memberId: member.id,
-          displayName: member.displayName,
-          totalScore: result?.totalScore ?? 0,
-          won: result?.won ?? false,
-          turnsCompleted: result?.turnsCompleted ?? 0,
-        };
-      }),
+      pendingNames,
+      members: recorded,
     });
     return { ok: true, summary: session.comparison.narrative };
   } catch (error) {

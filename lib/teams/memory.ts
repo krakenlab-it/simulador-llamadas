@@ -1,3 +1,4 @@
+import { teamScoreError } from "./form";
 import type {
   AddMemberInput,
   CreateTeamInput,
@@ -127,11 +128,14 @@ export function memoryRecordResult(
   if (!snapshot.members.some((member) => member.id === input.memberId)) {
     throw new TeamStoreError("Miembro no encontrado en este equipo.");
   }
+  const scoreError = teamScoreError(input.totalScore);
+  if (scoreError) throw new TeamStoreError(scoreError);
+  const totalScore = Math.round(input.totalScore);
   const existing = memory.results.find(
     (item) => item.testId === testId && item.memberId === input.memberId,
   );
   if (existing) {
-    existing.totalScore = Math.round(input.totalScore);
+    existing.totalScore = totalScore;
     existing.won = input.won === true;
     existing.turnsCompleted = input.turnsCompleted ?? 0;
     existing.notes = input.notes ?? null;
@@ -143,7 +147,7 @@ export function memoryRecordResult(
     testId,
     memberId: input.memberId,
     callAttemptId: input.callAttemptId ?? null,
-    totalScore: Math.round(input.totalScore),
+    totalScore,
     won: input.won === true,
     turnsCompleted: input.turnsCompleted ?? 0,
     notes: input.notes ?? null,

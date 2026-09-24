@@ -86,4 +86,32 @@ export async function ensureMigrated(client: Client): Promise<void> {
       ),
     );
   }
+
+  const sessionConfig = await client.query<{ column_name: string }>(
+    `SELECT column_name
+     FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = 'call_attempts'
+       AND column_name = 'session_config'`,
+  );
+  if (sessionConfig.rows.length === 0) {
+    await client.query(
+      readFileSync(
+        join(MIGRATIONS_DIR, "20260918200000_kan91_client_layer.sql"),
+        "utf-8",
+      ),
+    );
+  }
+
+  const indicator = await client.query<{ indicator: string }>(
+    `SELECT indicator FROM scenarios WHERE slug = 'mariana'`,
+  );
+  if (indicator.rows[0]?.indicator === "Visitas a caseta") {
+    await client.query(
+      readFileSync(
+        join(MIGRATIONS_DIR, "20260923100000_mariana_local_terminology.sql"),
+        "utf-8",
+      ),
+    );
+  }
 }

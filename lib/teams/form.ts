@@ -1,3 +1,14 @@
+export function teamScoreError(value: number): string | null {
+  if (!Number.isFinite(value)) {
+    return "El puntaje tiene que ser un número entre 0 y 100.";
+  }
+  const rounded = Math.round(value);
+  if (rounded < 0 || rounded > 100) {
+    return "El puntaje tiene que ser un número entre 0 y 100.";
+  }
+  return null;
+}
+
 export function teamNameError(name: string): string | null {
   if (!name.trim()) return "Escribe el nombre del equipo.";
   return null;

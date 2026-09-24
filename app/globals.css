@@ -2470,6 +2470,19 @@ body {
   max-width: 5.5rem;
 }
 
+.team-score-row__won {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.team-score-row input[type="checkbox"] {
+  width: 1rem;
+  max-width: 1rem;
+  padding: 0;
+}
+
 @media (max-width: 800px) {
   .team-workspace,
   .team-member-form {

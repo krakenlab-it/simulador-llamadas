@@ -58,13 +58,30 @@ export function initialEmotionalMeters(
   }
 }
 
-const CLIENT_ACCEPTANCE =
-  /\b(?:va|sale|listo|de acuerdo|perfecto|agendado|quedamos|nos vemos|le espero|está bien|me parece|suena bien|me late|adelante|ok|pueden presentar|puede presentar|sí pueden|si pueden)\b|acepto|agendemos/i;
+/**
+ * Grant phrases only. Bare "va" / "sale" are too common in Spanish
+ * ("¿cómo va?", "no va a haber reunión") to count as accepting a meeting.
+ */
+const POSITIVE_GRANT =
+  /\b(?:listo|de acuerdo|perfecto|agendado|quedamos|nos vemos|le espero|est[aá] bien|me parece|suena bien|me late|adelante|ok|pueden presentar|puede presentar|s[ií] pueden|si pueden|acepto|agendemos)\b/i;
+const BARE_AFFIRMATION =
+  /^(?:listo|perfecto|adelante|sale|ok|va|de acuerdo)[.!]?$/i;
+const NEGATION_BEFORE = /\bno\b|\bnunca\b|\btampoco\b/i;
 const NEXT_STEP_CONTEXT =
   /\b(?:cita|reuni[oó]n|videollamada|llamada|demo|junta|agenda|calendario|invitaci[oó]n|presentaci[oó]n|presentar|revisi[oó]n|revisar|tablero|mesa|piloto|siguiente paso)\b/i;
 const SELLER_CONTACT =
   /\b(?:correo|e-?mail|whatsapp|whats\s*app|calendario|invitaci[oó]n)\b/i;
-const SHORT_AFFIRMATION = /\b(?:va|listo|de acuerdo|perfecto|adelante)\b/i;
+
+function grantsMeeting(line: string, sellerOffered: boolean): boolean {
+  const trimmed = line.trim();
+  if (BARE_AFFIRMATION.test(trimmed)) return sellerOffered;
+
+  const match = POSITIVE_GRANT.exec(trimmed);
+  if (!match) return false;
+  const before = trimmed.slice(0, match.index);
+  if (NEGATION_BEFORE.test(before)) return false;
+  return NEXT_STEP_CONTEXT.test(trimmed) || sellerOffered;
+}
 
 export const DATE_DEMAND_AFTER_ACCEPT =
   /sin fecha|no hay reun[ió]n|no hay revisi[oó]n|fecha en (?:la )?agenda|sin d[ií]a y hora|d[ií]a y hora concret|qu[eé] d[ií]a|a qu[eé] hora|primero d[ií]game qu[eé] d[ií]a|en mi agenda no hay/i;
@@ -102,15 +119,7 @@ export function clientAcceptedMeeting(
   const recent = clientLines(turns).slice(-4);
   if (recent.length === 0) return false;
   const sellerOffered = traineeOfferedNextStep(turns);
-  return recent.some((line) => {
-    if (CLIENT_ACCEPTANCE.test(line) && NEXT_STEP_CONTEXT.test(line)) {
-      return true;
-    }
-    if (!CLIENT_ACCEPTANCE.test(line) && !SHORT_AFFIRMATION.test(line)) {
-      return false;
-    }
-    return NEXT_STEP_CONTEXT.test(line) || sellerOffered;
-  });
+  return recent.some((line) => grantsMeeting(line, sellerOffered));
 }
 
 export function analyzeMeetingLogistics(
