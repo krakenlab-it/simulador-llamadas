@@ -13,6 +13,8 @@ import {
 import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
 import { inferCallType } from "@/lib/scoring/outcome";
 import { scoreTranscriptHeuristic } from "@/lib/scoring/heuristic-scorecard";
+import type { CatalogClientPackSeed } from "@/lib/agent/client-layer";
+import { getExamplePack } from "@/lib/scenarios/example-packs";
 import { isClinicPreset } from "@/lib/scenarios/types";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 
@@ -158,6 +160,46 @@ describe("scenario authoring create/edit round-trip", () => {
       SCORE_DIMENSIONS.map((d) => d.id),
     );
     expect(card.callType).toBe("discovery");
+  });
+
+  it("persists the Jaime client pack through create, config, and edit", () => {
+    const seed: CatalogClientPackSeed = {
+      decisionRole: "decisor",
+      howTheyWorkToday: "ERP de siempre; ventas y almacén no se ven",
+      onTheirMind: "Un contenedor entra hoy",
+      allowedFacts: ["Pedidos urgentes atascados"],
+      forbiddenClaims: ["reemplazar el ERP"],
+      realObjection: "Ya pagó ERP y no quiere otra captura",
+      grantConditions: "Que hablen de visibilidad ventas-almacén",
+      sellerObjective: "Mesa el jueves a las 10, piloto 3 semanas",
+    };
+    const draft = { ...filledDraft(), clientPack: seed };
+    const created = draftToCreateInput(draft);
+    expect(created.clientPack).toEqual(seed);
+
+    const config = buildAuthoredScenarioConfig(created);
+    expect(config.clientPack).toEqual(seed);
+
+    const record = recordFromDraft();
+    record.config = { ...record.config, clientPack: seed };
+    const loaded = draftFromRecord(record);
+    expect(loaded.clientPack).toEqual(seed);
+
+    const parsed = parseAuthoringBody({
+      ...created,
+      clientPack: seed,
+    });
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.input.clientPack?.forbiddenClaims).toContain(
+        "reemplazar el ERP",
+      );
+    }
+
+    const kraken = getExamplePack("kraken-flow");
+    expect(kraken).toBeDefined();
+    const fromExample = draftToCreateInput(kraken!.draft);
+    expect(fromExample.clientPack?.forbiddenClaims).toContain("reemplazar el ERP");
   });
 
   it("swaps default copy when the client language changes", () => {

@@ -10,6 +10,8 @@ interface AuthPasswordFieldProps {
   autoComplete: "current-password" | "new-password";
   disabled?: boolean;
   minLength?: number;
+  invalid?: boolean;
+  describedBy?: string;
   onChange: (value: string) => void;
 }
 
@@ -21,6 +23,8 @@ export function AuthPasswordField({
   autoComplete,
   disabled = false,
   minLength = 6,
+  invalid = false,
+  describedBy,
   onChange,
 }: AuthPasswordFieldProps) {
   const generatedId = useId();
@@ -45,6 +49,8 @@ export function AuthPasswordField({
           disabled={disabled}
           minLength={minLength}
           spellCheck={false}
+          aria-invalid={invalid || undefined}
+          aria-describedby={describedBy}
         />
         <button
           type="button"

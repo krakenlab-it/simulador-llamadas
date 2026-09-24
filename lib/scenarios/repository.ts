@@ -1,4 +1,5 @@
 import type { Client } from "pg";
+import { parseCatalogClientPackSeed } from "@/lib/agent/client-layer";
 import {
   parseVoiceAgentSettings,
   type VoiceAgentSettings,
@@ -65,6 +66,7 @@ function mapRow(row: ScenarioRow): ScenarioRecord {
     config: {
       ...(row.config ?? ({} as ScenarioConfig)),
       language: row.config?.language ?? language,
+      clientPack: parseCatalogClientPackSeed(row.config?.clientPack),
     },
     voiceAgent: parseVoiceAgentSettings(row.voice_agent),
   };

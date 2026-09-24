@@ -5,7 +5,7 @@ describe("scoring extension point", () => {
   it("live turn scoring returns analytics evidence", async () => {
     const result = await scoreLiveTurn({
       utterance:
-        "Entiendo el problema de medición. ¿Qué impacto tiene hoy en visitas a caseta?",
+        "Entiendo el problema de medición. ¿Qué impacto tiene hoy en visitas al local?",
       roundKey: "apertura",
       roundLabel: "Apertura",
       roundGoal: "Discovery",
@@ -25,7 +25,7 @@ describe("scoring extension point", () => {
   it("scores follow-up cierre turns using the cierre reaction bank", async () => {
     const result = await scoreLiveTurn({
       utterance:
-        "¿Le parece el martes a las 10:30 para revisar el impacto en visitas a caseta?",
+        "¿Le parece el martes a las 10:30 para revisar el impacto en visitas al local?",
       roundKey: "cierre-6",
       roundType: "cierre",
       roundLabel: "Cierre",

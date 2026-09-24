@@ -73,4 +73,17 @@ export async function ensureMigrated(client: Client): Promise<void> {
       readFileSync(join(MIGRATIONS_DIR, TRAINEE_IDENTITY_MIGRATION_FILE), "utf-8"),
     );
   }
+
+  const teams = await client.query<{ tablename: string }>(
+    `SELECT tablename FROM pg_tables
+     WHERE schemaname = 'public' AND tablename = 'practice_teams'`,
+  );
+  if (teams.rows.length === 0) {
+    await client.query(
+      readFileSync(
+        join(MIGRATIONS_DIR, "20260918000000_kan91_teams_and_presets.sql"),
+        "utf-8",
+      ),
+    );
+  }
 }

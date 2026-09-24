@@ -27,4 +27,15 @@ describe("landing page", () => {
     expect(html.match(new RegExp(`href="${APP_ENTRY_PATH}"`, "g"))).toHaveLength(1);
     expect(html).toContain(`>${landingContent.ctaLabel}<`);
   });
+
+  it("offers a skip link, main landmark, and heading hierarchy", () => {
+    const html = renderToStaticMarkup(<LandingPage />);
+
+    expect(html).toContain('href="#contenido"');
+    expect(html).toContain("Saltar al contenido");
+    expect(html).toContain('id="contenido"');
+    expect(html).toContain("<h1");
+    expect(html).toContain(">Características</h2>");
+    expect(html).toContain(">Métricas del simulador</h2>");
+  });
 });

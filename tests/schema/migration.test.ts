@@ -27,6 +27,10 @@ describe("schema migration (static)", () => {
       "call_attempts",
       "call_turns",
       "turn_scores",
+      "practice_teams",
+      "practice_team_members",
+      "practice_team_tests",
+      "practice_team_results",
     ];
     for (const table of tables) {
       expect(sql).toMatch(new RegExp(`CREATE TABLE ${table}`, "i"));
@@ -77,6 +81,12 @@ describe("schema migration (static)", () => {
 
   it("limits scenario sort_order to three slots", () => {
     expect(sql).toMatch(/sort_order BETWEEN 1 AND 3/);
+  });
+
+  it("stores live-client knobs and motor state on each call", () => {
+    expect(sql).toContain("session_config");
+    expect(sql).toContain("client_layer_state");
+    expect(sql).toMatch(/ALTER TABLE call_attempts/i);
   });
 
   it("gives every migration a unique 14-digit version so supabase_migrations.schema_migrations cannot collide", () => {

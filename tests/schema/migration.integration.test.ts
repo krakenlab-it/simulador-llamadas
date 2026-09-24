@@ -1,6 +1,6 @@
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { resetAndMigrate } from "../helpers/db";
+import { resetAndMigrate, resetAndMigrateAll } from "../helpers/db";
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -252,3 +252,39 @@ describeIfDb("schema migration (integration)", () => {
     expect(rows).toHaveLength(1);
   });
 });
+
+describeIfDb("schema migration (full forward)", () => {
+  let client: Client;
+
+  beforeAll(async () => {
+    client = new Client({ connectionString: databaseUrl });
+    await client.connect();
+    await resetAndMigrateAll(client);
+  });
+
+  afterAll(async () => {
+    await client?.end();
+  });
+
+  it("rewrites Mariana trainee-facing saludo to local after terminology migration", async () => {
+    const { rows } = await client.query<{ saludo: string }>(
+      `
+      SELECT saludo FROM scenario_saludos
+      WHERE scenario_id = (SELECT id FROM scenarios WHERE slug = 'mariana')
+        AND difficulty_level IS NULL
+      ORDER BY sort_order
+      `,
+    );
+    expect(rows[0].saludo).toBe("¿Quién habla? Estoy entre juntas.");
+    expect(rows[1].saludo).toBe("Ya tenemos agencia y local. No busco otra cosa.");
+    expect(rows.map((row) => row.saludo).join("\n")).not.toMatch(
+      /Ya tenemos agencia y caseta/,
+    );
+
+    const indicator = await client.query<{ indicator: string }>(
+      "SELECT indicator FROM scenarios WHERE slug = 'mariana'",
+    );
+    expect(indicator.rows[0].indicator).toBe("Visitas al local");
+  });
+});
+

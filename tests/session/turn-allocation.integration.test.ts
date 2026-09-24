@@ -153,7 +153,7 @@ describeIfDb("turn allocation (integration)", () => {
     const sixth = await service.submitTurn({
       callAttemptId: session.callAttemptId,
       utterance:
-        "¿Le parece el martes a las 10:30 para revisar el impacto en visitas a caseta?",
+        "¿Le parece el martes a las 10:30 para revisar el impacto en visitas al local?",
     });
 
     expect(sixth.roundNumber).toBe(6);

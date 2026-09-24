@@ -1,3 +1,8 @@
+import type {
+  AgentChatRequest,
+  AgentChatResponse,
+  TeamComparisonView,
+} from "@/lib/agent/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import type {
   CreateCustomScenarioInput,
@@ -6,10 +11,26 @@ import type {
   SessionEvaluationSummary,
   UpdateCustomScenarioInput,
 } from "@/lib/scenarios/types";
+import type {
+  PracticeTeam,
+  PracticeTeamMember,
+  PracticeTeamResult,
+  PracticeTeamTest,
+  TeamSnapshot,
+} from "@/lib/teams/types";
 import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
 import {
+  stubAddTeamMember,
+  stubCompareTeamTest,
   stubCreateSession,
   stubCreateScenario,
+  stubCreateTeam,
+  stubCreateTeamTest,
+  stubGetAgentHarness,
+  stubGetTeam,
+  stubListTeams,
+  stubRecordTeamResult,
+  stubRunAgentChat,
   stubSaveVoiceAgent,
   stubEndSession,
   stubGetSessionDetail,
@@ -200,6 +221,103 @@ export async function getSessionDetail(
   );
   return remote ?? stubGetSessionDetail(callAttemptId);
 }
+
+export async function getAgentHarness() {
+  const remote = await tryFetch<ReturnType<typeof stubGetAgentHarness>>(
+    "/api/agent/harness",
+  );
+  return remote ?? stubGetAgentHarness();
+}
+
+export async function runAgentChat(
+  body: AgentChatRequest,
+): Promise<AgentChatResponse> {
+  const remote = await tryFetch<AgentChatResponse>("/api/agent/chat", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return remote ?? stubRunAgentChat(body);
+}
+
+export async function listTeams(): Promise<PracticeTeam[]> {
+  const remote = await tryFetch<{ teams: PracticeTeam[] }>("/api/teams");
+  return remote?.teams ?? stubListTeams();
+}
+
+export async function createTeam(body: {
+  name: string;
+  createdBy?: string | null;
+}): Promise<PracticeTeam> {
+  const remote = await tryFetch<PracticeTeam>("/api/teams", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return remote ?? stubCreateTeam(body);
+}
+
+export async function getTeam(teamId: string): Promise<TeamSnapshot> {
+  const remote = await tryFetch<TeamSnapshot>(`/api/teams/${teamId}`);
+  return remote ?? stubGetTeam(teamId);
+}
+
+export async function addTeamMember(
+  teamId: string,
+  body: { displayName: string; email?: string | null },
+): Promise<PracticeTeamMember> {
+  const remote = await tryFetch<PracticeTeamMember>(
+    `/api/teams/${teamId}/members`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+  return remote ?? stubAddTeamMember(teamId, body);
+}
+
+export async function createTeamTest(
+  teamId: string,
+  body: { scenarioSlug: string; title?: string },
+): Promise<PracticeTeamTest> {
+  const remote = await tryFetch<PracticeTeamTest>(`/api/teams/${teamId}/tests`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return remote ?? stubCreateTeamTest(teamId, body);
+}
+
+export async function recordTeamResult(
+  teamId: string,
+  testId: string,
+  body: {
+    memberId: string;
+    totalScore: number;
+    won?: boolean;
+    turnsCompleted?: number;
+    notes?: string;
+  },
+): Promise<PracticeTeamResult> {
+  const remote = await tryFetch<PracticeTeamResult>(
+    `/api/teams/${teamId}/tests`,
+    {
+      method: "POST",
+      body: JSON.stringify({ testId, result: body }),
+    },
+  );
+  return remote ?? stubRecordTeamResult(testId, body);
+}
+
+export async function compareTeamTest(
+  teamId: string,
+  testId: string,
+): Promise<TeamComparisonView> {
+  const remote = await tryFetch<TeamComparisonView>(
+    `/api/teams/${teamId}/compare?testId=${encodeURIComponent(testId)}`,
+  );
+  return remote ?? stubCompareTeamTest(teamId, testId);
+}
+
+export type {
+  AgentChatRequest,
+  AgentChatResponse,
+  AgentHarnessSettings,
+} from "@/lib/agent/types";
 
 export type {
   CreateSessionRequest,

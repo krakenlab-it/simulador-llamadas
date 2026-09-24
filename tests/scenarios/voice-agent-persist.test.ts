@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { marianaScenarioFixture } from "@/tests/frontend/fixtures";
-import { ELEVENLABS_DEFAULT_PREMADE_VOICE } from "@/lib/voice/providers/elevenlabs";
 import {
   DEFAULT_VOICE_AGENT_SETTINGS,
   PREMADE_VOICES,
@@ -19,12 +18,15 @@ describe("voice agent persistence on the scenario", () => {
   it("round-trips trainer knobs on the same scenario record", () => {
     const saved = {
       language: "en" as const,
+      voiceGender: "auto" as const,
       voiceId: PREMADE_VOICES[3].id,
+      voiceOverride: true,
       speakingRate: "lento" as const,
       personality: "impaciente" as const,
       difficultyLevel: 2 as const,
       bargeIn: true,
       advancedOpen: true,
+      clientLayer: { motorEnabled: true, toneId: "desconfianza" as const },
     };
 
     const updated = applyVoiceAgentToRecord(marianaScenarioFixture, saved);
@@ -37,12 +39,15 @@ describe("voice agent persistence on the scenario", () => {
   it("replay of the saved record uses the same premade voice and barge-in", () => {
     const first = applyVoiceAgentToRecord(marianaScenarioFixture, {
       language: "es",
+      voiceGender: "auto",
       voiceId: PREMADE_VOICES[1].id,
+      voiceOverride: true,
       speakingRate: "rapido",
       personality: "paciente",
       difficultyLevel: 3,
       bargeIn: true,
       advancedOpen: false,
+      clientLayer: { motorEnabled: true, toneId: "auto" },
     });
 
     const replay = voiceAgentFromRecord(first);
@@ -67,9 +72,8 @@ describe("voice agent persistence on the scenario", () => {
       }),
     };
 
-    expect(voiceAgentFromRecord(tainted).voiceId).toBe(
-      ELEVENLABS_DEFAULT_PREMADE_VOICE.id,
-    );
+    expect(voiceAgentFromRecord(tainted).voiceId).toBe("");
+    expect(voiceAgentFromRecord(tainted).voiceOverride).toBe(false);
   });
 });
 

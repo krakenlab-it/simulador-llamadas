@@ -5,7 +5,7 @@
 
 export const DEFAULT_SCENARIO_LANGUAGE = "es";
 export const DEFAULT_SCENARIO_LOCALE = "es-MX";
-export const DEFAULT_SCENARIO_LANGUAGE_NAME = "español mexicano";
+export const DEFAULT_SCENARIO_LANGUAGE_NAME = "español latinoamericano nativo";
 
 export interface ScenarioLanguageSource {
   language?: string | null;
@@ -24,7 +24,7 @@ const KNOWN_LANGUAGES: Record<string, ScenarioSpeechLanguage> = {
   es: {
     iso639: "es",
     locale: "es-MX",
-    promptName: DEFAULT_SCENARIO_LANGUAGE_NAME,
+    promptName: "español latinoamericano nativo",
   },
   en: { iso639: "en", locale: "en-US", promptName: "English" },
   pt: { iso639: "pt", locale: "pt-BR", promptName: "português brasileiro" },
@@ -70,7 +70,8 @@ export function buildLanguageLockSystemPrompt(
 ): string {
   if (language.iso639 === "es") {
     return [
-      "Habla únicamente en español mexicano.",
+      "Habla únicamente en español latinoamericano nativo (México).",
+      "Pronunciación y ritmo de hablante nativo. Nunca uses acento inglés ni calques del inglés.",
       "Nunca cambies de idioma, ni en el cierre ni en turnos extra.",
       "No copies el idioma del vendedor si habla otro idioma.",
     ].join(" ");

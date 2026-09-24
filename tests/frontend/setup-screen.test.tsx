@@ -1,6 +1,6 @@
 import "@/tests/frontend/vitest-auth-mocks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ScenarioHub } from "@/app/components/training/ScenarioHub";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -123,8 +123,34 @@ describe("ScenarioHub flow", () => {
     expect(
       screen.getByRole("radiogroup", { name: "Dificultad" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Cliente en vivo" })).toBeChecked();
+    expect(
+      screen.getByRole("radiogroup", { name: "Tono del cliente" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/El pack sale del caso/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("Voz")).not.toBeInTheDocument();
     expect(screen.queryByRole("radiogroup", { name: "Ritmo" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
+    expect(
+      within(screen.getByRole("radiogroup", { name: "Idioma" })).getByRole(
+        "radio",
+        { name: "Español" },
+      ),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      within(screen.getByRole("radiogroup", { name: "Género de voz" })).getByRole(
+        "radio",
+        { name: "Según personaje" },
+      ),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: "Cliente en vivo" })).toBeChecked();
+    expect(
+      within(screen.getByRole("radiogroup", { name: "Tono del cliente" })).getByRole(
+        "radio",
+        { name: "Según personaje" },
+      ),
+    ).toHaveAttribute("aria-checked", "true");
 
     await user.click(screen.getByRole("button", { name: /avanzado/i }));
 
@@ -135,6 +161,12 @@ describe("ScenarioHub flow", () => {
     expect(
       screen.getByRole("radiogroup", { name: "Personalidad" }),
     ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("radiogroup", { name: "Personalidad" })).getByRole(
+        "radio",
+        { name: "Escéptico" },
+      ),
+    ).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("switch", { name: "Interrumpir" })).toBeInTheDocument();
   });
 
@@ -303,12 +335,15 @@ describe("ScenarioHub flow", () => {
         ...marianaScenarioFixture,
         voiceAgent: {
           language: "en",
+          voiceGender: "auto",
           voiceId: PREMADE_VOICES[2].id,
+          voiceOverride: true,
           speakingRate: "rapido",
           personality: "impaciente",
           difficultyLevel: 3,
           bargeIn: true,
           advancedOpen: true,
+          clientLayer: { motorEnabled: true, toneId: "auto" },
         },
       },
     ]);

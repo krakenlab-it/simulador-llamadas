@@ -25,6 +25,8 @@ import {
   type FlowState,
 } from "@/lib/frontend/flow";
 import { AppShell, type ShellTab } from "@/app/components/shell/AppShell";
+import { AgentHarnessScreen } from "@/app/components/agent/AgentHarnessScreen";
+import { TeamCompareScreen } from "@/app/components/teams/TeamCompareScreen";
 import { ScreenTransition } from "@/app/components/ui/ScreenTransition";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { ToastProvider, useToast } from "@/components/ui/Toast";
@@ -58,6 +60,10 @@ function shellTabFromView(view: AppView): ShellTab {
     case "builder":
     case "call":
       return "train";
+    case "agent":
+      return "agent";
+    case "teams":
+      return "teams";
     default: {
       const _exhaustive: never = view;
       return _exhaustive;
@@ -71,6 +77,10 @@ function tabToView(tab: ShellTab): AppView {
       return "home";
     case "train":
       return "train";
+    case "agent":
+      return "agent";
+    case "teams":
+      return "teams";
     default: {
       const _exhaustive: never = tab;
       return _exhaustive;
@@ -245,8 +255,8 @@ function SimulatorShell() {
     (slug: string) => {
       setScenarioRefresh((k) => k + 1);
       setSelectedSlugOnLoad(slug);
-      setFlow((prev) => closeBuilder(prev));
-      showToast("Escenario guardado. Selecciónalo e inicia la llamada.", "success");
+      setFlow(resetToTrain);
+      showToast("Caso listo para practicar.", "success");
     },
     [showToast],
   );
@@ -330,6 +340,26 @@ function SimulatorShell() {
               setFlow((prev) => closeBuilder(prev));
             }}
             onSave={({ scenario }) => handleScenarioSaved(scenario.slug)}
+          />
+        )}
+
+        {flow.view === "agent" && (
+          <AgentHarnessScreen
+            onScenarioSaved={handleScenarioSaved}
+            onPracticePreset={(slug) => {
+              setSelectedSlugOnLoad(slug);
+              setFlow(resetToTrain);
+            }}
+          />
+        )}
+
+        {flow.view === "teams" && (
+          <TeamCompareScreen
+            traineeEmail={traineeEmail}
+            onPractice={(slug) => {
+              setSelectedSlugOnLoad(slug);
+              setFlow(resetToTrain);
+            }}
           />
         )}
 

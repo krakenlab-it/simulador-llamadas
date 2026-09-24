@@ -53,6 +53,30 @@ export const KEYWORD_MATCHERS: readonly KeywordMatcher[] = [
 ] as const;
 
 export const DAY_PATTERN =
-  /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s+de)/i;
+  /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s+de(?!\s+la\s+(?:ma[nñ]ana|tarde|noche)))/i;
 
-export const TIME_PATTERN = /\d{1,2}[:h]\d{2}|\d{1,2}\s*(am|pm|hrs?)/i;
+const CLOCK_WORDS = "una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce";
+
+/** Clock time in Spanish scheduling: 10:00, 10am, a las 10, 9 de la mañana. */
+export const TIME_PATTERN = new RegExp(
+  [
+    String.raw`\d{1,2}[:h]\d{2}`,
+    String.raw`\d{1,2}\s+de\s+la\s+(?:ma[nñ]ana|tarde|noche)`,
+    String.raw`(?:${CLOCK_WORDS})\s+de\s+la\s+(?:ma[nñ]ana|tarde|noche)`,
+    String.raw`\d{1,2}\s*(?:am|pm|hrs?)`,
+    String.raw`(?:a\s+las?)\s+(?:\d{1,2}|${CLOCK_WORDS})`,
+  ].join("|"),
+  "i",
+);
+
+export function utteranceHasDay(utterance: string): boolean {
+  return DAY_PATTERN.test(utterance);
+}
+
+export function utteranceHasTime(utterance: string): boolean {
+  return TIME_PATTERN.test(utterance);
+}
+
+export function utteranceHasConcreteDayAndTime(utterance: string): boolean {
+  return utteranceHasDay(utterance) && utteranceHasTime(utterance);
+}

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { ShellUser } from "@/lib/frontend/auth-shell";
 
-export type ShellTab = "home" | "train";
+export type ShellTab = "home" | "train" | "agent" | "teams";
 
 interface AppShellProps {
   user: ShellUser;
@@ -23,6 +23,9 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <div className="app-shell">
+      <a href="#contenido" className="skip-link">
+        Saltar al contenido
+      </a>
       <header className="app-header">
         <div className="app-header__brand">
           <span className="app-header__logo" aria-hidden="true">
@@ -58,6 +61,22 @@ export function AppShell({
             >
               Entrenar
             </button>
+            <button
+              type="button"
+              className={`app-nav__tab ${activeTab === "agent" ? "app-nav__tab--active" : ""}`}
+              onClick={() => onTabChange("agent")}
+              aria-current={activeTab === "agent" ? "page" : undefined}
+            >
+              Agente
+            </button>
+            <button
+              type="button"
+              className={`app-nav__tab ${activeTab === "teams" ? "app-nav__tab--active" : ""}`}
+              onClick={() => onTabChange("teams")}
+              aria-current={activeTab === "teams" ? "page" : undefined}
+            >
+              Equipos
+            </button>
           </nav>
         ) : null}
 
@@ -78,7 +97,9 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="app-main">{children}</main>
+      <main id="contenido" className="app-main" tabIndex={-1}>
+        {children}
+      </main>
     </div>
   );
 }

@@ -4,12 +4,20 @@ import { useId } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { SegmentedControl, Switch } from "@/app/components/ui/Switch";
 import {
+  CLIENT_TONE_IDS,
+  CLIENT_TONE_LABELS,
+  DEFAULT_CLIENT_LAYER_SETTINGS,
+  type ClientToneId,
+} from "@/lib/agent/client-layer";
+import {
   PREMADE_VOICES,
   type AgentLanguage,
   type AgentPersonality,
   type SpeakingRatePreset,
   type VoiceAgentSettings,
+  type VoiceGenderPreference,
 } from "@/lib/voice/agent-settings";
+import { ELEVENLABS_CONNECTION_ENV_NAMES } from "@/lib/voice/voice-pool";
 
 interface VoiceAgentControlsProps {
   value: VoiceAgentSettings;
@@ -21,6 +29,19 @@ const LANGUAGE_OPTIONS: { value: AgentLanguage; label: string }[] = [
   { value: "es", label: "Español" },
   { value: "en", label: "English" },
 ];
+
+const GENDER_OPTIONS: { value: VoiceGenderPreference; label: string }[] = [
+  { value: "auto", label: "Según personaje" },
+  { value: "female", label: "Mujer" },
+  { value: "male", label: "Hombre" },
+];
+
+const TONE_OPTIONS: { value: ClientToneId; label: string }[] = CLIENT_TONE_IDS.map(
+  (toneId) => ({
+    value: toneId,
+    label: CLIENT_TONE_LABELS[toneId],
+  }),
+);
 
 const RATE_OPTIONS: { value: SpeakingRatePreset; label: string }[] = [
   { value: "lento", label: "Lento" },
@@ -41,6 +62,8 @@ export function VoiceAgentControls({
   showBargeIn,
 }: VoiceAgentControlsProps) {
   const languageId = useId();
+  const genderId = useId();
+  const toneId = useId();
   const rateId = useId();
   const personalityId = useId();
   const voiceId = useId();
@@ -55,6 +78,49 @@ export function VoiceAgentControls({
           value={value.language}
           options={LANGUAGE_OPTIONS}
           onChange={(language) => onChange({ ...value, language })}
+        />
+        <SegmentedControl
+          label="Género de voz"
+          labelId={genderId}
+          value={value.voiceGender}
+          options={GENDER_OPTIONS}
+          onChange={(voiceGender) =>
+            onChange({
+              ...value,
+              voiceGender,
+              voiceOverride: false,
+              voiceId: "",
+            })
+          }
+        />
+        <Switch
+          label="Cliente en vivo"
+          description="El caso arma el pack. El cliente responde; el coach va aparte."
+          checked={(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS).motorEnabled}
+          onCheckedChange={(motorEnabled) =>
+            onChange({
+              ...value,
+              clientLayer: {
+                ...(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS),
+                motorEnabled,
+              },
+            })
+          }
+        />
+        <SegmentedControl
+          label="Tono del cliente"
+          labelId={toneId}
+          value={(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS).toneId}
+          options={TONE_OPTIONS}
+          onChange={(nextTone) =>
+            onChange({
+              ...value,
+              clientLayer: {
+                ...(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS),
+                toneId: nextTone,
+              },
+            })
+          }
         />
         <Button
           variant="ghost"
@@ -75,18 +141,30 @@ export function VoiceAgentControls({
             <select
               id={voiceId}
               className="config-panel__select"
-              value={value.voiceId}
-              onChange={(event) =>
-                onChange({ ...value, voiceId: event.target.value })
-              }
+              value={value.voiceOverride ? value.voiceId : ""}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                onChange({
+                  ...value,
+                  voiceId: nextId,
+                  voiceOverride: Boolean(nextId),
+                });
+              }}
             >
+              <option value="">Según el personaje (2 voces por género)</option>
               {PREMADE_VOICES.map((voice) => (
                 <option key={voice.id} value={voice.id}>
-                  {voice.name}
+                  {voice.name} · {voice.gender === "male" ? "hombre" : voice.gender === "female" ? "mujer" : "neutra"}
                 </option>
               ))}
             </select>
           </div>
+
+          <p className="agent-settings__hint" aria-label="Conexión ElevenLabs">
+            ElevenLabs (nombres de variables, nunca valores):{" "}
+            {ELEVENLABS_CONNECTION_ENV_NAMES.join(", ")}. El servidor elige
+            voz mujer/hombre del pool. Español nativo (LATAM); English aparte.
+          </p>
 
           <div className="config-panel__section">
             <SegmentedControl

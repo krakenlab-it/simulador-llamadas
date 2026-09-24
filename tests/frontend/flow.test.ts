@@ -3,30 +3,34 @@ import {
   beginStarting,
   canNavigateTo,
   closeBuilder,
+  closeAgent,
+  closeTeams,
   enterCall,
   enterDetail,
   enterResults,
   initialFlowState,
   navigate,
+  openAgent,
   openBuilder,
+  openTeams,
   resetToHome,
   resetToTrain,
 } from "@/lib/frontend/flow";
 
 describe("app flow state machine", () => {
-  it("starts on the home dashboard with idle phase", () => {
+  it("starts on Entrenar with idle phase", () => {
     const state = initialFlowState();
-    expect(state.view).toBe("home");
+    expect(state.view).toBe("train");
     expect(state.phase).toBe("idle");
     expect(state.hasActiveSession).toBe(false);
   });
 
   it("allows navigation between home and train when idle", () => {
     const state = initialFlowState();
-    expect(canNavigateTo(state, "train")).toBe(true);
-    const train = navigate(state, "train");
-    expect(train.view).toBe("train");
-    expect(navigate(train, "home").view).toBe("home");
+    expect(canNavigateTo(state, "home")).toBe(true);
+    const home = navigate(state, "home");
+    expect(home.view).toBe("home");
+    expect(navigate(home, "train").view).toBe("train");
   });
 
   it("blocks navigation while starting a call", () => {
@@ -82,5 +86,30 @@ describe("app flow state machine", () => {
     const reset = resetToTrain();
     expect(reset.view).toBe("train");
     expect(reset.phase).toBe("idle");
+  });
+
+  it("opens and closes the agent and teams surfaces when idle", () => {
+    const home = initialFlowState();
+    const agent = openAgent(home);
+    expect(agent.view).toBe("agent");
+    expect(closeAgent(agent).view).toBe("train");
+    const teams = openTeams(home);
+    expect(teams.view).toBe("teams");
+    expect(closeTeams(teams).view).toBe("train");
+    expect(openAgent(enterCall())).toEqual(enterCall());
+  });
+
+  it("closeBuilder is a noop on Agente — saved cases must resetToTrain", () => {
+    const agent = openAgent(initialFlowState());
+    expect(closeBuilder(agent).view).toBe("agent");
+    expect(resetToTrain().view).toBe("train");
+    expect(closeAgent(agent).view).toBe("train");
+  });
+
+  it("allows navigating to agent and teams when idle", () => {
+    const state = initialFlowState();
+    expect(canNavigateTo(state, "agent")).toBe(true);
+    expect(canNavigateTo(state, "teams")).toBe(true);
+    expect(navigate(state, "agent").view).toBe("agent");
   });
 });

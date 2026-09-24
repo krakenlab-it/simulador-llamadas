@@ -25,12 +25,15 @@ export function LandingPage() {
   ] as const;
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} lang="es">
+      <a href="#contenido" className="skip-link">
+        Saltar al contenido
+      </a>
       <div className={`${styles.orb} ${styles.orbOne}`} aria-hidden="true" />
       <div className={`${styles.orb} ${styles.orbTwo}`} aria-hidden="true" />
       <div className={styles.gridOverlay} aria-hidden="true" />
 
-      <div className={styles.shell}>
+      <main id="contenido" className={styles.shell}>
         <header className={`${styles.nav} ${styles.reveal}`}>
           <div className={styles.logo}>
             <span className={styles.logoMark} aria-hidden="true">
@@ -97,36 +100,42 @@ export function LandingPage() {
                 No tengo tiempo para otra demo genérica. ¿Qué miden exactamente?
               </div>
               <div className={`${styles.bubble} ${styles.bubbleYou}`}>
-                Entiendo. En su sector medimos visitas a caseta y costo por lead
+                Entiendo. En su sector medimos visitas al local y costo por lead
                 calificado, no vanity metrics.
               </div>
             </div>
           </div>
         </section>
 
-        <section className={styles.features} aria-label="Características">
+        <section className={styles.features} aria-labelledby="landing-features">
+          <h2 id="landing-features" className="visually-hidden">
+            Características
+          </h2>
           {features.map((feature, index) => (
             <article
               key={feature.title}
               className={`${styles.featureCard} ${styles.reveal} ${revealDelays[index] ?? styles.revealDelay4}`}
             >
-              <h2 className={styles.featureTitle}>{feature.title}</h2>
+              <h3 className={styles.featureTitle}>{feature.title}</h3>
               <p className={styles.featureDescription}>{feature.description}</p>
             </article>
           ))}
         </section>
 
-        <div className={styles.stats} aria-label="Métricas del simulador">
+        <section className={styles.stats} aria-labelledby="landing-stats">
+          <h2 id="landing-stats" className="visually-hidden">
+            Métricas del simulador
+          </h2>
           {stats.map((stat) => (
             <div key={stat.label}>
               <div className={styles.statValue}>{stat.value}</div>
               <div className={styles.statLabel}>{stat.label}</div>
             </div>
           ))}
-        </div>
+        </section>
 
         <footer className={styles.footer}>{footer}</footer>
-      </div>
+      </main>
     </div>
   );
 }

@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type KeyboardEvent } from "react";
+import { useDocumentLang } from "@/lib/a11y/document-lang";
+import { nextRovingValue } from "@/lib/a11y/roving-options";
 import { useToast } from "@/components/ui/Toast";
-import type { ClientPersona } from "@/lib/clients";
-import { CLIENTS } from "@/lib/clients";
+import { CLIENTS, getClientBySlug, type ClientPersona } from "@/lib/clients";
 import { listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
+import { resolveHubVoiceAgent } from "@/lib/scenarios/catalog-defaults";
 import {
   DEFAULT_VOICE_AGENT_SETTINGS,
   parseVoiceAgentSettings,
-  voiceAgentFromRecord,
   type VoiceAgentSettings,
 } from "@/lib/voice/agent-settings";
+import { DEFAULT_CLIENT_LAYER_SETTINGS } from "@/lib/agent/client-layer";
+import { describeClientLayerForTrainer } from "@/lib/agent/client-pack";
 import { VoiceAgentControls } from "@/app/components/training/VoiceAgentControls";
 import { useSpeechRecognition } from "@/lib/hooks/useSpeechRecognition";
 import { useVoiceConfig } from "@/lib/hooks/useVoiceConfig";
@@ -92,6 +95,10 @@ export function ScenarioHub({
   const voiceConfig = useVoiceConfig();
   const { session } = useAuth();
   const difficultyGroupId = useId();
+  const libraryTabId = useId();
+  const customTabId = useId();
+  const scenarioPanelId = useId();
+  useDocumentLang(voiceAgent.language);
 
   useEffect(() => {
     if (!session?.user.email || verifiedUserId) return;
@@ -164,7 +171,7 @@ export function ScenarioHub({
 
   useEffect(() => {
     if (!selected) return;
-    const restored = voiceAgentFromRecord(selected);
+    const restored = resolveHubVoiceAgent(selected);
     setVoiceAgent(restored);
     setLevel(restored.difficultyLevel);
   }, [selected]);
@@ -242,13 +249,14 @@ export function ScenarioHub({
   const renderScenarioCard = (scenario: ScenarioRecord) => {
     const isSelected = selectedSlug === scenario.slug;
     return (
-      <div key={scenario.slug} className="scenario-card-wrap">
+      <div key={scenario.slug} className="scenario-card-wrap" role="listitem">
         <Card
           interactive
           selected={isSelected}
           role="button"
           tabIndex={0}
           aria-pressed={isSelected}
+          aria-label={`Escenario ${scenario.clientName}`}
           onClick={() => setSelectedSlug(scenario.slug)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -272,7 +280,8 @@ export function ScenarioHub({
           </p>
           <p className="scenario-card__hint">
             {scenario.isPreset
-              ? `Indicador: ${scenario.indicator}`
+              ? getClientBySlug(scenario.slug)?.practiceBrief ??
+                `Indicador: ${scenario.indicator}`
               : `Vende: ${scenario.productSold}`}
           </p>
           {(scenario.painPoints ?? []).length > 0 ? (
@@ -300,16 +309,35 @@ export function ScenarioHub({
         <p className="page-hero__eyebrow">Tu sesión de práctica</p>
         <h1 className="page-hero__title">Elige un escenario y empieza</h1>
         <p className="page-hero__subtitle">
-          Cinco rondas por llamada: apertura, objeción, claridad, seguimiento y
-          cierre. Gana con día y hora concretos — o tu propio criterio de éxito.
+          Elige el caso. El pack (hechos, objeción real, qué concede) ya viene
+          armado — no es un formulario. Tú eliges dificultad, tono e idioma.
+          Cinco rondas; gana con día y hora. Luego compara al equipo en el
+          mismo examen.
         </p>
       </header>
 
-      <div className="train-hub__tabs" role="tablist" aria-label="Tipo de escenario">
+      <div
+        className="train-hub__tabs"
+        role="tablist"
+        aria-label="Tipo de escenario"
+        onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+          const next = nextRovingValue(
+            ["library", "custom"] as const,
+            tab,
+            event.key,
+          );
+          if (!next) return;
+          event.preventDefault();
+          setTab(next);
+        }}
+      >
         <button
           type="button"
+          id={libraryTabId}
           role="tab"
           aria-selected={tab === "library"}
+          aria-controls={scenarioPanelId}
+          tabIndex={tab === "library" ? 0 : -1}
           className={`train-hub__tab ${tab === "library" ? "train-hub__tab--active" : ""}`}
           onClick={() => setTab("library")}
         >
@@ -317,8 +345,11 @@ export function ScenarioHub({
         </button>
         <button
           type="button"
+          id={customTabId}
           role="tab"
           aria-selected={tab === "custom"}
+          aria-controls={scenarioPanelId}
+          tabIndex={tab === "custom" ? 0 : -1}
           className={`train-hub__tab ${tab === "custom" ? "train-hub__tab--active" : ""}`}
           onClick={() => setTab("custom")}
         >
@@ -326,34 +357,40 @@ export function ScenarioHub({
         </button>
       </div>
 
-      {loadingScenarios ? (
-        <div className="train-hub__loading">
-          <Spinner label="Cargando escenarios…" />
-        </div>
-      ) : catalogFailed ? (
-        <EmptyState
-          title="No se pudieron cargar los escenarios"
-          description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo — no arrancamos la clínica de respaldo para no ensayar un caso distinto al de producción."
-        />
-      ) : tab === "custom" && custom.length === 0 ? (
-        <EmptyState
-          title="Aún no tienes escenarios propios"
-          description="Crea un caso de venta a tu medida — banco, SaaS, seguros, retail — y practícalo con el mismo motor de cinco rondas."
-          actionLabel="Crear escenario"
-          onAction={onCreateScenario}
-        />
-      ) : visibleScenarios.length === 0 ? (
-        <EmptyState
-          title="No hay escenarios disponibles"
-          description="Vuelve a intentar en unos segundos o crea uno personalizado."
-          actionLabel="Crear escenario"
-          onAction={onCreateScenario}
-        />
-      ) : (
-        <div className="scenario-grid" role="list">
-          {visibleScenarios.map(renderScenarioCard)}
-        </div>
-      )}
+      <div
+        id={scenarioPanelId}
+        role="tabpanel"
+        aria-labelledby={tab === "library" ? libraryTabId : customTabId}
+      >
+        {loadingScenarios ? (
+          <div className="train-hub__loading">
+            <Spinner label="Cargando escenarios…" />
+          </div>
+        ) : catalogFailed ? (
+          <EmptyState
+            title="No se pudieron cargar los escenarios"
+            description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo — no arrancamos la clínica de respaldo para no ensayar un caso distinto al de producción."
+          />
+        ) : tab === "custom" && custom.length === 0 ? (
+          <EmptyState
+            title="Aún no tienes escenarios propios"
+            description="Crea un caso de venta a tu medida — banco, SaaS, seguros, retail — y practícalo con el mismo motor de cinco rondas."
+            actionLabel="Crear escenario"
+            onAction={onCreateScenario}
+          />
+        ) : visibleScenarios.length === 0 ? (
+          <EmptyState
+            title="No hay escenarios disponibles"
+            description="Vuelve a intentar en unos segundos o crea uno personalizado."
+            actionLabel="Crear escenario"
+            onAction={onCreateScenario}
+          />
+        ) : (
+          <div className="scenario-grid" role="list">
+            {visibleScenarios.map(renderScenarioCard)}
+          </div>
+        )}
+      </div>
 
       {tab === "custom" && custom.length > 0 ? (
         <div className="train-hub__secondary-action">
@@ -396,6 +433,12 @@ export function ScenarioHub({
             }}
           />
         </div>
+
+        <p className="config-panel__hint">
+          {describeClientLayerForTrainer(
+            voiceAgent.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS,
+          )}
+        </p>
 
         <VoiceAgentControls
           value={voiceAgent}

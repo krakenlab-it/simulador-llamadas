@@ -1,0 +1,151 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildImpersonationRoles,
+  generateImpersonatedReply,
+  isCloneReply,
+} from "@/lib/agent/impersonation";
+import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
+
+describe("impersonation", () => {
+  it("separates buyer role from seller and packs this client's questions", () => {
+    const config = buildPresetScenarioConfig("mariana");
+    expect(config).not.toBeNull();
+    const roles = buildImpersonationRoles({
+      config: config!,
+      round: config!.rounds[0],
+      reaction: "medio",
+      clientName: "Mariana Escobedo",
+      traineeUtterance: "Buenos días, le llamo de Kraken.",
+      roundNumber: 1,
+      scenarioSlug: "mariana",
+      recentReplies: ["Ya tenemos agencia y local."],
+    });
+    expect(roles.agent).toMatch(/Mariana Escobedo/);
+    expect(roles.agent).toMatch(/Nunca hables como el vendedor/);
+    expect(roles.agent).toMatch(/decisor/);
+    expect(roles.user).toMatch(/vendedor/);
+    expect(roles.context).toMatch(/PACK DEL ESCENARIO/);
+    expect(roles.context).toMatch(/ESTADO EN VIVO/);
+    expect(roles.context).toMatch(/local/i);
+    expect(roles.context).toMatch(/confirma ESE slot/i);
+    expect(roles.context).not.toBe(roles.agent);
+  });
+
+  it("keeps a granted meeting granted and does not re-ask the day", () => {
+    const config = buildPresetScenarioConfig("mariana");
+    const roles = buildImpersonationRoles({
+      config: config!,
+      round: config!.rounds[4] ?? config!.rounds[0],
+      reaction: "bien",
+      clientName: "Mariana Escobedo",
+      traineeUtterance: "Le mando el correo para la invitación",
+      roundNumber: 5,
+      scenarioSlug: "mariana",
+      priorTurns: [
+        {
+          role: "trainee",
+          text: "¿Le parece el jueves a las 10 para ver el tablero del local?",
+        },
+        {
+          role: "client",
+          text: "Listo, quedamos el jueves a las 10. La reunión está agendada.",
+        },
+      ],
+    });
+    expect(roles.agent).toMatch(/Ya aceptaste|Confirma ESE día y hora/);
+    expect(roles.agent).not.toMatch(/Aún no concedas la cita/);
+    expect(roles.context).toMatch(/Cita aceptada: sí/);
+    expect(roles.context).toMatch(/correo o WhatsApp/);
+  });
+
+  it("after presentation accept, a Friday 9am offer is not a local day/time re-ask", () => {
+    const config = buildPresetScenarioConfig("mariana");
+    const roles = buildImpersonationRoles({
+      config: config!,
+      round: config!.rounds[4] ?? config!.rounds[0],
+      reaction: "medio",
+      clientName: "Mariana Escobedo",
+      traineeUtterance: "¿Le parece el viernes a las 9 de la mañana?",
+      roundNumber: 5,
+      scenarioSlug: "mariana",
+      priorTurns: [
+        {
+          role: "trainee",
+          text: "Podemos hacer una presentación del tablero del local.",
+        },
+        {
+          role: "client",
+          text: "Sí, adelante, pueden presentar.",
+        },
+      ],
+    });
+    expect(roles.agent).toMatch(/Confirma ESE día y hora/);
+    expect(roles.agent).not.toMatch(/Aún no concedas la cita/);
+    expect(roles.context).toMatch(/Presentación aceptada: sí/);
+    expect(roles.context).toMatch(/Día y hora mencionados: sí/);
+    expect(roles.context).not.toMatch(/sin fecha no hay reunión/);
+  });
+
+  it("returns the scripted line when the trainer turns the motor off", async () => {
+    const config = buildPresetScenarioConfig("mariana");
+    const text = await generateImpersonatedReply(
+      {
+        config: config!,
+        round: config!.rounds[0],
+        reaction: "medio",
+        clientName: "Mariana Escobedo",
+        traineeUtterance: "Buenos días",
+        roundNumber: 1,
+        scenarioSlug: "mariana",
+        clientLayer: { motorEnabled: false, toneId: "auto" },
+      },
+      "Ya tenemos agencia y local.",
+    );
+    expect(text).toBe("Ya tenemos agencia y local.");
+  });
+
+  it("uses persisted config.clientPack on custom slugs", () => {
+    const config = buildPresetScenarioConfig("mariana");
+    expect(config).not.toBeNull();
+    const customConfig = {
+      ...config!,
+      clientPack: {
+        decisionRole: "guardian" as const,
+        howTheyWorkToday: "Excel de proveedores y un reporte anual",
+        onTheirMind: "Auditoría el próximo trimestre",
+        allowedFacts: ["Proveedores sin evidencia de origen"],
+        forbiddenClaims: ["certificación garantizada"],
+        realObjection: "Ya tienen reporte ESG y no quieren otro deck",
+        grantConditions: "Evidencia de origen por proveedor",
+        sellerObjective: "Revisión el miércoles a las 16",
+      },
+    };
+    const roles = buildImpersonationRoles({
+      config: customConfig,
+      round: customConfig.rounds[0],
+      reaction: "medio",
+      clientName: "Andrés Peña",
+      traineeUtterance: "Buenos días, le llamo por la auditoría.",
+      roundNumber: 1,
+      scenarioSlug: "andres-pena-sostenibilidad",
+    });
+    expect(roles.agent).toMatch(/guardian/);
+    expect(roles.context).toMatch(/certificación garantizada/);
+    expect(roles.context).toMatch(/Evidencia de origen/);
+    expect(roles.context).not.toMatch(/garantía de visitas al local/);
+  });
+
+  it("detects clone replies", () => {
+    expect(isCloneReply("ok", [])).toBe(true);
+    expect(
+      isCloneReply("Ya tenemos agencia y local.", [
+        "Ya tenemos agencia y local.",
+      ]),
+    ).toBe(true);
+    expect(
+      isCloneReply("El sábado necesito gente en piso, no clics.", [
+        "Ya tenemos agencia y local.",
+      ]),
+    ).toBe(false);
+  });
+});

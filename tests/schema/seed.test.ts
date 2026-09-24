@@ -1,16 +1,8 @@
-import { readFileSync, readdirSync } from "fs";
-import { join } from "path";
 import { describe, expect, it } from "vitest";
-
-const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
-
-function loadMigrationSql(): string {
-  return readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith(".sql"))
-    .sort()
-    .map((f) => readFileSync(join(MIGRATIONS_DIR, f), "utf-8"))
-    .join("\n");
-}
+import {
+  loadClinicV1MigrationSql,
+  loadMigrationSql,
+} from "@/tests/helpers/db";
 
 describe("clinic content seed (static)", () => {
   const sql = loadMigrationSql();
@@ -57,5 +49,15 @@ describe("clinic content seed (static)", () => {
   it("ports prototype saludos for mariana", () => {
     expect(sql).toContain("¿Quién habla? Estoy entre juntas.");
     expect(sql).toContain("Ya tenemos agencia y caseta. No busco otra cosa.");
+    expect(sql).toContain("Ya tenemos agencia y local. No busco otra cosa.");
+  });
+
+  it("keeps clinic-v1 seed on caseta and applies local only in later migrations", () => {
+    const clinicV1 = loadClinicV1MigrationSql();
+    expect(clinicV1).toContain("Ya tenemos agencia y caseta. No busco otra cosa.");
+    expect(clinicV1).not.toContain("Ya tenemos agencia y local. No busco otra cosa.");
+    expect(sql).toContain(
+      "SET saludo = 'Ya tenemos agencia y local. No busco otra cosa.'",
+    );
   });
 });

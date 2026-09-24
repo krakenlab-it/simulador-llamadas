@@ -7,6 +7,11 @@ export {
   buildLanguageLockSystemPrompt,
 } from "./language";
 export {
+  CATALOG_PRESETS,
+  getCatalogPreset,
+  listCatalogPresets,
+} from "./catalog-presets";
+export {
   CLINIC_PRESET_SLUGS,
   isClinicPreset,
   type ScenarioConfig,

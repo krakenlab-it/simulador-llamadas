@@ -49,7 +49,7 @@ describe("training journey (main user flow)", () => {
     expect(flow.view).toBe("call");
 
     const utterances = [
-      "Entiendo el problema de medición. ¿Qué le cuesta más hoy en visitas a caseta?",
+      "Entiendo el problema de medición. ¿Qué le cuesta más hoy en visitas al local?",
       "Comprendo su duda. ¿Qué ha probado para mejorar el tráfico?",
       "Si esto sigue tres meses, ¿qué impacto tendría en ingresos?",
       "Con su permiso le envío un caso breve y hablamos el jueves.",
@@ -79,9 +79,9 @@ describe("training journey (main user flow)", () => {
     expect(flow.phase).toBe("idle");
   });
 
-  it("lands on home after login-style reset", () => {
-    const home = initialFlowState();
-    expect(home.view).toBe("home");
+  it("lands on Entrenar after login-style reset", () => {
+    const train = initialFlowState();
+    expect(train.view).toBe("train");
   });
 
   it("supports early hang up with partial scoring", async () => {

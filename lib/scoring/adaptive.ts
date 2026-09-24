@@ -1,9 +1,13 @@
 import type { DifficultyLevel, RoundType } from "@/lib/db/types";
 import type { RichTurnFeedback, ScenarioConfig } from "@/lib/scenarios/types";
+import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
+import {
+  utteranceHasDay,
+  utteranceHasTime,
+} from "./keywords";
 import { scoreLiveTurn, type LiveTurnInput } from "./live-turn";
 import type { CallAnalytics, TranscriptLine } from "./types";
 import type { ClientReaction } from "./rondas";
-import type { VoiceAgentSettings } from "@/lib/voice/agent-settings";
 
 export interface AdaptiveScoreInput {
   utterance: string;
@@ -36,15 +40,6 @@ export interface AdaptiveScoreResult {
   richFeedback: RichTurnFeedback;
 }
 
-function detectDayTime(utterance: string): { hasDay: boolean; hasTime: boolean } {
-  const hasDay =
-    /(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d{1,2}\s+de)/i.test(
-      utterance,
-    );
-  const hasTime = /\d{1,2}[:h]\d{2}|\d{1,2}\s*(am|pm|hrs?)/i.test(utterance);
-  return { hasDay, hasTime };
-}
-
 export async function scoreTurnAdaptive(
   input: AdaptiveScoreInput,
 ): Promise<AdaptiveScoreResult> {
@@ -54,7 +49,8 @@ export async function scoreTurnAdaptive(
   };
 
   const live = await scoreLiveTurn(liveInput);
-  const { hasDay, hasTime } = detectDayTime(input.utterance);
+  const hasDay = utteranceHasDay(input.utterance);
+  const hasTime = utteranceHasTime(input.utterance);
 
   const richFeedback: RichTurnFeedback = {
     score: live.engagementScore,
