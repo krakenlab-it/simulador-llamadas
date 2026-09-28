@@ -39,6 +39,12 @@ import {
   difficultyEtiquetaInstruction,
 } from "@/lib/scenarios/difficulty-etiquette";
 import { sanitizeLeakedBuyerReply } from "@/lib/scenarios/authoring-leak";
+import {
+  buildBuyerChatMessages,
+  type BuyerChatMessage,
+  isNearDuplicateReply,
+} from "@/lib/agent/buyer-transcript";
+import { progressiveBuyerFallback } from "@/lib/agent/buyer-psych";
 import { buildClientPack, formatClientPack } from "./client-pack";
 import { composeSeparatedSystemPrompt } from "./roles";
 import {
@@ -81,6 +87,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
   user: string;
   context: string;
   psych: ReturnType<typeof analyzeBuyerPsych>;
+  transcriptMessages: BuyerChatMessage[];
 } {
   const language = resolveScenarioLanguage(input.config);
   const preset = input.scenarioSlug
@@ -168,7 +175,14 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
       : "Este turno termina en afirmación o salida suave, no en otra pregunta.",
   ].join("\n");
 
-  const user = `El vendedor (usuario) dijo: "${input.traineeUtterance}"`;
+  const transcriptMessages = buildBuyerChatMessages(
+    priorTurns,
+    input.traineeUtterance,
+  );
+  const user =
+    transcriptMessages.length > 1
+      ? "Continúa la llamada. Responde solo como el cliente al último turno del vendedor."
+      : `El vendedor (usuario) dijo: "${input.traineeUtterance}"`;
 
   const context = [
     formatClientPack(pack),
@@ -183,7 +197,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     .filter(Boolean)
     .join("\n\n");
 
-  return { agent, user, context, psych };
+  return { agent, user, context, psych, transcriptMessages };
 }
 
 export function buildImpersonationPrompt(input: ImpersonationInput): string {
@@ -229,10 +243,15 @@ export async function generateImpersonatedReply(
   });
 
   try {
+    const chatMessages =
+      roles.transcriptMessages.length > 0
+        ? roles.transcriptMessages
+        : [{ role: "user" as const, content: roles.user }];
+
     const result = await generateText({
       model,
       system: composeSeparatedSystemPrompt(roles),
-      messages: [{ role: "user", content: roles.user }],
+      messages: chatMessages,
       tools: tools as Parameters<typeof generateText>[0]["tools"],
       temperature: BUYER_LIVE_TEMPERATURE,
       maxOutputTokens: BUYER_MAX_OUTPUT_TOKENS,
@@ -240,7 +259,22 @@ export async function generateImpersonatedReply(
     });
     const text = (result.text?.trim() || toolSpoken).trim();
     if (!text || text.length > 400) return fallbackText;
-    if (isCloneReply(text, input.recentReplies ?? [])) return fallbackText;
+    if (isCloneReply(text, input.recentReplies ?? [])) {
+      return progressiveBuyerFallback(
+        psych,
+        input.traineeUtterance,
+        input.recentReplies ?? [],
+        fallbackText,
+      );
+    }
+    if (isNearDuplicateReply(text, input.recentReplies ?? [])) {
+      return progressiveBuyerFallback(
+        psych,
+        input.traineeUtterance,
+        input.recentReplies ?? [],
+        fallbackText,
+      );
+    }
     const languageCode = input.config.language === "en" ? "en" : "es";
     const leakSafe = sanitizeLeakedBuyerReply(text, input.config, languageCode);
     const policed = enforceBuyerTurnPolicy(

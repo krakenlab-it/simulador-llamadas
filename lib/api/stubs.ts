@@ -30,6 +30,9 @@ import { durationSecondsBetween } from "@/lib/session/duration";
 import { resolveEndSessionWin } from "@/lib/session/win";
 import { DEFAULT_WIN_CRITERIA } from "@/lib/scoring/outcome";
 import { getOpeningLine } from "@/lib/llm/client-replies";
+import { withCallOpeningInTranscript } from "@/lib/agent/buyer-transcript";
+import { openingLineForCall } from "@/lib/scenarios/authoring";
+import type { TranscriptLine } from "@/lib/scoring/types";
 import {
   applyVoiceAgentToRecord,
   parseVoiceAgentSettings,
@@ -133,6 +136,7 @@ export interface TurnSummary {
   roundScore: number;
   richFeedback: RichTurnFeedback;
   keywordHits?: Record<string, boolean>;
+  clientReply?: string;
 }
 
 export interface EndSessionResponse {
@@ -469,10 +473,20 @@ export async function stubSubmitTurn(
     roundType = customRound;
   }
 
-  const priorLines = session.turns.flatMap((turn) => {
-    const lines = [{ role: "trainee" as const, text: turn.utterance }];
-    return lines;
-  });
+  const opening = openingLineForCall(
+    session.scenario.record.config,
+    session.scenario.record.isPreset,
+    session.scenario.record.isPreset
+      ? getOpeningLine(session.scenario.record.config)
+      : undefined,
+  );
+  const priorLines: TranscriptLine[] = withCallOpeningInTranscript([], opening);
+  for (const turn of session.turns) {
+    priorLines.push({ role: "trainee", text: turn.utterance });
+    if (turn.clientReply?.trim()) {
+      priorLines.push({ role: "client", text: turn.clientReply });
+    }
+  }
 
   const score = await scoreTurnAdaptive({
     utterance: trimmed,
@@ -498,6 +512,7 @@ export async function stubSubmitTurn(
     expectedPhrase: score.richFeedback.strongerLine,
     roundScore: score.roundScore,
     richFeedback: score.richFeedback,
+    clientReply: score.clientReply,
   };
 
   session.turns.push(summary);

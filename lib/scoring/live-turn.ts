@@ -8,7 +8,10 @@ import { isDeepSeekAvailable } from "@/lib/agent/availability";
 import {
   analyzeBuyerPsych,
   enforceBuyerTurnPolicy,
+  progressiveBuyerFallback,
+  traineePresentedIdentity,
 } from "@/lib/agent/buyer-psych";
+import { isNearDuplicateReply } from "@/lib/agent/buyer-transcript";
 import {
   acknowledgeOfferedSlot,
   analyzeMeetingLogistics,
@@ -16,6 +19,10 @@ import {
 } from "@/lib/agent/client-motor";
 import { buyerPsychPackForScenario } from "@/lib/agent/client-pack";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
+import { withCallOpeningInTranscript } from "@/lib/agent/buyer-transcript";
+import { openingLineForCall } from "@/lib/scenarios/authoring";
+import { getClientBySlug } from "@/lib/clients";
+import { getClientLine } from "@/lib/simulation/rounds";
 import { sanitizeLeakedBuyerReply } from "@/lib/scenarios/authoring-leak";
 import { combinedPracticeDifficulty } from "@/lib/scenarios/difficulty-etiquette";
 import { utteranceHasConcreteDayAndTime } from "./keywords";
@@ -182,7 +189,21 @@ function buildImpersonationHistory(priorLines: TranscriptLine[]): {
   };
 }
 
+function resolveCallOpeningLine(input: LiveTurnInput): string | undefined {
+  const selectedClient = getClientBySlug(input.scenarioSlug);
+  const presetLine =
+    input.isPreset && selectedClient
+      ? getClientLine(selectedClient, 0)
+      : undefined;
+  return openingLineForCall(input.config, input.isPreset, presetLine);
+}
+
 export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
+  const priorLines = withCallOpeningInTranscript(
+    input.priorLines,
+    resolveCallOpeningLine(input),
+  );
+
   const language = input.config?.language === "en" ? "en" : "es";
   const effectiveDifficulty = combinedPracticeDifficulty(
     input.difficultyLevel,
@@ -191,10 +212,10 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   );
   const analytics = computeTurnAnalytics({
     utterance: input.utterance,
-    priorLines: input.priorLines,
+    priorLines,
   });
 
-  const priorTurns = priorTurnsFromLines(input.priorLines);
+  const priorTurns = priorTurnsFromLines(priorLines);
   const logistics = analyzeMeetingLogistics(priorTurns, input.utterance);
   const clientReaction = reactionFromAnalytics(analytics, input.utterance, input);
   const coachingNote = buildCoachingNote(
@@ -249,7 +270,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       };
       const motorOn = input.voiceAgent?.clientLayer?.motorEnabled !== false;
       if (motorOn && isDeepSeekAvailable()) {
-        const history = buildImpersonationHistory(input.priorLines);
+        const history = buildImpersonationHistory(priorLines);
         clientReply = await generateImpersonatedReply(
           { ...impersonationInput, ...history },
           templatedReply,
@@ -319,7 +340,29 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
   });
   const languageCode = input.config?.language === "en" ? "en" : "es";
   clientReply = sanitizeLeakedBuyerReply(clientReply, input.config, languageCode);
-  clientReply = enforceBuyerTurnPolicy(clientReply, psych, input.utterance);
+  const recentClientReplies = priorLines
+    .filter((line) => line.role === "client")
+    .map((line) => line.text);
+  clientReply = enforceBuyerTurnPolicy(
+    clientReply,
+    psych,
+    input.utterance,
+    recentClientReplies,
+  );
+
+  if (
+    isNearDuplicateReply(clientReply, recentClientReplies) ||
+    (traineePresentedIdentity(priorTurns, input.utterance) &&
+      priorTurns.some((turn) => turn.role === "client") &&
+      /qui[eé]n habla|qui[eé]n hablo|con qui[eé]n hablo/i.test(clientReply))
+  ) {
+    clientReply = progressiveBuyerFallback(
+      psych,
+      input.utterance,
+      recentClientReplies,
+      clientReply,
+    );
+  }
 
   if (logistics.shouldAcknowledgeSlot) {
     const repaired = repairDateDemandAfterAccept(

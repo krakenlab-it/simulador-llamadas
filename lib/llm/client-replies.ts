@@ -19,6 +19,8 @@ import {
 } from "@/lib/scenarios/language";
 import { sanitizeLeakedBuyerReply } from "@/lib/scenarios/authoring-leak";
 import { phaseKeyFromPersistenceKey } from "@/lib/simulation/round-keys";
+import { formatTranscriptBlock } from "@/lib/agent/buyer-transcript";
+import { progressiveBuyerFallback } from "@/lib/agent/buyer-psych";
 
 /** Max wait for Groq preset client replies before scripted fallback. */
 export const GROQ_CLIENT_REPLY_TIMEOUT_MS = 8_000;
@@ -98,14 +100,20 @@ export function buildClientReplyPrompt(input: GenerateReplyInput): string {
     ? `Si preguntas, usa un ángulo de este cliente: ${preset.questionBank[0]} No copies las réplicas de otros clientes.`
     : "No repitas la misma pregunta. Cambia el ángulo.";
 
+  const prior = input.priorTurns ?? [];
+  const transcript =
+    prior.length > 0
+      ? `\nTranscript hasta ahora:\n${formatTranscriptBlock(prior, input.traineeUtterance)}\n`
+      : "";
+
   return `Eres ${input.clientName}, cliente en ${input.config.industry}.
 Contexto interno (NUNCA lo copies palabra por palabra): problema del negocio, objeciones y fases son briefing del coach.
 Temperamento: ${input.config.temperament}.
 Idioma obligatorio: ${language.promptName} (${language.iso639}). Habla SOLO en ${language.promptName}.
 ${turnLabel}
 ${goodLooksLike ? `En esta fase, una buena respuesta del vendedor se ve así: ${goodLooksLike}.` : ""}
-El vendedor dijo: "${input.traineeUtterance}".
-Responde en 1-2 oraciones cortas, tono ${mood}, como persona real al teléfono.
+${transcript}Responde al ÚLTIMO turno del vendedor en 1-2 oraciones cortas, tono ${mood}, como persona real al teléfono.
+Si ya te presentaron, NO vuelvas a preguntar quién habla.
 ${questionHint}
 PROHIBIDO pegar texto del perfil (problema real, metas de fase, banco de objeciones). Solo la réplica del cliente, sin comillas ni explicación.`;
 }
@@ -181,6 +189,9 @@ export async function generateClientReply(
 }
 
 function policeClientReply(input: GenerateReplyInput, reply: string): string {
+  const recentReplies = (input.priorTurns ?? [])
+    .filter((turn) => turn.role === "client")
+    .map((turn) => turn.text);
   const psych = analyzeBuyerPsych({
     traineeUtterance: input.traineeUtterance,
     priorTurns: input.priorTurns,
@@ -198,7 +209,12 @@ function policeClientReply(input: GenerateReplyInput, reply: string): string {
   });
   const language = input.config.language === "en" ? "en" : "es";
   const leakSafe = sanitizeLeakedBuyerReply(reply, input.config, language);
-  return enforceBuyerTurnPolicy(leakSafe, psych, input.traineeUtterance);
+  return enforceBuyerTurnPolicy(
+    leakSafe,
+    psych,
+    input.traineeUtterance,
+    recentReplies,
+  );
 }
 
 export function getOpeningLine(config: ScenarioConfig): string {
