@@ -293,16 +293,27 @@ describe("ScenarioHub flow", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows an error empty state instead of hardcoded clinic cards when the catalog fails", async () => {
+  it("keeps Mis escenarios usable when the catalog fails — create path, no clinic fallback", async () => {
     vi.mocked(listScenarios).mockRejectedValue(
       new Error("No se pudo completar la acción. Intenta de nuevo."),
     );
-    renderHub();
+    const { onCreateScenario } = renderHub();
 
     expect(
-      await screen.findByText("No se pudieron cargar los escenarios"),
+      await screen.findByRole("heading", { name: /Empieza tu primer caso/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(/No pudimos sincronizar el catálogo remoto/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/no arrancamos la clínica de respaldo/i),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Mariana Escobedo/i })).not.toBeInTheDocument();
+
+    await userEvent.setup().click(
+      screen.getByRole("button", { name: "Crear escenario" }),
+    );
+    expect(onCreateScenario).toHaveBeenCalled();
   });
 
   it("restores persisted knobs when the trainer picks the same scenario again", async () => {

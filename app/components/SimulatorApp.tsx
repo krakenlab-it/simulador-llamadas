@@ -425,6 +425,10 @@ function SimulatorShell() {
               setBuilderScenario(null);
               setFlow((prev) => openBuilder(prev));
             }}
+            onOpenIa={() => {
+              if (productRole !== "capacitador") return;
+              goToView("agent");
+            }}
             onEditScenario={(scenario) => {
               if (productRole !== "capacitador") return;
               setBuilderScenario(scenario);

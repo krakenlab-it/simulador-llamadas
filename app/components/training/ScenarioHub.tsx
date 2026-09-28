@@ -78,6 +78,8 @@ export interface SetupConfig {
 interface ScenarioHubProps {
   onStart: (config: SetupConfig) => void;
   onCreateScenario: () => void;
+  /** Abre IA conversacional para armar el caso desde un briefing. */
+  onOpenIa?: () => void;
   onEditScenario: (scenario: ScenarioRecord) => void;
   refreshKey?: number;
   selectedSlugOnLoad?: string | null;
@@ -93,6 +95,7 @@ type ScenarioTab = "library" | "custom";
 export function ScenarioHub({
   onStart,
   onCreateScenario,
+  onOpenIa,
   onEditScenario,
   refreshKey = 0,
   selectedSlugOnLoad = null,
@@ -105,7 +108,7 @@ export function ScenarioHub({
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
   const [loadingScenarios, setLoadingScenarios] = useState(true);
-  const [catalogFailed, setCatalogFailed] = useState(false);
+  const [catalogSyncFailed, setCatalogSyncFailed] = useState(false);
   const [savingVoiceAgent, setSavingVoiceAgent] = useState(false);
   const { showToast } = useToast();
   const [mode, setMode] = useState<PracticeMode>("voz");
@@ -145,15 +148,15 @@ export function ScenarioHub({
 
   useEffect(() => {
     setLoadingScenarios(true);
-    setCatalogFailed(false);
+    setCatalogSyncFailed(false);
     void listScenarios()
       .then((rows) => {
         setScenarios(rows);
-        setCatalogFailed(false);
+        setCatalogSyncFailed(false);
       })
       .catch(() => {
         setScenarios([]);
-        setCatalogFailed(true);
+        setCatalogSyncFailed(true);
       })
       .finally(() => setLoadingScenarios(false));
   }, [refreshKey]);
@@ -585,6 +588,14 @@ export function ScenarioHub({
         </p>
       ) : null}
 
+      {!loadingScenarios && catalogSyncFailed && !isAgenteHub ? (
+        <p className="train-hub__sync-hint" role="status">
+          No pudimos sincronizar el catálogo remoto. Puedes seguir creando borradores y
+          practicando en este navegador; cuando el servidor responda, verás la lista
+          actualizada.
+        </p>
+      ) : null}
+
       <div
         id={scenarioPanelId}
         role="tabpanel"
@@ -594,10 +605,10 @@ export function ScenarioHub({
           <div className="train-hub__loading">
             <Spinner label="Cargando escenarios…" />
           </div>
-        ) : catalogFailed ? (
+        ) : isAgenteHub && catalogSyncFailed ? (
           <EmptyState
             title="No se pudieron cargar los escenarios"
-            description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo — no arrancamos la clínica de respaldo para no ensayar un caso distinto al de producción."
+            description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo en unos segundos."
           />
         ) : isAgenteHub && (!assignedScenarioSlugs || assignedScenarioSlugs.length === 0) ? (
           <EmptyState
@@ -606,10 +617,12 @@ export function ScenarioHub({
           />
         ) : tab === "custom" && custom.length === 0 && !isAgenteHub ? (
           <EmptyState
-            title="Aún no tienes escenarios propios"
-            description="Crea un caso de venta a tu medida — banco, SaaS, seguros, retail — y practícalo con el mismo motor de cinco rondas."
+            title="Empieza tu primer caso"
+            description="Captura la información del comprador y del reto a simular: industria, problema, objeciones y cómo se gana la llamada. Arma el escenario paso a paso o pide a la IA que complete el borrador con lo que ya sepas del caso."
             actionLabel="Crear escenario"
             onAction={onCreateScenario}
+            secondaryActionLabel={onOpenIa ? "Completar con IA" : undefined}
+            onSecondaryAction={onOpenIa}
           />
         ) : tab === "library" && libraryCatalog.length === 0 && !isAgenteHub ? (
           <EmptyState
