@@ -10,7 +10,9 @@ import {
   type ClientToneId,
 } from "@/lib/agent/client-layer";
 import {
-  PREMADE_VOICES,
+  applyVoiceSelectChange,
+  listVoiceSelectOptions,
+  voiceSelectValue,
   type AgentLanguage,
   type AgentPersonality,
   type SpeakingRatePreset,
@@ -68,6 +70,9 @@ export function VoiceAgentControls({
   const personalityId = useId();
   const voiceId = useId();
   const advancedId = useId();
+  const voiceOptions = listVoiceSelectOptions();
+  const poolVoices = voiceOptions.filter((item) => item.group === "pool");
+  const extraVoices = voiceOptions.filter((item) => item.group === "premade");
 
   return (
     <div className="voice-controls">
@@ -145,33 +150,48 @@ export function VoiceAgentControls({
 
       {value.advancedOpen ? (
         <div className="voice-controls__advanced" id={advancedId}>
-          <div className="config-panel__section">
+          <div className="config-panel__section voice-controls__voice-field">
             <label className="config-panel__label" htmlFor={voiceId}>
               Voz
             </label>
             <select
               id={voiceId}
-              className="config-panel__select"
-              value={value.voiceOverride ? value.voiceId : ""}
-              onChange={(event) => {
-                const nextId = event.target.value;
-                onChange({
-                  ...value,
-                  voiceId: nextId,
-                  voiceOverride: Boolean(nextId),
-                });
-              }}
+              className="config-panel__select voice-controls__voice-select"
+              value={voiceSelectValue(value)}
+              onChange={(event) =>
+                onChange(applyVoiceSelectChange(value, event.target.value))
+              }
             >
-              <option value="">Según el personaje (2 voces por género)</option>
-              {PREMADE_VOICES.map((voice) => (
-                <option key={voice.id} value={voice.id}>
-                  {voice.name} · {voice.gender === "male" ? "hombre" : voice.gender === "female" ? "mujer" : "neutra"}
-                </option>
-              ))}
+              <option value="">Según personaje (pool del servidor)</option>
+              {poolVoices.length > 0 ? (
+                <optgroup label="Pool ElevenLabs (2 mujer / 2 hombre)">
+                  {poolVoices.map((voice) => (
+                    <option key={voice.id} value={voice.id}>
+                      {voice.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {extraVoices.length > 0 ? (
+                <optgroup label="Otras voces premade">
+                  {extraVoices.map((voice) => (
+                    <option key={voice.id} value={voice.id}>
+                      {voice.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
             </select>
+            <p className="config-panel__hint">
+              «Según personaje» usa el género del comprador y el pool del servidor.
+              Elige una voz fija para forzar timbre en esta práctica.
+            </p>
           </div>
 
-          <p className="agent-settings__hint" aria-label="Conexión ElevenLabs">
+          <p
+            className="agent-settings__hint voice-controls__elevenlabs-hint"
+            aria-label="Conexión ElevenLabs"
+          >
             ElevenLabs (nombres de variables, nunca valores):{" "}
             {ELEVENLABS_CONNECTION_ENV_NAMES.join(", ")}. El servidor elige
             voz mujer/hombre del pool. Español nativo (LATAM); English aparte.

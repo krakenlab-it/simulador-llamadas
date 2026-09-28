@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { VoiceAgentControls } from "@/app/components/training/VoiceAgentControls";
-import { DEFAULT_VOICE_AGENT_SETTINGS } from "@/lib/voice/agent-settings";
+import {
+  DEFAULT_VOICE_AGENT_SETTINGS,
+  PREMADE_VOICES,
+} from "@/lib/voice/agent-settings";
 
 function renderControls(
   overrides: Partial<typeof DEFAULT_VOICE_AGENT_SETTINGS> = {},
@@ -81,6 +84,34 @@ describe("VoiceAgentControls Advanced toggle", () => {
         clientLayer: expect.objectContaining({ toneId: "desconfianza" }),
       }),
     );
+  });
+
+  it("selects a premade voice and sets override + gender", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderControls({ advancedOpen: true });
+    const laura = PREMADE_VOICES.find((v) => v.name === "Laura");
+    expect(laura).toBeTruthy();
+
+    await user.selectOptions(screen.getByLabelText("Voz"), laura!.id);
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        voiceId: laura!.id,
+        voiceOverride: true,
+        voiceGender: "female",
+      }),
+    );
+  });
+
+  it("lists pool and premade voices in the Voz select", () => {
+    renderControls({ advancedOpen: true });
+    const select = screen.getByLabelText("Voz");
+    const labels = Array.from(select.querySelectorAll("option")).map(
+      (el) => el.textContent ?? "",
+    );
+    expect(labels[0]).toMatch(/Según personaje/i);
+    expect(labels.some((l) => l.includes("Laura"))).toBe(true);
+    expect(labels.some((l) => l.includes("Sarah"))).toBe(true);
   });
 
   it("persists Advanced open through onChange so the session can keep it", async () => {

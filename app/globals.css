@@ -806,6 +806,9 @@ body {
 
 .config-panel__select {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   background: var(--surface-sunken);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -881,6 +884,15 @@ body {
   .voice-controls__advanced {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+.voice-controls__voice-field,
+.voice-controls__elevenlabs-hint {
+  grid-column: 1 / -1;
+}
+
+.voice-controls__voice-select {
+  width: 100%;
 }
 
 /* ── Start bar ───────────────────────────────────────── */

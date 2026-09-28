@@ -6,6 +6,7 @@ import {
 import type { DifficultyLevel } from "@/lib/db/types";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import {
+  CURATED_VOICE_SLOTS,
   curatedVoiceForId,
   resolveCuratedVoiceId,
   resolveSlotVoiceId,
@@ -91,6 +92,68 @@ const MAX_SPEAKING_RATE = 1.2;
 
 export function isPremadeVoiceId(voiceId: string): boolean {
   return PREMADE_VOICE_IDS.has(voiceId);
+}
+
+export interface VoiceSelectOption {
+  id: string;
+  label: string;
+  gender: (typeof PREMADE_VOICES)[number]["gender"];
+  group: "pool" | "premade";
+}
+
+/** Options for the Advanced «Voz» select (pool + premade catalog). */
+export function listVoiceSelectOptions(): VoiceSelectOption[] {
+  const curatedIds = new Set(CURATED_VOICE_SLOTS.map((slot) => slot.id));
+  const pool: VoiceSelectOption[] = CURATED_VOICE_SLOTS.map((slot) => ({
+    id: slot.id,
+    label: `${slot.name} · ${slot.gender === "female" ? "mujer" : "hombre"} (pool)`,
+    gender: slot.gender,
+    group: "pool",
+  }));
+  const premade: VoiceSelectOption[] = PREMADE_VOICES.filter(
+    (voice) => !curatedIds.has(voice.id),
+  ).map((voice) => ({
+    id: voice.id,
+    label: `${voice.name} · ${
+      voice.gender === "male"
+        ? "hombre"
+        : voice.gender === "female"
+          ? "mujer"
+          : "neutra"
+    }`,
+    gender: voice.gender,
+    group: "premade",
+  }));
+  return [...pool, ...premade];
+}
+
+export function voiceSelectValue(settings: VoiceAgentSettings): string {
+  if (!settings.voiceOverride || !settings.voiceId) return "";
+  return isPremadeVoiceId(settings.voiceId) ? settings.voiceId : "";
+}
+
+export function applyVoiceSelectChange(
+  settings: VoiceAgentSettings,
+  voiceId: string,
+): VoiceAgentSettings {
+  if (!voiceId) {
+    return {
+      ...settings,
+      voiceId: "",
+      voiceOverride: false,
+    };
+  }
+  const option = listVoiceSelectOptions().find((item) => item.id === voiceId);
+  const voiceGender =
+    option?.gender === "female" || option?.gender === "male"
+      ? option.gender
+      : settings.voiceGender;
+  return {
+    ...settings,
+    voiceId,
+    voiceOverride: true,
+    voiceGender,
+  };
 }
 
 export function resolvePremadeVoiceId(
