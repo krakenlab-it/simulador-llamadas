@@ -198,8 +198,10 @@ export class SessionRepository {
       difficulty_label: string;
       config: ScenarioConfig;
       voice_agent: unknown;
+      deactivated_at: string | Date | null;
     }>(
-      `SELECT id, slug, client_name, is_preset, difficulty_label, config, voice_agent FROM scenarios WHERE slug = $1`,
+      `SELECT id, slug, client_name, is_preset, difficulty_label, config, voice_agent, deactivated_at
+       FROM scenarios WHERE slug = $1`,
       [slug],
     );
 
@@ -208,6 +210,9 @@ export class SessionRepository {
     }
 
     const row = rows[0];
+    if (row.deactivated_at) {
+      throw new Error(`Scenario deactivated: ${slug}`);
+    }
     const config = row.is_preset ? null : parseConfig(row.config);
 
     return {

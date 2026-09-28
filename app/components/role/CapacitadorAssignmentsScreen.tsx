@@ -2,7 +2,10 @@
 
 import { useEffect, useId, useState } from "react";
 import { listScenarios } from "@/lib/api/client";
-import type { ScenarioRecord } from "@/lib/scenarios/types";
+import {
+  isScenarioActiveForPractice,
+  type ScenarioRecord,
+} from "@/lib/scenarios/types";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { Spinner } from "@/app/components/ui/Spinner";
@@ -37,8 +40,10 @@ export function CapacitadorAssignmentsScreen({
     setLoading(true);
     void listScenarios()
       .then((rows) => {
-        setScenarios(rows);
-        const presets = rows.filter((s) => s.isPreset).map((s) => s.slug);
+        setScenarios(rows.filter(isScenarioActiveForPractice));
+        const presets = rows
+          .filter((s) => s.isPreset && isScenarioActiveForPractice(s))
+          .map((s) => s.slug);
         setSelectedSlugs(presets.slice(0, 3));
       })
       .finally(() => setLoading(false));

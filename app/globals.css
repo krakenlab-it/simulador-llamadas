@@ -2025,7 +2025,9 @@ body {
 
 .scenario-card__actions {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  justify-content: center;
 }
 
 .app-header__signout {
@@ -2963,6 +2965,21 @@ body {
   padding-left: 1.1rem;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.scenario-card-wrap--retired .card {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
+.scenario-card__deactivate {
+  color: var(--danger, #f87171);
+}
+
+.train-hub__retired {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
 }
 
 @media (max-width: 640px) {

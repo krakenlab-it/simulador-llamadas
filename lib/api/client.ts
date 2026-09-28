@@ -5,6 +5,10 @@ import type {
 } from "@/lib/agent/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import type { ScenarioAuthoringDraft } from "@/lib/scenarios/authoring";
+import {
+  mergeLocalScenarioLifecycle,
+  setLocalScenarioActive,
+} from "@/lib/frontend/scenario-lifecycle";
 import type {
   CreateCustomScenarioInput,
   RichTurnFeedback,
@@ -40,6 +44,7 @@ import {
   stubListScenarios,
   stubSubmitTurn,
   stubUpdateScenario,
+  stubSetScenarioActive,
   type CreateSessionRequest,
   type EndSessionResponse,
   type HistoryEntry,
@@ -158,7 +163,20 @@ export async function endSession(
 
 export async function listScenarios(): Promise<ScenarioRecord[]> {
   const remote = await tryFetch<{ scenarios: ScenarioRecord[] }>("/api/scenarios");
-  return remote?.scenarios ?? stubListScenarios();
+  const rows = remote?.scenarios ?? stubListScenarios();
+  return mergeLocalScenarioLifecycle(rows);
+}
+
+export async function setScenarioActive(
+  slug: string,
+  active: boolean,
+): Promise<ScenarioRecord> {
+  const remote = await tryFetch<ScenarioRecord>(`/api/scenarios/${slug}/lifecycle`, {
+    method: "PATCH",
+    body: JSON.stringify({ active }),
+  });
+  setLocalScenarioActive(slug, active);
+  return remote ?? stubSetScenarioActive(slug, active);
 }
 
 export type CreateScenarioRequest = CreateCustomScenarioInput;

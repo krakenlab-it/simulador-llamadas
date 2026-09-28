@@ -5,8 +5,15 @@ import { useDocumentLang } from "@/lib/a11y/document-lang";
 import { nextRovingValue } from "@/lib/a11y/roving-options";
 import { useToast } from "@/components/ui/Toast";
 import { CLIENTS, getClientBySlug, type ClientPersona } from "@/lib/clients";
-import { listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
-import type { ScenarioRecord } from "@/lib/scenarios/types";
+import {
+  listScenarios,
+  saveScenarioVoiceAgent,
+  setScenarioActive,
+} from "@/lib/api/client";
+import {
+  isScenarioActiveForPractice,
+  type ScenarioRecord,
+} from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import { resolveHubVoiceAgent } from "@/lib/scenarios/catalog-defaults";
 import {
@@ -162,13 +169,22 @@ export function ScenarioHub({
   }, [selectedSlugOnLoad, refreshKey, isAgenteHub]);
 
   const filterAssigned = (list: ScenarioRecord[]) => {
-    if (!isAgenteHub || !assignedScenarioSlugs?.length) return list;
+    const next = list.filter(isScenarioActiveForPractice);
+    if (!isAgenteHub || !assignedScenarioSlugs?.length) return next;
     const allowed = new Set(assignedScenarioSlugs);
-    return list.filter((s) => allowed.has(s.slug));
+    return next.filter((s) => allowed.has(s.slug));
   };
 
   const presets = filterAssigned(scenarios.filter((s) => s.isPreset));
-  const custom = filterAssigned(scenarios.filter((s) => !s.isPreset));
+  const customAll = scenarios.filter((s) => !s.isPreset);
+  const customActive = filterAssigned(
+    customAll.filter(isScenarioActiveForPractice),
+  );
+  const customRetired =
+    !isAgenteHub
+      ? customAll.filter((s) => !isScenarioActiveForPractice(s))
+      : [];
+  const custom = customActive;
   const displayPresets =
     catalogFailed
       ? []
@@ -338,10 +354,48 @@ export function ScenarioHub({
     });
   };
 
-  const renderScenarioCard = (scenario: ScenarioRecord) => {
+  const handleScenarioLifecycle = async (
+    scenario: ScenarioRecord,
+    active: boolean,
+  ) => {
+    if (!active) {
+      const ok = window.confirm(
+        `¿Dar de baja «${scenario.clientName}»? Los agentes dejarán de practicarlo; el historial y las calificaciones se conservan.`,
+      );
+      if (!ok) return;
+    }
+    try {
+      const updated = await setScenarioActive(scenario.slug, active);
+      setScenarios((prev) =>
+        prev.map((s) => (s.slug === updated.slug ? updated : s)),
+      );
+      if (!active && selectedSlug === scenario.slug) {
+        setSelectedSlug(null);
+      }
+      showToast(
+        active ? "Escenario reactivado." : "Escenario dado de baja.",
+        "success",
+      );
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "No se pudo actualizar el escenario.",
+        "error",
+      );
+    }
+  };
+
+  const renderScenarioCard = (
+    scenario: ScenarioRecord,
+    options?: { retired?: boolean },
+  ) => {
     const isSelected = selectedSlug === scenario.slug;
+    const retired = options?.retired ?? false;
     return (
-      <div key={scenario.slug} className="scenario-card-wrap" role="listitem">
+      <div
+        key={scenario.slug}
+        className={`scenario-card-wrap ${retired ? "scenario-card-wrap--retired" : ""}`}
+        role="listitem"
+      >
         <Card
           interactive
           selected={isSelected}
@@ -392,9 +446,39 @@ export function ScenarioHub({
         </Card>
         {!scenario.isPreset && !isAgenteHub ? (
           <div className="scenario-card__actions">
-            <Button variant="ghost" onClick={() => onEditScenario(scenario)}>
-              Editar {scenario.clientName}
-            </Button>
+            {!retired ? (
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEditScenario(scenario);
+                  }}
+                >
+                  Editar {scenario.clientName}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="scenario-card__deactivate"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleScenarioLifecycle(scenario, false);
+                  }}
+                >
+                  Dar de baja
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="ghost"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleScenarioLifecycle(scenario, true);
+                }}
+              >
+                Reactivar
+              </Button>
+            )}
           </div>
         ) : null}
       </div>
@@ -499,7 +583,7 @@ export function ScenarioHub({
           />
         ) : (
           <div className="scenario-grid" role="list">
-            {visibleScenarios.map(renderScenarioCard)}
+            {visibleScenarios.map((scenario) => renderScenarioCard(scenario))}
           </div>
         )}
       </div>
@@ -510,6 +594,22 @@ export function ScenarioHub({
             + Crear otro escenario
           </Button>
         </div>
+      ) : null}
+
+      {!isAgenteHub && tab === "custom" && customRetired.length > 0 ? (
+        <section className="train-hub__retired" aria-labelledby="retired-scenarios-title">
+          <h2 id="retired-scenarios-title" className="config-panel__title">
+            Dados de baja
+          </h2>
+          <p className="config-panel__hint">
+            No aparecen para los agentes; puedes reactivarlos cuando quieras.
+          </p>
+          <div className="scenario-grid" role="list">
+            {customRetired.map((scenario) =>
+              renderScenarioCard(scenario, { retired: true }),
+            )}
+          </div>
+        </section>
       ) : null}
         </div>
 

@@ -36,13 +36,23 @@ interface ScenarioRow {
   language: string | null;
   config: ScenarioConfig;
   voice_agent?: unknown;
+  deactivated_at?: string | Date | null;
 }
 
 const SCENARIO_SELECT = `
   id, slug, is_preset, client_name, client_title, company_context,
   difficulty_label, indicator, pain_points, industry, product_sold,
-  temperament, client_problem, objections, win_criteria, language, config, voice_agent
+  temperament, client_problem, objections, win_criteria, language, config, voice_agent,
+  deactivated_at
 `;
+
+function deactivatedAtIso(
+  value: string | Date | null | undefined,
+): string | null {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  return value;
+}
 
 function mapRow(row: ScenarioRow): ScenarioRecord {
   const language = normalizeAuthoringLanguage(row.language ?? row.config?.language);
@@ -69,6 +79,7 @@ function mapRow(row: ScenarioRow): ScenarioRecord {
       clientPack: parseCatalogClientPackSeed(row.config?.clientPack),
     },
     voiceAgent: parseVoiceAgentSettings(row.voice_agent),
+    deactivatedAt: deactivatedAtIso(row.deactivated_at),
   };
 }
 
@@ -220,6 +231,30 @@ export class ScenarioRepository {
 
     if (!rows[0]) {
       throw new PresetScenarioLockedError(input.slug);
+    }
+
+    return mapRow(rows[0]);
+  }
+
+  async setDeactivated(slug: string, deactivated: boolean): Promise<ScenarioRecord> {
+    const existing = await this.getBySlug(slug);
+    if (!existing) {
+      throw new ScenarioNotFoundError(slug);
+    }
+    if (existing.isPreset) {
+      throw new PresetScenarioLockedError(slug);
+    }
+
+    const { rows } = await this.client.query<ScenarioRow>(
+      `UPDATE scenarios
+          SET deactivated_at = CASE WHEN $2 THEN NOW() ELSE NULL END
+        WHERE slug = $1 AND is_preset = false
+        RETURNING ${SCENARIO_SELECT}`,
+      [slug, deactivated],
+    );
+
+    if (!rows[0]) {
+      throw new PresetScenarioLockedError(slug);
     }
 
     return mapRow(rows[0]);

@@ -193,6 +193,7 @@ const historyByTrainee = new Map<string, HistoryEntry[]>();
 const traineeIdByEmail = new Map<string, string>();
 const customScenarios = new Map<string, StubScenario>();
 const voiceAgentBySlug = new Map<string, VoiceAgentSettings>();
+const deactivatedAtBySlug = new Map<string, string>();
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -235,7 +236,9 @@ function buildPresetScenario(slug: string): StubScenario | null {
 
 function withSavedVoiceAgent(record: ScenarioRecord): ScenarioRecord {
   const saved = voiceAgentBySlug.get(record.slug);
-  return saved ? applyVoiceAgentToRecord(record, saved) : record;
+  const withVoice = saved ? applyVoiceAgentToRecord(record, saved) : record;
+  const deactivatedAt = deactivatedAtBySlug.get(withVoice.slug);
+  return deactivatedAt ? { ...withVoice, deactivatedAt } : withVoice;
 }
 
 function getScenario(slug: string): StubScenario | null {
@@ -334,10 +337,38 @@ export function stubUpdateScenario(
   return record;
 }
 
+export function stubSetScenarioActive(
+  slug: string,
+  active: boolean,
+): ScenarioRecord {
+  const scenario = getScenario(slug);
+  if (!scenario) {
+    throw new Error(`Cliente no encontrado: ${slug}`);
+  }
+  if (scenario.record.isPreset) {
+    throw new Error("Los casos de la clínica no se pueden dar de baja.");
+  }
+  const deactivatedAt = active ? null : new Date().toISOString();
+  if (active) {
+    deactivatedAtBySlug.delete(slug);
+  } else {
+    deactivatedAtBySlug.set(slug, deactivatedAt!);
+  }
+  const record = withSavedVoiceAgent({
+    ...scenario.record,
+    deactivatedAt,
+  });
+  customScenarios.set(slug, { record });
+  return record;
+}
+
 export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
   const scenario = getScenario(body.scenarioSlug);
   if (!scenario) {
     throw new Error(`Cliente no encontrado: ${body.scenarioSlug}`);
+  }
+  if (scenario.record.deactivatedAt) {
+    throw new Error(`Escenario dado de baja: ${body.scenarioSlug}`);
   }
 
   const callAttemptId = generateId("stub");
@@ -645,6 +676,7 @@ export function resetStubSessions(): void {
   traineeIdByEmail.clear();
   voiceAgentBySlug.clear();
   customScenarios.clear();
+  deactivatedAtBySlug.clear();
 }
 
 export function stubGetAgentHarness() {
