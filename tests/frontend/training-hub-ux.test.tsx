@@ -44,7 +44,7 @@ describe("ScenarioHub UX", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: /Practica la llamada antes de marcar/i }),
+      screen.getByRole("heading", { name: /Arma y prueba la llamada/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Elige un escenario para ver el perfil del comprador/i),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useDocumentLang } from "@/lib/a11y/document-lang";
 import { nextRovingValue } from "@/lib/a11y/roving-options";
 import { useToast } from "@/components/ui/Toast";
@@ -72,6 +72,10 @@ interface ScenarioHubProps {
   refreshKey?: number;
   selectedSlugOnLoad?: string | null;
   isStarting?: boolean;
+  /** Capacitador prueba calidad; agente solo ve asignados y voz por defecto. */
+  hubMode?: "capacitador" | "agente";
+  /** When set (agente), only these scenario slugs are listed. */
+  assignedScenarioSlugs?: string[] | null;
 }
 
 type ScenarioTab = "library" | "custom";
@@ -83,7 +87,10 @@ export function ScenarioHub({
   refreshKey = 0,
   selectedSlugOnLoad = null,
   isStarting = false,
+  hubMode = "capacitador",
+  assignedScenarioSlugs = null,
 }: ScenarioHubProps) {
+  const isAgenteHub = hubMode === "agente";
   const [tab, setTab] = useState<ScenarioTab>("library");
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
@@ -142,14 +149,26 @@ export function ScenarioHub({
   }, [refreshKey]);
 
   useEffect(() => {
+    if (isAgenteHub) {
+      setMode("voz");
+    }
+  }, [isAgenteHub]);
+
+  useEffect(() => {
     if (selectedSlugOnLoad) {
       setSelectedSlug(selectedSlugOnLoad);
-      setTab("custom");
+      setTab(isAgenteHub ? "library" : "custom");
     }
-  }, [selectedSlugOnLoad, refreshKey]);
+  }, [selectedSlugOnLoad, refreshKey, isAgenteHub]);
 
-  const presets = scenarios.filter((s) => s.isPreset);
-  const custom = scenarios.filter((s) => !s.isPreset);
+  const filterAssigned = (list: ScenarioRecord[]) => {
+    if (!isAgenteHub || !assignedScenarioSlugs?.length) return list;
+    const allowed = new Set(assignedScenarioSlugs);
+    return list.filter((s) => allowed.has(s.slug));
+  };
+
+  const presets = filterAssigned(scenarios.filter((s) => s.isPreset));
+  const custom = filterAssigned(scenarios.filter((s) => !s.isPreset));
   const displayPresets =
     catalogFailed
       ? []
@@ -171,7 +190,19 @@ export function ScenarioHub({
             }) as unknown as ScenarioRecord,
         );
 
-  const visibleScenarios = tab === "library" ? displayPresets : custom;
+  const agenteScenarios = useMemo(() => {
+    const bySlug = new Map<string, ScenarioRecord>();
+    for (const s of [...displayPresets, ...custom]) {
+      bySlug.set(s.slug, s);
+    }
+    return [...bySlug.values()];
+  }, [displayPresets, custom]);
+
+  const visibleScenarios = isAgenteHub
+    ? agenteScenarios
+    : tab === "library"
+      ? displayPresets
+      : custom;
 
   const selected =
     scenarios.find((s) => s.slug === selectedSlug) ??
@@ -359,7 +390,7 @@ export function ScenarioHub({
             </p>
           ) : null}
         </Card>
-        {!scenario.isPreset ? (
+        {!scenario.isPreset && !isAgenteHub ? (
           <div className="scenario-card__actions">
             <Button variant="ghost" onClick={() => onEditScenario(scenario)}>
               Editar {scenario.clientName}
@@ -373,11 +404,18 @@ export function ScenarioHub({
   return (
     <div className="train-hub">
       <header className="page-hero page-hero--compact">
-        <p className="page-hero__eyebrow">Simulador de Confianza · Entrenar</p>
-        <h1 className="page-hero__title">Practica la llamada antes de marcar</h1>
+        <p className="page-hero__eyebrow">
+          {isAgenteHub ? "Agente · Practicar" : "Capacitador · Escenarios"}
+        </p>
+        <h1 className="page-hero__title">
+          {isAgenteHub
+            ? "Simulación de llamada por voz"
+            : "Arma y prueba la llamada"}
+        </h1>
         <p className="page-hero__subtitle">
-          Elige el comprador que contesta el teléfono. Ajusta dificultad y voz.
-          El cliente en vivo improvisa; el coaching va aparte.
+          {isAgenteHub
+            ? "Solo verás escenarios asignados por tu capacitador. Habla por micrófono; el cliente responde en vivo y el coaching va aparte."
+            : "Elige el comprador, ajusta dificultad y voz, y valida la experiencia antes de asignarla al equipo."}
         </p>
       </header>
 
@@ -410,18 +448,20 @@ export function ScenarioHub({
         >
           Biblioteca
         </button>
-        <button
-          type="button"
-          id={customTabId}
-          role="tab"
-          aria-selected={tab === "custom"}
-          aria-controls={scenarioPanelId}
-          tabIndex={tab === "custom" ? 0 : -1}
-          className={`train-hub__tab ${tab === "custom" ? "train-hub__tab--active" : ""}`}
-          onClick={() => setTab("custom")}
-        >
-          Mis escenarios
-        </button>
+        {!isAgenteHub ? (
+          <button
+            type="button"
+            id={customTabId}
+            role="tab"
+            aria-selected={tab === "custom"}
+            aria-controls={scenarioPanelId}
+            tabIndex={tab === "custom" ? 0 : -1}
+            className={`train-hub__tab ${tab === "custom" ? "train-hub__tab--active" : ""}`}
+            onClick={() => setTab("custom")}
+          >
+            Mis escenarios
+          </button>
+        ) : null}
       </div>
 
       <div
@@ -438,7 +478,12 @@ export function ScenarioHub({
             title="No se pudieron cargar los escenarios"
             description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo — no arrancamos la clínica de respaldo para no ensayar un caso distinto al de producción."
           />
-        ) : tab === "custom" && custom.length === 0 ? (
+        ) : isAgenteHub && (!assignedScenarioSlugs || assignedScenarioSlugs.length === 0) ? (
+          <EmptyState
+            title="Sin escenarios asignados"
+            description="Tu capacitador aún no te asignó casos en este proyecto. Vuelve al inicio o pídele que te agregue en Agentes."
+          />
+        ) : tab === "custom" && custom.length === 0 && !isAgenteHub ? (
           <EmptyState
             title="Aún no tienes escenarios propios"
             description="Crea un caso de venta a tu medida — banco, SaaS, seguros, retail — y practícalo con el mismo motor de cinco rondas."
@@ -459,7 +504,7 @@ export function ScenarioHub({
         )}
       </div>
 
-      {tab === "custom" && custom.length > 0 ? (
+      {!isAgenteHub && tab === "custom" && custom.length > 0 ? (
         <div className="train-hub__secondary-action">
           <Button variant="ghost" onClick={onCreateScenario}>
             + Crear otro escenario
@@ -501,21 +546,27 @@ export function ScenarioHub({
 
       <aside className="config-panel config-panel--stacked" aria-label="Configuración de la llamada">
         <h2 className="config-panel__title">Antes de marcar</h2>
-        <div className="config-panel__section">
-          <Switch
-            label="Modo voz"
-            description={
-              mode === "voz"
-                ? "Habla con el micrófono o escribe"
-                : "Solo texto — sin micrófono"
-            }
-            checked={mode === "voz"}
-            onCheckedChange={(on) => {
-              setMode(on ? "voz" : "texto");
-              if (!on) setMicVerified(false);
-            }}
-          />
-        </div>
+        {!isAgenteHub ? (
+          <div className="config-panel__section">
+            <Switch
+              label="Modo voz"
+              description={
+                mode === "voz"
+                  ? "Habla con el micrófono o escribe"
+                  : "Solo texto — sin micrófono"
+              }
+              checked={mode === "voz"}
+              onCheckedChange={(on) => {
+                setMode(on ? "voz" : "texto");
+                if (!on) setMicVerified(false);
+              }}
+            />
+          </div>
+        ) : (
+          <p className="config-panel__hint config-panel__hint--ok">
+            Modo voz activo — el agente practica como en una llamada real.
+          </p>
+        )}
 
         <div className="config-panel__section">
           <SegmentedControl

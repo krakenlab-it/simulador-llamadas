@@ -1,13 +1,23 @@
 import type { ReactNode } from "react";
 import type { ShellUser } from "@/lib/frontend/auth-shell";
+import {
+  shellNavForRole,
+  type ShellTab,
+} from "@/lib/frontend/role-navigation";
+import {
+  productRoleLabel,
+  type ProductRole,
+} from "@/lib/frontend/product-role";
 
-export type ShellTab = "home" | "train" | "agent" | "teams";
+export type { ShellTab };
 
 interface AppShellProps {
   user: ShellUser;
+  productRole: ProductRole;
   activeTab: ShellTab;
   onTabChange: (tab: ShellTab) => void;
   onSignOut?: () => void;
+  onChangeRole?: () => void;
   children: ReactNode;
   /** Hide nav during an active call */
   compact?: boolean;
@@ -15,12 +25,16 @@ interface AppShellProps {
 
 export function AppShell({
   user,
+  productRole,
   activeTab,
   onTabChange,
   onSignOut,
+  onChangeRole,
   children,
   compact = false,
 }: AppShellProps) {
+  const navItems = shellNavForRole(productRole);
+
   return (
     <div className="app-shell">
       <a href="#contenido" className="skip-link">
@@ -39,44 +53,25 @@ export function AppShell({
           </span>
           <div>
             <p className="app-header__title">Simulador de Llamadas</p>
-            <p className="app-header__tagline">Entrenamiento comercial con IA</p>
+            <p className="app-header__tagline">
+              {productRoleLabel(productRole)} · entrenamiento con IA
+            </p>
           </div>
         </div>
 
         {!compact ? (
           <nav className="app-nav" aria-label="Navegación principal">
-            <button
-              type="button"
-              className={`app-nav__tab ${activeTab === "home" ? "app-nav__tab--active" : ""}`}
-              onClick={() => onTabChange("home")}
-              aria-current={activeTab === "home" ? "page" : undefined}
-            >
-              Inicio
-            </button>
-            <button
-              type="button"
-              className={`app-nav__tab ${activeTab === "train" ? "app-nav__tab--active" : ""}`}
-              onClick={() => onTabChange("train")}
-              aria-current={activeTab === "train" ? "page" : undefined}
-            >
-              Entrenar
-            </button>
-            <button
-              type="button"
-              className={`app-nav__tab ${activeTab === "agent" ? "app-nav__tab--active" : ""}`}
-              onClick={() => onTabChange("agent")}
-              aria-current={activeTab === "agent" ? "page" : undefined}
-            >
-              Agente
-            </button>
-            <button
-              type="button"
-              className={`app-nav__tab ${activeTab === "teams" ? "app-nav__tab--active" : ""}`}
-              onClick={() => onTabChange("teams")}
-              aria-current={activeTab === "teams" ? "page" : undefined}
-            >
-              Equipos
-            </button>
+            {navItems.map((item) => (
+              <button
+                key={item.tab}
+                type="button"
+                className={`app-nav__tab ${activeTab === item.tab ? "app-nav__tab--active" : ""}`}
+                onClick={() => onTabChange(item.tab)}
+                aria-current={activeTab === item.tab ? "page" : undefined}
+              >
+                {item.label}
+              </button>
+            ))}
           </nav>
         ) : null}
 
@@ -85,6 +80,11 @@ export function AppShell({
             {user.initials}
           </span>
           <span className="app-header__name">{user.displayName}</span>
+          {onChangeRole ? (
+            <button type="button" className="app-header__signout" onClick={onChangeRole}>
+              Cambiar rol
+            </button>
+          ) : null}
           {onSignOut ? (
             <button
               type="button"

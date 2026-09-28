@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SimulatorApp } from "@/app/components/SimulatorApp";
+import { clearProductRole } from "@/lib/frontend/product-role";
 import { customGymScenarioFixture, marianaScenarioFixture } from "@/tests/frontend/fixtures";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 
@@ -85,6 +86,7 @@ vi.mock("@/lib/hooks/useSpeechRecognition", () => ({
 
 describe("Guardar y practicar", () => {
   beforeEach(() => {
+    clearProductRole();
     getAgentHarness.mockResolvedValue({ availability: { hasModel: false } });
     listScenarios.mockResolvedValue([marianaScenarioFixture]);
     saveScenarioVoiceAgent.mockResolvedValue(marianaScenarioFixture);
@@ -94,6 +96,7 @@ describe("Guardar y practicar", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    clearProductRole();
   });
 
   it("takes a custom example save into Entrenar with the case selected", async () => {
@@ -104,15 +107,13 @@ describe("Guardar y practicar", () => {
 
     render(<SimulatorApp />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { name: /Practica la llamada antes de marcar/i }),
-      ).toBeInTheDocument();
-    });
+    await user.click(
+      await screen.findByRole("button", { name: /Entrar como Capacitador/i }),
+    );
 
-    await user.click(screen.getByRole("button", { name: "Agente" }));
+    await user.click(screen.getByRole("button", { name: "IA" }));
     expect(
-      await screen.findByRole("heading", { name: /Arma casos en conversación/i }),
+      await screen.findByRole("heading", { name: /Instruye a la IA para armar el caso/i }),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Cargar Kraken Flow/i }));
@@ -122,9 +123,10 @@ describe("Guardar y practicar", () => {
 
     await user.click(screen.getByRole("button", { name: "Guardar y practicar" }));
 
+    await user.click(screen.getByRole("button", { name: "Escenarios" }));
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: /Practica la llamada antes de marcar/i }),
+        screen.getByRole("heading", { name: /Arma y prueba la llamada/i }),
       ).toBeInTheDocument();
     });
     expect(screen.getByText("Caso listo para practicar.")).toBeInTheDocument();

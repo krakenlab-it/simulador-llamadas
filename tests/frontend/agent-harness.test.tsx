@@ -39,7 +39,7 @@ describe("AgentHarnessScreen", () => {
       </ToastProvider>,
     );
     expect(
-      await screen.findByRole("heading", { name: /Arma casos en conversación/i }),
+      await screen.findByRole("heading", { name: /Instruye a la IA para armar el caso/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/mismo motor en vivo/i)).toBeInTheDocument();
     expect(screen.getByText(/Hechos del caso/i)).toBeInTheDocument();

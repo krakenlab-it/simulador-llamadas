@@ -199,7 +199,7 @@ export function ScenarioBuilderScreen({
       aria-label={editing ? "Editar escenario" : "Crear escenario"}
     >
       <header className="page-hero page-hero--compact">
-        <p className="page-hero__eyebrow">Simulador de Confianza · Autoría</p>
+        <p className="page-hero__eyebrow">Capacitador · Diseño de escenario</p>
         <h1 className="page-hero__title">
           {editing ? "Afinar el perfil del comprador" : "Armar un caso de práctica"}
         </h1>

@@ -24,7 +24,7 @@ export interface FlowState {
 
 export function initialFlowState(): FlowState {
   return {
-    view: "train",
+    view: "home",
     phase: "idle",
     hasActiveSession: false,
   };
@@ -113,6 +113,11 @@ export function openBuilder(state: FlowState): FlowState {
 export function closeBuilder(state: FlowState): FlowState {
   if (state.view !== "builder") return state;
   return { ...state, view: "train" };
+}
+
+export function openHistory(state: FlowState): FlowState {
+  if (state.phase !== "idle" || state.view === "call") return state;
+  return { ...state, view: "history" };
 }
 
 export function openAgent(state: FlowState): FlowState {

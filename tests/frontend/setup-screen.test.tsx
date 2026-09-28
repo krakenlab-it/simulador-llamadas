@@ -298,7 +298,7 @@ describe("ScenarioHub flow", () => {
     });
     expect(onStart).not.toHaveBeenCalled();
     expect(
-      screen.getByRole("heading", { name: /Practica la llamada antes de marcar/i }),
+      screen.getByRole("heading", { name: /Arma y prueba la llamada/i }),
     ).toBeInTheDocument();
   });
 

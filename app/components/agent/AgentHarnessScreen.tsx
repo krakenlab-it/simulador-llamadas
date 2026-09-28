@@ -109,7 +109,7 @@ export function AgentHarnessScreen({
       }
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : "No se pudo hablar con el agente.",
+        error instanceof Error ? error.message : "No se pudo hablar con la IA.",
         "error",
       );
     } finally {
@@ -182,12 +182,13 @@ export function AgentHarnessScreen({
   return (
     <div className="agent-harness">
       <header className="page-hero page-hero--compact">
-        <p className="page-hero__eyebrow">Simulador de Confianza · Agente</p>
-        <h1 className="page-hero__title">Arma casos en conversación</h1>
+        <p className="page-hero__eyebrow">Capacitador · IA</p>
+        <h1 className="page-hero__title">Instruye a la IA para armar el caso</h1>
         <p className="page-hero__subtitle">
-          Habla con el agente para proponer un perfil de comprador. Revisa el
-          borrador, guárdalo y practícalo en Entrenar — mismo motor en vivo que
-          el diseñador manual.
+          Explica qué quieres medir y cómo debe proceder la simulación. La IA
+          rellena perfil del comprador, briefing y éxito. Revisa el borrador,
+          guárdalo y pruébalo en Escenarios — mismo motor en vivo que el
+          diseñador manual.
         </p>
       </header>
 

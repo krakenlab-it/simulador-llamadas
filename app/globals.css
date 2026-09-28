@@ -2817,3 +2817,162 @@ body {
 .builder-form__actions--inline {
   margin-bottom: 0;
 }
+
+.config-panel__input {
+  width: 100%;
+  max-width: 100%;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-sunken);
+  color: var(--paper);
+  font: inherit;
+}
+
+.role-picker {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.role-picker__eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.role-picker__title {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+.role-picker__lead {
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.role-picker__cards {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .role-picker__cards {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.role-card {
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.role-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+}
+
+.role-card p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.role-home__steps {
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.role-home__project,
+.role-home__progress {
+  margin-bottom: 1rem;
+}
+
+.role-home__inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  align-items: center;
+}
+
+.role-home__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.role-home__progress-bar {
+  margin: 0.75rem 0;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.role-home__progress-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+}
+
+.role-assignments__grid {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.role-assignments__checks {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.role-assignments__toggle {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.grades-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.trainer-insights__list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  .app-nav {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .app-nav__tab {
+    font-size: 0.78rem;
+    padding: 0.35rem 0.5rem;
+  }
+}

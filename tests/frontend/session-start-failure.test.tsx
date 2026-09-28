@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SimulatorApp } from "@/app/components/SimulatorApp";
+import { clearProductRole } from "@/lib/frontend/product-role";
 import { marianaScenarioFixture } from "@/tests/frontend/fixtures";
 import type { SessionResponse } from "@/lib/api/stubs";
 
@@ -70,6 +71,7 @@ import { createSession, listScenarios, saveScenarioVoiceAgent } from "@/lib/api/
 
 describe("session start failure", () => {
   beforeEach(() => {
+    clearProductRole();
     vi.mocked(listScenarios).mockResolvedValue([marianaScenarioFixture]);
     vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(marianaScenarioFixture);
     vi.mocked(createSession).mockRejectedValue(
@@ -80,16 +82,25 @@ describe("session start failure", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    clearProductRole();
   });
+
+  async function openCapacitadorEscenarios(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(
+      await screen.findByRole("button", { name: /Entrar como Capacitador/i }),
+    );
+    await user.click(screen.getByRole("button", { name: "Escenarios" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Mariana Escobedo/i })).toBeInTheDocument();
+    });
+  }
 
   it("shows an error toast and stays on setup when createSession fails", async () => {
     const user = userEvent.setup();
 
     render(<SimulatorApp />);
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Mariana Escobedo/i })).toBeInTheDocument();
-    });
+    await openCapacitadorEscenarios(user);
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
     await user.click(screen.getByRole("switch", { name: "Modo voz" }));
@@ -100,7 +111,7 @@ describe("session start failure", () => {
     });
 
     expect(
-      screen.getByRole("heading", { name: /Practica la llamada antes de marcar/i }),
+      screen.getByRole("heading", { name: /Arma y prueba la llamada/i }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Llamada en vivo")).not.toBeInTheDocument();
     expect(createSession).toHaveBeenCalledTimes(1);
@@ -118,9 +129,7 @@ describe("session start failure", () => {
     const user = userEvent.setup();
     render(<SimulatorApp />);
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Mariana Escobedo/i })).toBeInTheDocument();
-    });
+    await openCapacitadorEscenarios(user);
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
     await user.click(screen.getByRole("switch", { name: "Modo voz" }));
