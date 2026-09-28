@@ -382,16 +382,7 @@ function SimulatorShell() {
     >
       <ScreenTransition screenKey={flow.view}>
         {flow.view === "home" && productRole === "capacitador" ? (
-          <CapacitadorHomeScreen
-            onOpenScenarios={() => goToView("train")}
-            onOpenIa={() => goToView("agent")}
-            onOpenAgents={() => goToView("teams")}
-            onOpenGrades={() => goToView("history")}
-            onCreateScenario={() => {
-              setBuilderScenario(null);
-              setFlow((prev) => openBuilder(prev));
-            }}
-          />
+          <CapacitadorHomeScreen />
         ) : null}
 
         {flow.view === "home" && productRole === "agente" ? (

@@ -1,137 +1,93 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
-import {
-  activeProject,
-  createProject,
-  readTrainingOffice,
-  setActiveProject,
-  writeTrainingOffice,
-  type TrainingOfficeState,
-} from "@/lib/frontend/training-office";
 
-interface CapacitadorHomeScreenProps {
-  onOpenScenarios: () => void;
-  onOpenIa: () => void;
-  onOpenAgents: () => void;
-  onOpenGrades: () => void;
-  onCreateScenario: () => void;
-}
-
-export function CapacitadorHomeScreen({
-  onOpenScenarios,
-  onOpenIa,
-  onOpenAgents,
-  onOpenGrades,
-  onCreateScenario,
-}: CapacitadorHomeScreenProps) {
-  const [office, setOffice] = useState<TrainingOfficeState>(() =>
-    typeof window !== "undefined" ? readTrainingOffice() : readTrainingOffice(),
-  );
-  const [newProjectName, setNewProjectName] = useState("");
-
-  useEffect(() => {
-    setOffice(readTrainingOffice());
-  }, []);
-
-  const project = activeProject(office, "capacitador");
-
-  const persist = (next: TrainingOfficeState) => {
-    setOffice(next);
-    writeTrainingOffice(next);
-  };
-
+/**
+ * Capacitador landing — informational only. Workflow controls live in shell tabs.
+ */
+export function CapacitadorHomeScreen() {
   return (
-    <div className="role-home">
+    <div className="role-home role-home--info">
       <header className="page-hero page-hero--compact">
         <p className="page-hero__eyebrow">Capacitador · back office</p>
         <h1 className="page-hero__title">Diseña, asigna y mide la práctica</h1>
         <p className="page-hero__subtitle">
-          Escoge el proyecto, arma de 1 a 10 escenarios, prueba la llamada y revisa cómo cumplen
-          métricas tus agentes.
+          Jaime es un simulador de llamadas de venta para centros de contacto: tus agentes
+          practican contra un comprador que responde en vivo, con coaching aparte y métricas
+          claras para el equipo de capacitación.
         </p>
       </header>
 
-      <Card className="role-home__project">
-        <h2 className="config-panel__title">Proyecto activo</h2>
-        <label className="config-panel__label" htmlFor="cap-project-select">
-          Simulación de este proyecto
-        </label>
-        <select
-          id="cap-project-select"
-          className="config-panel__select"
-          value={project.id}
-          onChange={(event) =>
-            persist(setActiveProject(office, "capacitador", event.target.value))
-          }
-        >
-          {office.projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        <div className="role-home__inline-form">
-          <input
-            type="text"
-            className="config-panel__input"
-            placeholder="Nombre del nuevo proyecto"
-            value={newProjectName}
-            onChange={(e) => setNewProjectName(e.target.value)}
-            aria-label="Nombre del nuevo proyecto"
-          />
-          <Button
-            variant="ghost"
-            onClick={() => {
-              if (!newProjectName.trim()) return;
-              persist(createProject(office, newProjectName));
-              setNewProjectName("");
-            }}
-          >
-            Crear proyecto
-          </Button>
-        </div>
-      </Card>
+      <div className="role-home__info-grid">
+        <Card className="role-home__info-card">
+          <h2 className="config-panel__title">Qué hace el simulador</h2>
+          <p>
+            Armas escenarios con perfil de comprador, objeciones y criterio de éxito. El agente
+            habla por micrófono (o texto en pruebas internas) y vive una llamada de varias fases —
+            apertura, objeción, cierre con día y hora — como en producción, sin riesgo para el
+            cliente real.
+          </p>
+          <p>
+            Tú pruebas primero la experiencia, publicas el caso en la biblioteca cuando esté listo
+            y asignas cupo de simulaciones. Las calificaciones y el historial te dicen quién
+            cumple métricas y dónde reforzar.
+          </p>
+        </Card>
 
-      <ol className="role-home__steps" aria-label="Flujo del capacitador">
-        <li>
-          <Card>
-            <h3>1. Escenarios</h3>
-            <p>Perfil del comprador, briefing de fases y cómo se gana.</p>
-            <div className="role-home__actions">
-              <Button onClick={onCreateScenario}>Crear escenario</Button>
-              <Button variant="secondary" onClick={onOpenScenarios}>
-                Probar llamada
-              </Button>
+        <Card className="role-home__info-card">
+          <h2 className="config-panel__title">Para quién es</h2>
+          <ul className="role-home__info-list">
+            <li>
+              <strong>Capacitadores y líderes de contact center</strong> que necesitan escalar la
+              práctica sin depender solo de shadowing en llamadas reales.
+            </li>
+            <li>
+              <strong>Equipos comerciales B2B</strong> con guiones exigentes, objeciones de
+              tiempo y cierres con compromiso concreto.
+            </li>
+            <li>
+              <strong>Agentes en formación</strong> que practican con escenarios asignados y
+              feedback inmediato después de cada simulación.
+            </li>
+          </ul>
+        </Card>
+
+        <Card className="role-home__info-card">
+          <h2 className="config-panel__title">Dónde trabajar en la app</h2>
+          <p className="config-panel__hint role-home__info-lead">
+            Esta pantalla es solo orientación. El trabajo operativo está en las pestañas del menú:
+          </p>
+          <dl className="role-home__info-dl">
+            <div>
+              <dt>Escenarios</dt>
+              <dd>
+                Crear y probar casos, publicar en la biblioteca y validar voz y dificultad antes
+                de asignar.
+              </dd>
             </div>
-          </Card>
-        </li>
-        <li>
-          <Card>
-            <h3>2. IA conversacional</h3>
-            <p>
-              Explica en voz o chat qué quieres medir; la IA rellena perfil, briefing y éxito.
-            </p>
-            <Button variant="secondary" onClick={onOpenIa}>Abrir IA</Button>
-          </Card>
-        </li>
-        <li>
-          <Card>
-            <h3>3. Agentes y cupo</h3>
-            <p>Asigna escenarios y cuántas simulaciones debe completar cada persona.</p>
-            <Button variant="secondary" onClick={onOpenAgents}>Asignar agentes</Button>
-          </Card>
-        </li>
-        <li>
-          <Card>
-            <h3>4. Calificaciones e insights</h3>
-            <p>Revisa scorecards, cumplimiento de métricas y dónde debe mejorar cada agente.</p>
-            <Button variant="secondary" onClick={onOpenGrades}>Ver calificaciones</Button>
-          </Card>
-        </li>
-      </ol>
+            <div>
+              <dt>IA</dt>
+              <dd>
+                Describir el comprador en conversación; la IA propone el borrador para guardar y
+                practicar.
+              </dd>
+            </div>
+            <div>
+              <dt>Agentes</dt>
+              <dd>
+                Perfil del agente (CV opcional), escenarios de la biblioteca y cupo de
+                simulaciones requeridas.
+              </dd>
+            </div>
+            <div>
+              <dt>Calificaciones</dt>
+              <dd>
+                Scorecards, cumplimiento de métricas e historial por persona y por escenario.
+              </dd>
+            </div>
+          </dl>
+        </Card>
+      </div>
     </div>
   );
 }

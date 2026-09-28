@@ -2977,6 +2977,66 @@ body {
   overflow: hidden;
 }
 
+.role-home--info .role-home__info-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .role-home--info .role-home__info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .role-home--info .role-home__info-card:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.role-home__info-card p,
+.role-home__info-card dd {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.role-home__info-card p:last-child,
+.role-home__info-card dd:last-child {
+  margin-bottom: 0;
+}
+
+.role-home__info-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.role-home__info-list li {
+  margin-bottom: 0.65rem;
+}
+
+.role-home__info-lead {
+  margin-bottom: 0.75rem !important;
+}
+
+.role-home__info-dl {
+  margin: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.role-home__info-dl dt {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.2rem;
+}
+
+.role-home__info-dl dd {
+  margin: 0;
+}
+
 .role-home__progress-bar > span {
   display: block;
   height: 100%;
