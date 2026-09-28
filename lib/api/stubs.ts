@@ -133,6 +133,7 @@ export interface TurnSummary {
   roundScore: number;
   richFeedback: RichTurnFeedback;
   keywordHits?: Record<string, boolean>;
+  clientReply?: string;
 }
 
 export interface EndSessionResponse {
@@ -439,7 +440,12 @@ export async function stubSubmitTurn(
   }
 
   const priorLines = session.turns.flatMap((turn) => {
-    const lines = [{ role: "trainee" as const, text: turn.utterance }];
+    const lines: Array<{ role: "trainee" | "client"; text: string }> = [
+      { role: "trainee", text: turn.utterance },
+    ];
+    if (turn.clientReply?.trim()) {
+      lines.push({ role: "client", text: turn.clientReply });
+    }
     return lines;
   });
 
@@ -468,7 +474,7 @@ export async function stubSubmitTurn(
     richFeedback: score.richFeedback,
   };
 
-  session.turns.push(summary);
+  session.turns.push({ ...summary, clientReply: score.clientReply });
   session.currentRound = roundNumber + 1;
   if (score.won) session.won = true;
 

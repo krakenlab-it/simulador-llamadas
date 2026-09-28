@@ -35,6 +35,12 @@ import {
   type MeetingLogisticsState,
 } from "./client-motor";
 import { buildClientPack, formatClientPack } from "./client-pack";
+import {
+  buildDialogueTranscriptBlock,
+  buildImpersonationChatMessages,
+  pickNonRepeatingFallback,
+  resolveLiveSessionMaxTurns,
+} from "./dialogue-memory";
 import { composeSeparatedSystemPrompt } from "./roles";
 import {
   readProviderAvailability,
@@ -94,6 +100,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
   const recent = (input.recentReplies ?? []).slice(-4);
   const layer = input.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS;
   const difficulty = input.difficultyLevel ?? 1;
+  const configuredPhases = input.config.rounds.length || 5;
   const pack = buildClientPack({
     clientName: input.clientName,
     clientTitle: preset?.title,
@@ -102,7 +109,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     seed: preset?.clientPack ?? parseCatalogClientPackSeed(input.config.clientPack),
     difficultyLevel: difficulty,
     mode: input.mode,
-    maxTurns: input.config.rounds.length || 5,
+    maxTurns: resolveLiveSessionMaxTurns(configuredPhases, input.roundNumber),
   });
   const priorTurns = input.priorTurns ?? [];
   const logistics = analyzeMeetingLogistics(priorTurns, input.traineeUtterance);
@@ -116,7 +123,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     meters,
     logistics,
     turnNumber: input.roundNumber,
-    maxTurns: pack.maxTurns,
+    maxTurns: resolveLiveSessionMaxTurns(configuredPhases, input.roundNumber),
   });
   const tone = toneHint(layer.toneId, mood);
   const psych = analyzeBuyerPsych({
@@ -143,6 +150,9 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     logisticsGrantInstruction(logistics),
     buyerToolsPromptHint(),
     "No repitas una pregunta que ya hiciste. No clones la última réplica.",
+    input.roundNumber > configuredPhases
+      ? `Llevas ${input.roundNumber} turnos: avanza (logística, confirmación o salida). No repitas la misma objeción.`
+      : "",
     unused[0] && (psych.phase === "opening_id" || psych.phase === "reason_probe")
       ? `Si preguntas algo, una sola variante de: ${unused[0]}`
       : "Este turno termina en afirmación o salida suave, no en otra pregunta.",
@@ -150,10 +160,13 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
 
   const user = `El vendedor (usuario) dijo: "${input.traineeUtterance}"`;
 
+  const transcriptBlock = buildDialogueTranscriptBlock(priorTurns);
+
   const context = [
     formatClientPack(pack),
     liveBlock,
     buildBuyerPsychBlock(psych),
+    transcriptBlock,
     `Turno de práctica: ${input.round.label} (${input.roundNumber})`,
     recent.length ? `Réplicas recientes (NO clones):\n- ${recent.join("\n- ")}` : "",
     questions.length
@@ -209,18 +222,32 @@ export async function generateImpersonatedReply(
   });
 
   try {
+    const chatMessages = buildImpersonationChatMessages({
+      priorTurns: input.priorTurns ?? [],
+      traineeUtterance: input.traineeUtterance,
+    });
+
     const result = await generateText({
       model,
       system: composeSeparatedSystemPrompt(roles),
-      messages: [{ role: "user", content: roles.user }],
+      messages: chatMessages,
       tools: tools as Parameters<typeof generateText>[0]["tools"],
       temperature: BUYER_LIVE_TEMPERATURE,
       maxOutputTokens: BUYER_MAX_OUTPUT_TOKENS,
       abortSignal: controller.signal,
     });
     const text = (result.text?.trim() || toolSpoken).trim();
-    if (!text || text.length > 400) return fallbackText;
-    if (isCloneReply(text, input.recentReplies ?? [])) return fallbackText;
+    const recentReplies = input.recentReplies ?? [];
+    const antiLoopFallback = () =>
+      pickNonRepeatingFallback({
+        phase: psych.phase,
+        recentReplies,
+        primaryFallback: fallbackText,
+        turnNumber: input.roundNumber,
+      });
+
+    if (!text || text.length > 400) return antiLoopFallback();
+    if (isCloneReply(text, recentReplies)) return antiLoopFallback();
     const policed = enforceBuyerTurnPolicy(
       text,
       psych,

@@ -10,6 +10,7 @@ import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { templateClientReply } from "@/lib/feedback/evaluation";
 import { isDeepSeekAvailable } from "@/lib/agent/availability";
 import { buyerPsychPackForScenario } from "@/lib/agent/client-pack";
+import { buildDialogueTranscriptBlock } from "@/lib/agent/dialogue-memory";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
 import { callLlm, isLlmAvailable } from "@/lib/llm/provider";
 import { getCatalogPreset } from "@/lib/scenarios/catalog-presets";
@@ -37,9 +38,8 @@ export interface GenerateReplyInput {
 }
 
 async function callGroq(
-  prompt: string,
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
   signal: AbortSignal | undefined,
-  systemPrompt: string,
 ): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
@@ -54,10 +54,7 @@ async function callGroq(
       signal,
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: prompt },
-        ],
+        messages,
         max_tokens: 120,
         temperature: 0.7,
       }),
@@ -96,6 +93,10 @@ export function buildClientReplyPrompt(input: GenerateReplyInput): string {
     ? `Si preguntas, usa un ángulo de este cliente: ${preset.questionBank[0]} No copies las réplicas de otros clientes.`
     : "No repitas la misma pregunta. Cambia el ángulo.";
 
+  const transcript = input.priorTurns?.length
+    ? buildDialogueTranscriptBlock(input.priorTurns)
+    : "";
+
   return `Eres ${input.clientName}, cliente en ${input.config.industry}.
 Problema: ${input.config.clientProblem}.
 Vendes/compras: ${input.config.productSold}.
@@ -103,8 +104,8 @@ Temperamento: ${input.config.temperament}.
 Idioma obligatorio: ${language.promptName} (${language.iso639}). Habla SOLO en ${language.promptName}.
 ${turnLabel}
 ${goodLooksLike ? `En esta fase, una buena respuesta del vendedor se ve así: ${goodLooksLike}.` : ""}
-El vendedor dijo: "${input.traineeUtterance}".
-Responde en 1-2 oraciones cortas, tono ${mood}.
+${transcript ? `${transcript}\n` : ""}El vendedor dijo ahora: "${input.traineeUtterance}".
+Responde en 1-2 oraciones cortas, tono ${mood}. No repitas una réplica que ya dijiste en el transcript.
 ${questionHint}
 Solo la réplica del cliente, sin comillas ni explicación.`;
 }
@@ -128,12 +129,24 @@ export async function generateGroqClientReply(
 
   try {
     const language = resolveScenarioLanguage(input.config);
-    const prompt = buildClientReplyPrompt(input);
-    const llmReply = await callGroq(
-      prompt,
-      controller.signal,
-      buildLanguageLockSystemPrompt(language),
-    );
+    const prompt = buildClientReplyPrompt({ ...input, priorTurns: [] });
+    const systemPrompt = buildLanguageLockSystemPrompt(language);
+    const groqMessages: Array<{
+      role: "system" | "user" | "assistant";
+      content: string;
+    }> = [{ role: "system", content: systemPrompt }];
+    for (const turn of input.priorTurns ?? []) {
+      if (turn.role === "trainee") {
+        groqMessages.push({
+          role: "user",
+          content: `El vendedor dijo: "${turn.text.trim()}"`,
+        });
+      } else {
+        groqMessages.push({ role: "assistant", content: turn.text.trim() });
+      }
+    }
+    groqMessages.push({ role: "user", content: prompt });
+    const llmReply = await callGroq(groqMessages, controller.signal);
     if (!llmReply || llmReply.length < 8 || llmReply.length > 400) {
       return fallbackText;
     }
