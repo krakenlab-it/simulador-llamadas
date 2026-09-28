@@ -16,6 +16,8 @@ import {
 } from "@/lib/agent/client-motor";
 import { buyerPsychPackForScenario } from "@/lib/agent/client-pack";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
+import { sanitizeLeakedBuyerReply } from "@/lib/scenarios/authoring-leak";
+import { combinedPracticeDifficulty } from "@/lib/scenarios/difficulty-etiquette";
 import { utteranceHasConcreteDayAndTime } from "./keywords";
 import {
   generateClientReply,
@@ -39,6 +41,7 @@ export interface LiveTurnInput {
   roundLabel: string;
   roundGoal: string;
   difficultyLevel: DifficultyLevel;
+  difficultyLabel?: string | null;
   scenarioSlug: string;
   isPreset: boolean;
   config: ScenarioConfig | null;
@@ -180,6 +183,12 @@ function buildImpersonationHistory(priorLines: TranscriptLine[]): {
 }
 
 export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
+  const language = input.config?.language === "en" ? "en" : "es";
+  const effectiveDifficulty = combinedPracticeDifficulty(
+    input.difficultyLevel,
+    input.difficultyLabel,
+    language,
+  );
   const analytics = computeTurnAnalytics({
     utterance: input.utterance,
     priorLines: input.priorLines,
@@ -233,7 +242,8 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
         roundNumber: resolveTurnNumber(input),
         scenarioSlug: input.scenarioSlug,
         priorTurns,
-        difficultyLevel: input.difficultyLevel,
+        difficultyLevel: effectiveDifficulty,
+        difficultyLabel: input.difficultyLabel,
         mode: "voz" as const,
         clientLayer: input.voiceAgent?.clientLayer,
       };
@@ -272,7 +282,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       traineeUtterance: input.utterance,
       roundNumber: resolveTurnNumber(input),
       priorTurns,
-      difficultyLevel: input.difficultyLevel,
+      difficultyLevel: effectiveDifficulty,
       mode: "voz",
       clientLayer: input.voiceAgent?.clientLayer,
     });
@@ -296,15 +306,19 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     priorTurns,
     roundNumber: resolveTurnNumber(input),
     scenarioSlug: input.scenarioSlug,
+    difficultyLevel: effectiveDifficulty,
     pack: buyerPsychPackForScenario({
       scenarioSlug: input.scenarioSlug,
       config: input.config,
       clientName: input.clientName,
-      difficultyLevel: input.difficultyLevel,
+      difficultyLevel: effectiveDifficulty,
+      difficultyLabel: input.difficultyLabel,
       mode: "voz",
     }),
     logistics,
   });
+  const languageCode = input.config?.language === "en" ? "en" : "es";
+  clientReply = sanitizeLeakedBuyerReply(clientReply, input.config, languageCode);
   clientReply = enforceBuyerTurnPolicy(clientReply, psych, input.utterance);
 
   if (logistics.shouldAcknowledgeSlot) {

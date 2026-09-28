@@ -2,6 +2,10 @@ import {
   parseCatalogClientPackSeed,
   type CatalogClientPackSeed,
 } from "@/lib/agent/client-layer";
+import {
+  buildPhonePickupOpening,
+  buildSecondaryPickupLine,
+} from "./phone-opening";
 import type {
   DimensionGuides,
   ScenarioCallType,
@@ -114,28 +118,30 @@ function buildIndustryCriteria(
   return criteria;
 }
 
+/** Coach briefing: buyer pressure — never spoken verbatim on the live call. */
 function buildClientPrompt(
   roundKey: string,
   industry: string,
-  clientProblem: string,
+  _clientProblem: string,
   productSold: string,
   temperament: string,
 ): string {
-  const mood =
+  const skeptical =
     temperament.toLowerCase().includes("escépt") ||
-    temperament.toLowerCase().includes("escept")
-      ? "No me convence todavía."
-      : "Tengo poco tiempo.";
+    temperament.toLowerCase().includes("escept") ||
+    temperament.toLowerCase().includes("desconf");
 
   const prompts: Record<string, string> = {
-    apertura: `${mood} ¿Qué tiene que ver con ${clientProblem}?`,
-    objecion: `Eso ya lo escuché en ${industry}. ¿Qué resultado concreto me trae?`,
-    claridad: `Explíqueme en una frase cómo atacarían ${clientProblem}.`,
-    correo: `Si manda algo, que sea breve sobre ${productSold}.`,
-    cierre: `Sin día y hora concretos no hay siguiente paso.`,
+    apertura: skeptical
+      ? "Pide quién llama; poco tiempo; no regala contexto todavía."
+      : "Contestación breve; quiere saber por qué le importa antes de escuchar pitch.",
+    objecion: `Empuja con duda sobre resultados en ${industry || "su sector"}.`,
+    claridad: "Exige una frase clara de impacto medible, no promesas vagas.",
+    correo: `Prefiere correo breve sobre ${productSold || "la oferta"} antes de comprometerse.`,
+    cierre: "No cede día y hora sin ver prueba concreta del siguiente paso.",
   };
 
-  return prompts[roundKey] ?? `${mood} Siga con ${productSold}.`;
+  return prompts[roundKey] ?? "Mantiene la guardia; una sola duda concreta.";
 }
 
 export function buildDefaultRounds(
@@ -164,6 +170,7 @@ export function buildScenarioConfig(input: {
   winCriteria: string;
   temperament: string;
   clientName: string;
+  companyContext?: string;
   rounds?: ScenarioRoundDef[];
   language?: ScenarioLanguage;
   callType?: ScenarioCallType;
@@ -203,8 +210,13 @@ export function buildScenarioConfig(input: {
       )
       .map((c) => c.id),
     openingLines: [
-      `¿Quién habla? Estoy ocupado con ${input.clientProblem}.`,
-      `Si es otro discurso de ${input.productSold}, no tengo tiempo.`,
+      buildPhonePickupOpening({
+        clientName: input.clientName,
+        companyContext: input.companyContext,
+        industry: input.industry,
+        language: input.language ?? "es",
+      }),
+      buildSecondaryPickupLine(input.clientName, input.language ?? "es"),
     ],
     language: input.language ?? "es",
     callType: input.callType ?? "discovery",

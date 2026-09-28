@@ -34,6 +34,11 @@ import {
   type ConversationTurn,
   type MeetingLogisticsState,
 } from "./client-motor";
+import {
+  combinedPracticeDifficulty,
+  difficultyEtiquetaInstruction,
+} from "@/lib/scenarios/difficulty-etiquette";
+import { sanitizeLeakedBuyerReply } from "@/lib/scenarios/authoring-leak";
 import { buildClientPack, formatClientPack } from "./client-pack";
 import { composeSeparatedSystemPrompt } from "./roles";
 import {
@@ -56,6 +61,7 @@ export interface ImpersonationInput {
   askedQuestions?: string[];
   priorTurns?: ConversationTurn[];
   difficultyLevel?: DifficultyLevel;
+  difficultyLabel?: string | null;
   mode?: PracticeMode;
   clientLayer?: ClientLayerSettings;
 }
@@ -93,7 +99,11 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
   const unused = questions.filter((item) => !asked.has(item.toLowerCase()));
   const recent = (input.recentReplies ?? []).slice(-4);
   const layer = input.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS;
-  const difficulty = input.difficultyLevel ?? 1;
+  const difficulty = combinedPracticeDifficulty(
+    input.difficultyLevel ?? 1,
+    input.difficultyLabel,
+    language.iso639 === "en" ? "en" : "es",
+  );
   const pack = buildClientPack({
     clientName: input.clientName,
     clientTitle: preset?.title,
@@ -101,6 +111,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     config: input.config,
     seed: preset?.clientPack ?? parseCatalogClientPackSeed(input.config.clientPack),
     difficultyLevel: difficulty,
+    difficultyLabel: input.difficultyLabel,
     mode: input.mode,
     maxTurns: input.config.rounds.length || 5,
   });
@@ -124,6 +135,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     priorTurns,
     roundNumber: input.roundNumber,
     scenarioSlug: input.scenarioSlug,
+    difficultyLevel: difficulty,
     pack,
     logistics,
   });
@@ -137,9 +149,17 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
       state: psych,
     }),
     `Temperamento: ${pack.temperament}. Tono: ${tone}.`,
+    input.difficultyLabel
+      ? difficultyEtiquetaInstruction(
+          input.difficultyLabel,
+          language.iso639 === "en" ? "en" : "es",
+        )
+      : "",
+    `Nivel efectivo de práctica (1=fácil, 3=duro): ${difficulty}.`,
     `Rol en la decisión: ${pack.decisionRole}.`,
     buildLanguageLockSystemPrompt(language),
     "No inventes datos fuera del pack. Lo que ya aceptaste sigue aceptado.",
+    "NUNCA copies texto del briefing (problema real, metas de fase, objeciones del formulario).",
     logisticsGrantInstruction(logistics),
     buyerToolsPromptHint(),
     "No repitas una pregunta que ya hiciste. No clones la última réplica.",
@@ -221,8 +241,10 @@ export async function generateImpersonatedReply(
     const text = (result.text?.trim() || toolSpoken).trim();
     if (!text || text.length > 400) return fallbackText;
     if (isCloneReply(text, input.recentReplies ?? [])) return fallbackText;
+    const languageCode = input.config.language === "en" ? "en" : "es";
+    const leakSafe = sanitizeLeakedBuyerReply(text, input.config, languageCode);
     const policed = enforceBuyerTurnPolicy(
-      text,
+      leakSafe,
       psych,
       input.traineeUtterance,
       input.recentReplies ?? [],

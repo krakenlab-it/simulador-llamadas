@@ -6,6 +6,7 @@ import {
   type ConversationTurn,
   type MeetingLogisticsState,
 } from "@/lib/agent/client-motor";
+import type { DifficultyLevel } from "@/lib/db/types";
 import type { ClientScenarioPack, DecisionRole } from "@/lib/agent/client-layer";
 import {
   getCatalogPreset,
@@ -78,6 +79,7 @@ export interface BuyerPsychInput {
   priorTurns?: readonly ConversationTurn[];
   roundNumber: number;
   scenarioSlug?: string;
+  difficultyLevel?: DifficultyLevel;
   pack?: Pick<
     ClientScenarioPack,
     "decisionRole" | "encounterType" | "temperament"
@@ -239,9 +241,24 @@ export function analyzeBuyerPsych(input: BuyerPsychInput): BuyerPsychState {
     resistanceStyle,
   });
   const allowLong = rantMode || (gatekeeper && phase === "resist");
+  let tokenBudget = allowLong
+    ? BUYER_RANT_TOKEN_BUDGET
+    : BUYER_DEFAULT_TOKEN_BUDGET;
+  let maxSentences = allowLong ? 4 : BUYER_DEFAULT_MAX_SENTENCES;
+  const difficulty = input.difficultyLevel ?? 2;
+  if (difficulty >= 3) {
+    tokenBudget = Math.max(28, tokenBudget - 10);
+    maxSentences = Math.max(1, maxSentences - 1);
+  } else if (difficulty <= 1) {
+    tokenBudget = Math.min(BUYER_RANT_TOKEN_BUDGET, tokenBudget + 8);
+  }
+  const effectiveResistance =
+    !input.scenarioSlug && difficulty >= 3 && resistanceStyle === "stall"
+      ? "block"
+      : resistanceStyle;
   return {
     phase,
-    resistanceStyle,
+    resistanceStyle: effectiveResistance,
     decisionRole,
     subsequentCall,
     slotOffered,
@@ -252,8 +269,8 @@ export function analyzeBuyerPsych(input: BuyerPsychInput): BuyerPsychState {
     longPitch,
     gatekeeper,
     rantMode,
-    tokenBudget: allowLong ? BUYER_RANT_TOKEN_BUDGET : BUYER_DEFAULT_TOKEN_BUDGET,
-    maxSentences: allowLong ? 4 : BUYER_DEFAULT_MAX_SENTENCES,
+    tokenBudget,
+    maxSentences,
     offeredSlot,
   };
 }

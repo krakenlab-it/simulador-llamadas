@@ -163,11 +163,23 @@ export function templateClientReply(
   reaction: ClientReaction,
   clientName: string,
 ): string {
-  const templates: Record<ClientReaction, string> = {
-    bien: `De acuerdo, ${clientName} escucha. Hable de ${config.clientProblem} con datos.`,
-    medio: round.clientPrompt,
-    mal: `No tengo tiempo. ${config.objections[0] ?? "Esto suena genérico."}`,
-  };
+  const language = config.language ?? "es";
+  const objection =
+    config.objections.find((item) => item.trim()) ??
+    (language === "en" ? "This sounds generic." : "Esto suena genérico.");
+
+  const templates: Record<ClientReaction, string> =
+    language === "en"
+      ? {
+          bien: `Okay, ${clientName} is listening — keep it concrete.`,
+          medio: "Who's calling? I've got a minute.",
+          mal: `No time. ${objection}`,
+        }
+      : {
+          bien: `Va, ${clientName} escucha — sea concreto.`,
+          medio: "¿Quién habla? Tengo un minuto.",
+          mal: `No tengo tiempo. ${objection}`,
+        };
 
   return templates[reaction];
 }

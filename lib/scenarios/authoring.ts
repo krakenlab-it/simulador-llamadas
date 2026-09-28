@@ -5,6 +5,13 @@ import {
 import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
 import { CLINIC_PHASE_COUNT } from "@/lib/simulation/rounds";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
+import {
+  defaultDifficultyEtiqueta,
+  normalizeDifficultyEtiqueta,
+} from "./difficulty-etiquette";
+import { replyContainsAuthoringLeak } from "./authoring-leak";
+import { buildPhonePickupOpening } from "./phone-opening";
+import { defaultTemperamentFromList } from "./temperament-options";
 import { buildDefaultRounds, buildScenarioConfig } from "./defaults";
 import type {
   CreateCustomScenarioInput,
@@ -151,29 +158,11 @@ export function defaultWinCriteria(language: ScenarioLanguage): string {
 }
 
 export function defaultTemperament(language: ScenarioLanguage): string {
-  switch (language) {
-    case "en":
-      return "Skeptical, short on time";
-    case "es":
-      return "Escéptico, poco tiempo";
-    default: {
-      const _exhaustive: never = language;
-      return _exhaustive;
-    }
-  }
+  return defaultTemperamentFromList(language);
 }
 
 export function defaultDifficultyLabel(language: ScenarioLanguage): string {
-  switch (language) {
-    case "en":
-      return "Medium";
-    case "es":
-      return "Media";
-    default: {
-      const _exhaustive: never = language;
-      return _exhaustive;
-    }
-  }
+  return defaultDifficultyEtiqueta(language);
 }
 
 function slugifyBeatKey(label: string, index: number): string {
@@ -259,10 +248,14 @@ export function openingLineForCall(
   presetLine?: string,
 ): string {
   if (isPreset && presetLine) return presetLine;
-  const authored =
-    config?.openingLines?.[0]?.trim() ||
-    config?.rounds?.[0]?.clientPrompt?.trim();
-  return authored || "¿Quién habla?";
+  const language = normalizeAuthoringLanguage(config?.language);
+  const stored = config?.openingLines?.[0]?.trim();
+  if (stored && !replyContainsAuthoringLeak(stored, config)) return stored;
+  return buildPhonePickupOpening({
+    industry: config?.industry,
+    companyContext: config?.industry,
+    language,
+  });
 }
 
 export function phaseLabelsForCall(
@@ -457,8 +450,10 @@ export function draftToCreateInput(
     clientTitle: draft.clientTitle.trim(),
     companyContext: draft.companyContext.trim(),
     temperament: draft.temperament.trim() || defaultTemperament(draft.language),
-    difficultyLabel:
-      draft.difficultyLabel.trim() || defaultDifficultyLabel(draft.language),
+    difficultyLabel: normalizeDifficultyEtiqueta(
+      draft.difficultyLabel,
+      draft.language,
+    ),
     clientProblem: draft.clientProblem.trim(),
     objections: draft.objections.map((item) => item.trim()).filter(Boolean),
     winCriteria: draft.winCriteria.trim(),
@@ -522,6 +517,7 @@ export function buildAuthoredScenarioConfig(
     winCriteria: input.winCriteria,
     temperament: input.temperament,
     clientName: input.clientName,
+    companyContext: input.companyContext,
     language: normalizeAuthoringLanguage(input.language),
     callType: resolveScenarioCallType(input.callType),
     rounds: input.rounds,

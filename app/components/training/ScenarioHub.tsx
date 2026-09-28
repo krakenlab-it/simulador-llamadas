@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { useDocumentLang } from "@/lib/a11y/document-lang";
 import { nextRovingValue } from "@/lib/a11y/roving-options";
 import { useToast } from "@/components/ui/Toast";
@@ -35,10 +35,12 @@ import { EmptyState } from "@/app/components/ui/EmptyState";
 import { SegmentedControl, Switch } from "@/app/components/ui/Switch";
 import { unlockClientPlayback } from "@/lib/voice/client-playback";
 import {
+  normalizeAuthoringLanguage,
   openingLineForCall,
   phaseLabelsForCall,
   scoringPhaseCount,
 } from "@/lib/scenarios/authoring";
+import { difficultyLevelFromEtiqueta } from "@/lib/scenarios/difficulty-etiquette";
 import { getClientLine } from "@/lib/simulation/rounds";
 
 export interface SetupConfig {
@@ -88,6 +90,8 @@ export function ScenarioHub({
     DEFAULT_VOICE_AGENT_SETTINGS,
   );
   const [micVerified, setMicVerified] = useState(false);
+  const [micTestActive, setMicTestActive] = useState(false);
+  const micTestStartedAtRef = useRef<number | null>(null);
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   const [voiceAuthSkipped, setVoiceAuthSkipped] = useState(false);
@@ -198,8 +202,56 @@ export function ScenarioHub({
   const handleMicTest = () => {
     if (mode !== "voz" || !speech.supported) return;
     unlockClientPlayback();
+    setMicTestActive(true);
+    setMicVerified(false);
+    micTestStartedAtRef.current = Date.now();
     speech.startListening();
-    setMicVerified(true);
+  };
+
+  useEffect(() => {
+    if (!micTestActive || speech.listening) return;
+    const heard = Boolean(speech.transcript?.trim());
+    if (heard) {
+      setMicVerified(true);
+      setMicTestActive(false);
+      return;
+    }
+    if (speech.error) {
+      setMicVerified(false);
+      setMicTestActive(false);
+      return;
+    }
+    const elapsed = micTestStartedAtRef.current
+      ? Date.now() - micTestStartedAtRef.current
+      : 0;
+    if (elapsed > 800) {
+      setMicVerified(false);
+      setMicTestActive(false);
+    }
+  }, [
+    micTestActive,
+    speech.listening,
+    speech.transcript,
+    speech.error,
+  ]);
+
+  const micHelpText = (() => {
+    if (!speech.error) return null;
+    if (/not-allowed|permission/i.test(speech.error)) {
+      return "Permiso bloqueado: en Chrome/Edge abre el candado junto a la URL → Micrófono → Permitir. En el celular revisa Ajustes → Privacidad → Micrófono para el navegador.";
+    }
+    if (/no-speech/i.test(speech.error)) {
+      return "No se escuchó voz. Habla cerca del micrófono o revisa que el dispositivo correcto esté seleccionado en el sistema.";
+    }
+    return speech.error;
+  })();
+
+  const selectScenario = (scenario: ScenarioRecord) => {
+    setSelectedSlug(scenario.slug);
+    const language = normalizeAuthoringLanguage(
+      scenario.language ?? scenario.config.language,
+    );
+    setLevel(difficultyLevelFromEtiqueta(scenario.difficultyLabel, language));
   };
 
   const handleStart = async () => {
@@ -257,11 +309,11 @@ export function ScenarioHub({
           tabIndex={0}
           aria-pressed={isSelected}
           aria-label={`Escenario ${scenario.clientName}`}
-          onClick={() => setSelectedSlug(scenario.slug)}
+          onClick={() => selectScenario(scenario)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              setSelectedSlug(scenario.slug);
+              selectScenario(scenario);
             }
           }}
         >
@@ -477,19 +529,34 @@ export function ScenarioHub({
                 >
                   {speech.listening ? "Escuchando…" : "Probar micrófono"}
                 </Button>
-                {speech.transcript ? (
+                {speech.transcript && !micVerified ? (
                   <p className="config-panel__hint">
                     Escuché: &ldquo;{speech.transcript}&rdquo;
                   </p>
                 ) : null}
-                {speech.error ? (
+                {micHelpText ? (
                   <p className="config-panel__hint config-panel__hint--warn">
-                    {speech.error}
+                    {micHelpText}
                   </p>
                 ) : null}
                 {micVerified && !speech.error ? (
                   <p className="config-panel__hint config-panel__hint--ok">
-                    Micrófono listo.
+                    Prueba exitosa: el micrófono está escuchando.
+                    {speech.transcript ? ` Escuché: «${speech.transcript}»` : ""}
+                  </p>
+                ) : null}
+                {!micVerified && micHelpText ? (
+                  <p className="config-panel__hint config-panel__hint--warn">
+                    {micHelpText}
+                  </p>
+                ) : null}
+                {!micVerified &&
+                micTestActive === false &&
+                !speech.error &&
+                !speech.transcript ? (
+                  <p className="config-panel__hint">
+                    Pulsa probar y di una frase corta. Si no hay audio, revisa
+                    permisos del navegador y el micrófono del sistema.
                   </p>
                 ) : null}
               </>

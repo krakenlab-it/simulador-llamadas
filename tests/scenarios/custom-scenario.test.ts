@@ -61,7 +61,7 @@ describe("custom scenarios", () => {
       "baja retención de socios",
       "Impaciente",
     );
-    expect(rounds[0].clientPrompt).toContain("baja retención");
+    expect(rounds[0].clientPrompt).toMatch(/coach|quién llama|pitch/i);
     expect(rounds[4].key).toBe("cierre");
   });
 });

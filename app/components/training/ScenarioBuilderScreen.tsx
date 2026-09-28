@@ -1,7 +1,17 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { createScenario, updateScenario } from "@/lib/api/client";
+import { autofillScenarioDraft, createScenario, updateScenario } from "@/lib/api/client";
+import {
+  difficultyEtiquetaOptions,
+  normalizeDifficultyEtiqueta,
+} from "@/lib/scenarios/difficulty-etiquette";
+import {
+  TEMPERAMENT_OTHER_VALUE,
+  isListedTemperament,
+  resolveTemperamentSelectValue,
+  temperamentOptions,
+} from "@/lib/scenarios/temperament-options";
 import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
 import {
   AUTHORING_STEPS,
@@ -90,6 +100,8 @@ export function ScenarioBuilderScreen({
     initialScenario ? draftFromRecord(initialScenario) : emptyAuthoringDraft(),
   );
   const [saving, setSaving] = useState(false);
+  const [autofilling, setAutofilling] = useState(false);
+  const [customTemperament, setCustomTemperament] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const stepIndex = AUTHORING_STEPS.indexOf(step);
@@ -128,6 +140,31 @@ export function ScenarioBuilderScreen({
       if (prev.rounds.length <= MIN_AUTHORED_BEATS) return prev;
       return { ...prev, rounds: prev.rounds.filter((_, i) => i !== index) };
     });
+  };
+
+  const temperamentSelectValue = resolveTemperamentSelectValue(
+    draft.temperament,
+    draft.language,
+  );
+  const showCustomTemperament =
+    temperamentSelectValue === TEMPERAMENT_OTHER_VALUE;
+
+  const handleAutofill = async () => {
+    if (!draft.industry.trim() || !draft.clientProblem.trim()) {
+      setError("Completa industria y problema del cliente antes del autofill.");
+      return;
+    }
+    setAutofilling(true);
+    setError(null);
+    try {
+      const { patch } = await autofillScenarioDraft(draft);
+      setDraft((prev) => ({ ...prev, ...patch }));
+      setStep("beats");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo autocompletar.");
+    } finally {
+      setAutofilling(false);
+    }
   };
 
   const handleSave = async () => {
@@ -258,19 +295,61 @@ export function ScenarioBuilderScreen({
               </label>
               <label className="field">
                 <span className="field__label">Temperamento</span>
-                <input
-                  value={draft.temperament}
-                  onChange={(e) => setField("temperament", e.target.value)}
-                  placeholder="Ej. Escéptico, directo"
-                />
+                <select
+                  value={temperamentSelectValue}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === TEMPERAMENT_OTHER_VALUE) {
+                      setField(
+                        "temperament",
+                        customTemperament.trim() || draft.temperament,
+                      );
+                      return;
+                    }
+                    setCustomTemperament("");
+                    setField("temperament", value);
+                  }}
+                >
+                  {temperamentOptions(draft.language).map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                  <option value={TEMPERAMENT_OTHER_VALUE}>Otro (escribir)</option>
+                </select>
               </label>
+              {showCustomTemperament ? (
+                <label className="field">
+                  <span className="field__label">Temperamento (otro)</span>
+                  <input
+                    value={
+                      isListedTemperament(draft.temperament, draft.language)
+                        ? customTemperament
+                        : draft.temperament
+                    }
+                    onChange={(e) => {
+                      setCustomTemperament(e.target.value);
+                      setField("temperament", e.target.value);
+                    }}
+                    placeholder="Ej. Escéptico, directo"
+                  />
+                </label>
+              ) : null}
               <label className="field">
                 <span className="field__label">Dificultad (etiqueta)</span>
-                <input
-                  value={draft.difficultyLabel}
+                <select
+                  value={normalizeDifficultyEtiqueta(
+                    draft.difficultyLabel,
+                    draft.language,
+                  )}
                   onChange={(e) => setField("difficultyLabel", e.target.value)}
-                  placeholder="Media"
-                />
+                >
+                  {difficultyEtiquetaOptions(draft.language).map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="field field--full">
                 <span className="field__label">Problema real del cliente</span>
@@ -305,8 +384,18 @@ export function ScenarioBuilderScreen({
             <p className="builder-form__note">
               Cada fase es un momento de la conversación. La clínica usa cinco
               (apertura → cierre); aquí puedes ajustar de {MIN_AUTHORED_BEATS} a{" "}
-              {MAX_AUTHORED_BEATS}.
+              {MAX_AUTHORED_BEATS}. Los textos de fases son briefing del coach:
+              la IA los usa como contexto, no como guion literal del cliente.
             </p>
+            <div className="builder-form__actions builder-form__actions--inline">
+              <Button
+                variant="secondary"
+                loading={autofilling}
+                onClick={() => void handleAutofill()}
+              >
+                Completar fases con IA
+              </Button>
+            </div>
             <ol className="builder-beats">
               {draft.rounds.map((round, index) => (
                 <li key={round.key || `beat-${index}`} className="builder-beat">
@@ -350,7 +439,9 @@ export function ScenarioBuilderScreen({
                       />
                     </label>
                     <label className="field field--full">
-                      <span className="field__label">Qué dice el cliente</span>
+                      <span className="field__label">
+                        Presión del cliente (coach, no diálogo)
+                      </span>
                       <textarea
                         value={round.clientPrompt}
                         onChange={(e) =>

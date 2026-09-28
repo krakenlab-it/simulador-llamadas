@@ -450,6 +450,7 @@ export async function stubSubmitTurn(
     roundLabel,
     roundGoal,
     difficultyLevel: session.difficultyLevel,
+    difficultyLabel: session.scenario.record.difficultyLabel,
     scenarioSlug: session.scenario.record.slug,
     isPreset: session.scenario.record.isPreset,
     config: session.scenario.record.isPreset ? null : session.scenario.record.config,

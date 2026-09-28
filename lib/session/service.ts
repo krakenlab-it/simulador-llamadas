@@ -69,6 +69,7 @@ export class SessionService {
           roundDef.goal ||
           (roundDef.roundType ? ROUND_EXPECTED[roundDef.roundType] : ""),
         difficultyLevel: session.difficultyLevel,
+        difficultyLabel: session.difficultyLabel,
         scenarioSlug: session.scenarioSlug,
         isPreset: session.isPreset,
         config: session.config,

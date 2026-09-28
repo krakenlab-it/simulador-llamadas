@@ -91,6 +91,6 @@ describe("replaySetupFromDetail", () => {
       "Correo",
       "Cierre",
     ]);
-    expect(setup.openingLine).toBe("¿Quién habla?");
+    expect(setup.openingLine).toMatch(/quién hablo|quién habla/i);
   });
 });

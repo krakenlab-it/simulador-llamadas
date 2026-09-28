@@ -4,6 +4,7 @@ import type {
   TeamComparisonView,
 } from "@/lib/agent/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
+import type { ScenarioAuthoringDraft } from "@/lib/scenarios/authoring";
 import type {
   CreateCustomScenarioInput,
   RichTurnFeedback,
@@ -301,6 +302,38 @@ export async function recordTeamResult(
     },
   );
   return remote ?? stubRecordTeamResult(testId, body);
+}
+
+export async function autofillScenarioDraft(
+  draft: ScenarioAuthoringDraft,
+): Promise<{
+  patch: Partial<ScenarioAuthoringDraft>;
+  validationError: string | null;
+}> {
+  const remote = await tryFetch<{
+    patch: Partial<ScenarioAuthoringDraft>;
+    validationError: string | null;
+  }>("/api/scenarios/autofill", {
+    method: "POST",
+    body: JSON.stringify(draft),
+  });
+  if (remote) return remote;
+  const { buildDeterministicAuthoringAutofill } = await import(
+    "@/lib/scenarios/authoring-autofill"
+  );
+  const patch = buildDeterministicAuthoringAutofill({
+    industry: draft.industry,
+    productSold: draft.productSold,
+    clientName: draft.clientName,
+    clientTitle: draft.clientTitle,
+    companyContext: draft.companyContext,
+    clientProblem: draft.clientProblem,
+    language: draft.language,
+    callType: draft.callType,
+    temperament: draft.temperament,
+    difficultyLabel: draft.difficultyLabel,
+  });
+  return { patch, validationError: null };
 }
 
 export async function compareTeamTest(
