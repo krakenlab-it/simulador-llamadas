@@ -266,9 +266,10 @@ export function pickNonRepeatingFallback(input: {
   primaryFallback: string;
   turnNumber: number;
 }): string {
-  const banned = new Set(
-    [...input.recentReplies, input.primaryFallback].map(normalizeUtterance),
-  );
+  if (!isHardRepeatViolation(input.primaryFallback, input.recentReplies)) {
+    return input.primaryFallback;
+  }
+  const banned = new Set(input.recentReplies.map(normalizeUtterance));
   const pool = FALLBACK_VARIANTS[input.phase];
   for (let offset = 0; offset < pool.length; offset += 1) {
     const candidate = pool[(input.turnNumber + offset) % pool.length];

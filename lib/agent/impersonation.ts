@@ -214,10 +214,13 @@ export async function generateImpersonatedReply(
   if (!model) return fallbackText;
 
   const roles = buildImpersonationRoles(input);
-  const logistics = analyzeMeetingLogistics(
-    input.priorTurns ?? [],
-    input.traineeUtterance,
-  );
+  const priorTurns = input.priorTurns ?? [];
+  const recentClientReplies = (input.recentReplies ?? []).length
+    ? (input.recentReplies ?? [])
+    : priorTurns
+        .filter((turn) => turn.role === "client")
+        .map((turn) => turn.text);
+  const logistics = analyzeMeetingLogistics(priorTurns, input.traineeUtterance);
   const psych = roles.psych;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), IMPERSONATION_TIMEOUT_MS);
@@ -228,7 +231,7 @@ export async function generateImpersonatedReply(
 
   try {
     const chatMessages = buildImpersonationChatMessages({
-      priorTurns: input.priorTurns ?? [],
+      priorTurns,
       traineeUtterance: input.traineeUtterance,
     });
 
@@ -242,22 +245,21 @@ export async function generateImpersonatedReply(
       abortSignal: controller.signal,
     });
     const text = (result.text?.trim() || toolSpoken).trim();
-    const recentReplies = input.recentReplies ?? [];
     const antiLoopFallback = () =>
       pickNonRepeatingFallback({
         phase: psych.phase,
-        recentReplies,
+        recentReplies: recentClientReplies,
         primaryFallback: fallbackText,
         turnNumber: input.roundNumber,
       });
 
     if (!text || text.length > 400) return antiLoopFallback();
-    if (isCloneReply(text, recentReplies)) return antiLoopFallback();
+    if (isCloneReply(text, recentClientReplies)) return antiLoopFallback();
     const policed = enforceBuyerTurnPolicy(
       text,
       psych,
       input.traineeUtterance,
-      input.recentReplies ?? [],
+      recentClientReplies,
     );
     let finalLine = policed;
     if (logistics.shouldAcknowledgeSlot) {
@@ -270,7 +272,7 @@ export async function generateImpersonatedReply(
     }
     return enforceHarnessNoRepeat({
       candidate: finalLine,
-      recentClientReplies: recentReplies,
+      recentClientReplies,
       phase: psych.phase,
       primaryFallback: fallbackText,
       turnNumber: input.roundNumber,

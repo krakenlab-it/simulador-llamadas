@@ -10,7 +10,10 @@ import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { templateClientReply } from "@/lib/feedback/evaluation";
 import { isDeepSeekAvailable } from "@/lib/agent/availability";
 import { buyerPsychPackForScenario } from "@/lib/agent/client-pack";
-import { analyzeMeetingLogistics } from "@/lib/agent/client-motor";
+import {
+  acknowledgeOfferedSlot,
+  analyzeMeetingLogistics,
+} from "@/lib/agent/client-motor";
 import {
   buildBuyerHarnessContextBlocks,
   enforceHarnessNoRepeat,
@@ -157,7 +160,7 @@ export async function generateGroqClientReply(
 
   try {
     const language = resolveScenarioLanguage(input.config);
-    const prompt = buildClientReplyPrompt({ ...input, priorTurns: [] });
+    const prompt = buildClientReplyPrompt(input);
     const systemPrompt = buildLanguageLockSystemPrompt(language);
     const groqMessages: Array<{
       role: "system" | "user" | "assistant";
@@ -234,6 +237,10 @@ function policeClientReply(input: GenerateReplyInput, reply: string): string {
       mode: input.mode,
     }),
   });
+  const logistics = analyzeMeetingLogistics(
+    input.priorTurns ?? [],
+    input.traineeUtterance,
+  );
   const recentClientReplies = (input.priorTurns ?? [])
     .filter((turn) => turn.role === "client")
     .map((turn) => turn.text);
@@ -243,12 +250,15 @@ function policeClientReply(input: GenerateReplyInput, reply: string): string {
     input.traineeUtterance,
     recentClientReplies,
   );
-  const fallback = templateClientReply(
+  let fallback = templateClientReply(
     input.config,
     input.round,
     input.reaction,
     input.clientName,
   );
+  if (logistics.shouldAcknowledgeSlot) {
+    fallback = acknowledgeOfferedSlot(input.traineeUtterance, input.roundNumber);
+  }
   return enforceHarnessNoRepeat({
     candidate: policed,
     recentClientReplies,
