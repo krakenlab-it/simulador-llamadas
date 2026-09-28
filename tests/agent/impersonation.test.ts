@@ -4,6 +4,10 @@ import {
   generateImpersonatedReply,
   isCloneReply,
 } from "@/lib/agent/impersonation";
+import {
+  patchClientLayerEngineCopy,
+  parseClientLayerSettings,
+} from "@/lib/agent/client-layer";
 import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
 
 describe("impersonation", () => {
@@ -29,6 +33,26 @@ describe("impersonation", () => {
     expect(roles.context).toMatch(/local/i);
     expect(roles.context).toMatch(/confirma ESE slot/i);
     expect(roles.context).not.toBe(roles.agent);
+  });
+
+  it("injects editable guardrail copy into the buyer system role", () => {
+    const config = buildPresetScenarioConfig("mariana");
+    const clientLayer = patchClientLayerEngineCopy(
+      parseClientLayerSettings(null),
+      "grounding",
+      { body: "Usa únicamente hechos aprobados por Jaime." },
+    );
+    const roles = buildImpersonationRoles({
+      config: config!,
+      round: config!.rounds[0],
+      reaction: "medio",
+      clientName: "Mariana Escobedo",
+      traineeUtterance: "Hola, soy Ana.",
+      roundNumber: 1,
+      scenarioSlug: "mariana",
+      clientLayer,
+    });
+    expect(roles.agent).toContain("Usa únicamente hechos aprobados por Jaime.");
   });
 
   it("keeps a granted meeting granted and does not re-ask the day", () => {

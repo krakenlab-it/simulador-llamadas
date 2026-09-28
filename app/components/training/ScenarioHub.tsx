@@ -48,6 +48,7 @@ import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { SegmentedControl, Switch } from "@/app/components/ui/Switch";
 import { unlockClientPlayback } from "@/lib/voice/client-playback";
+import { applyTrainerGuardsToVoiceAgent } from "@/lib/frontend/trainer-client-layer";
 import {
   normalizeAuthoringLanguage,
   openingLineForCall,
@@ -300,10 +301,12 @@ export function ScenarioHub({
   const handleStart = async () => {
     if (!selected || !canStart || savingVoiceAgent) return;
     unlockClientPlayback();
-    const settings = parseVoiceAgentSettings({
-      ...voiceAgent,
-      difficultyLevel: level,
-    });
+    const settings = applyTrainerGuardsToVoiceAgent(
+      parseVoiceAgentSettings({
+        ...voiceAgent,
+        difficultyLevel: level,
+      }),
+    );
     setSavingVoiceAgent(true);
     try {
       await saveScenarioVoiceAgent(selected.slug, settings);

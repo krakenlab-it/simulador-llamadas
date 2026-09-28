@@ -2205,6 +2205,59 @@ body {
   line-height: 1.4;
 }
 
+.client-engines__card--editing {
+  border-color: var(--accent);
+}
+
+.client-engines__editable {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.client-engines__editable:hover .client-engines__edit-hint {
+  opacity: 1;
+}
+
+.client-engines__edit-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0;
+}
+
+.client-engines__field {
+  display: block;
+  margin-bottom: 0.45rem;
+}
+
+.client-engines__field-label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
+.client-engines__input,
+.client-engines__textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: inherit;
+}
+
 .agent-bubble {
   margin: 0;
   padding: 0.7rem 0.85rem;

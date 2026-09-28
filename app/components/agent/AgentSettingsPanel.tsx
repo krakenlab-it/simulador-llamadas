@@ -1,10 +1,8 @@
 "use client";
 
 import { VoiceAgentControls } from "@/app/components/training/VoiceAgentControls";
-import {
-  CLIENT_LAYER_ENGINES,
-  DEFAULT_CLIENT_LAYER_SETTINGS,
-} from "@/lib/agent/client-layer";
+import { DEFAULT_CLIENT_LAYER_SETTINGS } from "@/lib/agent/client-layer";
+import { ClientLayerEngineCards } from "@/app/components/agent/ClientLayerEngineCards";
 import { describeClientLayerForTrainer } from "@/lib/agent/client-pack";
 import { AGENT_PRESETS } from "@/lib/agent/presets";
 import { applyPreset, applySystemPrompt } from "@/lib/agent/settings";
@@ -60,14 +58,15 @@ export function AgentSettingsPanel({
         </p>
       </header>
 
-      <div className="client-engines" role="list" aria-label="Capas del cliente">
-        {CLIENT_LAYER_ENGINES.map((engine) => (
-          <article key={engine.id} className="client-engines__card" role="listitem">
-            <h3>{engine.title}</h3>
-            <p>{engine.body}</p>
-          </article>
-        ))}
-      </div>
+      <ClientLayerEngineCards
+        layer={settings.voiceAgent.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS}
+        onChange={(clientLayer) =>
+          onChange({
+            ...settings,
+            voiceAgent: { ...settings.voiceAgent, clientLayer },
+          })
+        }
+      />
 
       <p className="agent-settings__hint">
         {describeClientLayerForTrainer(

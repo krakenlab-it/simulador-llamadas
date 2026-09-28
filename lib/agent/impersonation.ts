@@ -20,6 +20,8 @@ import {
   createBuyerAiSdkTools,
 } from "./buyer-tools";
 import {
+  buildCoachSeparationGuardrail,
+  buildLiveClientGuardrailsBlock,
   DEFAULT_CLIENT_LAYER_SETTINGS,
   parseCatalogClientPackSeed,
   toneHint,
@@ -165,6 +167,8 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     `Nivel efectivo de práctica (1=fácil, 3=duro): ${difficulty}.`,
     `Rol en la decisión: ${pack.decisionRole}.`,
     buildLanguageLockSystemPrompt(language),
+    buildLiveClientGuardrailsBlock(layer),
+    buildCoachSeparationGuardrail(layer),
     "No inventes datos fuera del pack. Lo que ya aceptaste sigue aceptado.",
     "NUNCA copies texto del briefing (problema real, metas de fase, objeciones del formulario).",
     logisticsGrantInstruction(logistics),

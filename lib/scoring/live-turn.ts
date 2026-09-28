@@ -17,6 +17,7 @@ import {
   analyzeMeetingLogistics,
   repairDateDemandAfterAccept,
 } from "@/lib/agent/client-motor";
+import { buildCoachSeparationGuardrail } from "@/lib/agent/client-layer";
 import { buyerPsychPackForScenario } from "@/lib/agent/client-pack";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
 import { withCallOpeningInTranscript } from "@/lib/agent/buyer-transcript";
@@ -132,20 +133,34 @@ function buildCoachingNote(
   analytics: CallAnalytics,
   roundLabel: string,
   utterance: string,
+  clientLayer?: VoiceAgentSettings["clientLayer"],
 ): string {
+  const coachGuard = buildCoachSeparationGuardrail(clientLayer);
+  const prefix = (note: string) =>
+    coachGuard ? `${coachGuard} · ${note}` : note;
   if (utterance.trim().length < 15) {
-    return `${roundLabel}: tu turno fue muy corto; amplía con una pregunta abierta.`;
+    return prefix(
+      `${roundLabel}: tu turno fue muy corto; amplía con una pregunta abierta.`,
+    );
   }
   if (analytics.talkPercent > 80) {
-    return `${roundLabel}: hablaste ${analytics.talkPercent}% del tiempo; deja más espacio al cliente.`;
+    return prefix(
+      `${roundLabel}: hablaste ${analytics.talkPercent}% del tiempo; deja más espacio al cliente.`,
+    );
   }
   if (analytics.questionTypes.open === 0) {
-    return `${roundLabel}: prueba una pregunta abierta antes de proponer solución.`;
+    return prefix(
+      `${roundLabel}: prueba una pregunta abierta antes de proponer solución.`,
+    );
   }
   if (analytics.hasNextStep) {
-    return `${roundLabel}: buen avance hacia un siguiente paso concreto.`;
+    return prefix(
+      `${roundLabel}: buen avance hacia un siguiente paso concreto.`,
+    );
   }
-  return `${roundLabel}: escucha activa; profundiza en el impacto del problema.`;
+  return prefix(
+    `${roundLabel}: escucha activa; profundiza en el impacto del problema.`,
+  );
 }
 
 function resolveTurnNumber(input: LiveTurnInput): number {
@@ -222,6 +237,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     analytics,
     input.roundLabel,
     input.utterance,
+    input.voiceAgent?.clientLayer,
   );
 
   let clientReply: string;
