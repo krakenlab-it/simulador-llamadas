@@ -297,10 +297,10 @@ describe("ScenarioHub flow", () => {
     vi.mocked(listScenarios).mockRejectedValue(
       new Error("No se pudo completar la acción. Intenta de nuevo."),
     );
-    const { onCreateScenario } = renderHub();
+    renderHub();
 
     expect(
-      await screen.findByRole("heading", { name: /Empieza tu primer caso/i }),
+      await screen.findByRole("button", { name: /Perfil del comprador/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/No pudimos sincronizar el catálogo remoto/i),
@@ -309,11 +309,7 @@ describe("ScenarioHub flow", () => {
       screen.queryByText(/no arrancamos la clínica de respaldo/i),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Mariana Escobedo/i })).not.toBeInTheDocument();
-
-    await userEvent.setup().click(
-      screen.getByRole("button", { name: "Crear escenario" }),
-    );
-    expect(onCreateScenario).toHaveBeenCalled();
+    expect(screen.getByText("Antes de marcar")).toBeInTheDocument();
   });
 
   it("restores persisted knobs when the trainer picks the same scenario again", async () => {

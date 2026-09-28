@@ -46,6 +46,8 @@ export interface ScenarioBuilderResult {
 
 interface ScenarioBuilderScreenProps {
   initialScenario?: ScenarioRecord | null;
+  /** Page = full-screen flow; embedded = inside Escenarios → Mis escenarios. */
+  variant?: "page" | "embedded";
   onSave: (result: ScenarioBuilderResult) => void;
   onCancel: () => void;
 }
@@ -94,9 +96,11 @@ function newBeat(index: number): ScenarioRoundDef {
 
 export function ScenarioBuilderScreen({
   initialScenario = null,
+  variant = "page",
   onSave,
   onCancel,
 }: ScenarioBuilderScreenProps) {
+  const embedded = variant === "embedded";
   const editing = Boolean(initialScenario && !initialScenario.isPreset);
   const languageGroupId = useId();
   const callTypeGroupId = useId();
@@ -195,20 +199,32 @@ export function ScenarioBuilderScreen({
 
   return (
     <section
-      className="builder-screen"
+      className={`builder-screen${embedded ? " builder-screen--embedded" : ""}`}
       aria-label={editing ? "Editar escenario" : "Crear escenario"}
     >
-      <header className="page-hero page-hero--compact">
-        <p className="page-hero__eyebrow">Capacitador · Diseño de escenario</p>
-        <h1 className="page-hero__title">
-          {editing ? "Afinar el perfil del comprador" : "Armar un caso de práctica"}
-        </h1>
-        <p className="page-hero__subtitle">
-          Tres bloques: quién contesta, briefing de fases para el coach, y cómo
-          gana el vendedor. La llamada en vivo usa este contexto — no copia tus
-          textos palabra por palabra.
-        </p>
-      </header>
+      {embedded ? (
+        <header className="builder-screen__embedded-head">
+          <h2 className="builder-screen__embedded-title">
+            {editing ? "Editar borrador" : "Nuevo caso de práctica"}
+          </h2>
+          <p className="builder-screen__embedded-lead">
+            Tres pasos: perfil del comprador, briefing de fases para el coach y
+            cómo se gana la llamada.
+          </p>
+        </header>
+      ) : (
+        <header className="page-hero page-hero--compact">
+          <p className="page-hero__eyebrow">Capacitador · Diseño de escenario</p>
+          <h1 className="page-hero__title">
+            {editing ? "Afinar el perfil del comprador" : "Armar un caso de práctica"}
+          </h1>
+          <p className="page-hero__subtitle">
+            Tres bloques: quién contesta, briefing de fases para el coach, y cómo
+            gana el vendedor. La llamada en vivo usa este contexto — no copia tus
+            textos palabra por palabra.
+          </p>
+        </header>
+      )}
 
       <ol className="builder-steps" aria-label="Pasos del diseñador">
         {AUTHORING_STEPS.map((item, index) => {
@@ -597,7 +613,7 @@ export function ScenarioBuilderScreen({
             </Button>
           ) : (
             <Button variant="ghost" onClick={onCancel}>
-              Volver
+              {embedded ? "Cerrar editor" : "Volver"}
             </Button>
           )}
           {step !== "success" ? (

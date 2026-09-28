@@ -460,6 +460,63 @@ body {
   margin-top: 0.25rem;
 }
 
+.train-hub__mis-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.train-hub__workspace-intro {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.train-hub__builder {
+  margin-top: 0.25rem;
+}
+
+.builder-screen--embedded {
+  padding: 0;
+}
+
+.builder-screen--embedded .builder-steps {
+  margin-top: 0.5rem;
+}
+
+.builder-screen__embedded-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.builder-screen__embedded-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--paper);
+}
+
+.builder-screen__embedded-lead {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.train-hub__secondary-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 1rem 0 1.5rem;
+}
+
+.train-hub__secondary-action--tight {
+  margin: 0;
+}
+
 .train-hub__sync-hint {
   margin: 0 0 0.85rem;
   padding: 0.65rem 0.85rem;
@@ -676,10 +733,6 @@ body {
 
 .train-hub__loading {
   padding: 2rem 0;
-}
-
-.train-hub__secondary-action {
-  margin: 1rem 0 1.5rem;
 }
 
 .scenario-grid {

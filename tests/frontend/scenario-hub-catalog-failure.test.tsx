@@ -51,12 +51,17 @@ describe("ScenarioHub catalog failure", () => {
     );
 
     expect(
-      await screen.findByRole("button", { name: "Crear escenario" }),
+      await screen.findByRole("button", { name: /Perfil del comprador/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Completar con IA" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Briefing de fases/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cómo se gana/i })).toBeInTheDocument();
+    expect(screen.getByText(/No pudimos sincronizar el catálogo remoto/i)).toBeInTheDocument();
     expect(screen.getByText("Antes de marcar")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/no arrancamos la clínica de respaldo/i),
+    ).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Completar con IA" }));
+    await user.click(screen.getByRole("button", { name: "Completar con IA (pantalla IA)" }));
     expect(onOpenIa).toHaveBeenCalled();
   });
 });

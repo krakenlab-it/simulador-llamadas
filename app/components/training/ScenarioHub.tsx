@@ -57,6 +57,10 @@ import {
 } from "@/lib/scenarios/authoring";
 import { difficultyLevelFromEtiqueta } from "@/lib/scenarios/difficulty-etiquette";
 import { getClientLine } from "@/lib/simulation/rounds";
+import {
+  ScenarioBuilderScreen,
+  type ScenarioBuilderResult,
+} from "@/app/components/training/ScenarioBuilderScreen";
 
 export interface SetupConfig {
   scenarioSlug: string;
@@ -81,6 +85,8 @@ interface ScenarioHubProps {
   /** Abre IA conversacional para armar el caso desde un briefing. */
   onOpenIa?: () => void;
   onEditScenario: (scenario: ScenarioRecord) => void;
+  /** After save from the embedded builder (refresh parent + toast). */
+  onScenarioSaved?: (slug: string) => void;
   refreshKey?: number;
   selectedSlugOnLoad?: string | null;
   isStarting?: boolean;
@@ -97,6 +103,7 @@ export function ScenarioHub({
   onCreateScenario,
   onOpenIa,
   onEditScenario,
+  onScenarioSaved,
   refreshKey = 0,
   selectedSlugOnLoad = null,
   isStarting = false,
@@ -109,6 +116,11 @@ export function ScenarioHub({
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
   const [loadingScenarios, setLoadingScenarios] = useState(true);
   const [catalogSyncFailed, setCatalogSyncFailed] = useState(false);
+  const [authoringOpen, setAuthoringOpen] = useState(false);
+  const [authoringScenario, setAuthoringScenario] =
+    useState<ScenarioRecord | null>(null);
+  const [authoringDismissed, setAuthoringDismissed] = useState(false);
+  const [authoringSessionKey, setAuthoringSessionKey] = useState(0);
   const [savingVoiceAgent, setSavingVoiceAgent] = useState(false);
   const { showToast } = useToast();
   const [mode, setMode] = useState<PracticeMode>("voz");
@@ -215,6 +227,45 @@ export function ScenarioHub({
     : tab === "library"
       ? libraryCatalog
       : custom;
+
+  const showMisEscenariosBuilder =
+    !isAgenteHub &&
+    tab === "custom" &&
+    !loadingScenarios &&
+    (authoringOpen || (custom.length === 0 && !authoringDismissed));
+
+  const openAuthoring = (scenario: ScenarioRecord | null) => {
+    setAuthoringScenario(scenario);
+    setAuthoringOpen(true);
+    setAuthoringDismissed(false);
+    setAuthoringSessionKey((k) => k + 1);
+  };
+
+  const closeAuthoring = () => {
+    setAuthoringOpen(false);
+    setAuthoringScenario(null);
+    if (custom.length === 0) {
+      setAuthoringDismissed(true);
+    }
+  };
+
+  const handleBuilderSave = (result: ScenarioBuilderResult) => {
+    const { scenario } = result;
+    setScenarios((prev) => {
+      const index = prev.findIndex((s) => s.slug === scenario.slug);
+      if (index >= 0) {
+        const next = [...prev];
+        next[index] = scenario;
+        return next;
+      }
+      return [...prev, scenario];
+    });
+    setSelectedSlug(scenario.slug);
+    setAuthoringOpen(false);
+    setAuthoringScenario(null);
+    setAuthoringDismissed(false);
+    onScenarioSaved?.(scenario.slug);
+  };
 
   const selected = scenarios.find((s) => s.slug === selectedSlug) ?? null;
 
@@ -485,6 +536,7 @@ export function ScenarioHub({
                   variant="ghost"
                   onClick={(event) => {
                     event.stopPropagation();
+                    openAuthoring(scenario);
                     onEditScenario(scenario);
                   }}
                 >
@@ -615,15 +667,71 @@ export function ScenarioHub({
             title="Sin escenarios asignados"
             description="Tu capacitador aún no te asignó casos en este proyecto. Vuelve al inicio o pídele que te agregue en Agentes."
           />
-        ) : tab === "custom" && custom.length === 0 && !isAgenteHub ? (
-          <EmptyState
-            title="Empieza tu primer caso"
-            description="Captura la información del comprador y del reto a simular: industria, problema, objeciones y cómo se gana la llamada. Arma el escenario paso a paso o pide a la IA que complete el borrador con lo que ya sepas del caso."
-            actionLabel="Crear escenario"
-            onAction={onCreateScenario}
-            secondaryActionLabel={onOpenIa ? "Completar con IA" : undefined}
-            onSecondaryAction={onOpenIa}
-          />
+        ) : !isAgenteHub && tab === "custom" ? (
+          <div className="train-hub__mis-workspace">
+            {custom.length > 0 ? (
+              <div className="scenario-grid" role="list">
+                {custom.map((scenario) =>
+                  renderScenarioCard(scenario, {
+                    showDraftActions: true,
+                  }),
+                )}
+              </div>
+            ) : authoringDismissed && !showMisEscenariosBuilder ? (
+              <EmptyState
+                title="Empieza tu primer caso"
+                description="Captura la información del comprador y del reto a simular. Usa el diseñador de tres pasos abajo o pide a la IA que complete el borrador."
+                actionLabel="Abrir diseñador"
+                onAction={() => openAuthoring(null)}
+                secondaryActionLabel={onOpenIa ? "Completar con IA (pantalla IA)" : undefined}
+                onSecondaryAction={onOpenIa}
+              />
+            ) : custom.length === 0 && !authoringDismissed ? (
+              <p className="train-hub__workspace-intro" role="note">
+                Sin borradores todavía. Completa el diseñador para guardar tu primer
+                caso y probar la llamada a la derecha.
+              </p>
+            ) : null}
+
+            {custom.length > 0 && !showMisEscenariosBuilder ? (
+              <div className="train-hub__secondary-action">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    openAuthoring(null);
+                    onCreateScenario();
+                  }}
+                >
+                  + Crear escenario
+                </Button>
+                {onOpenIa ? (
+                  <Button variant="ghost" onClick={onOpenIa}>
+                    Completar con IA
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {onOpenIa && showMisEscenariosBuilder && custom.length === 0 ? (
+              <div className="train-hub__secondary-action train-hub__secondary-action--tight">
+                <Button variant="ghost" onClick={onOpenIa}>
+                  Completar con IA (pantalla IA)
+                </Button>
+              </div>
+            ) : null}
+
+            {showMisEscenariosBuilder ? (
+              <div className="train-hub__builder">
+                <ScenarioBuilderScreen
+                  key={`${authoringSessionKey}-${authoringScenario?.slug ?? "new"}`}
+                  variant="embedded"
+                  initialScenario={authoringScenario}
+                  onCancel={closeAuthoring}
+                  onSave={handleBuilderSave}
+                />
+              </div>
+            ) : null}
+          </div>
         ) : tab === "library" && libraryCatalog.length === 0 && !isAgenteHub ? (
           <EmptyState
             title="Biblioteca vacía"
@@ -636,7 +744,11 @@ export function ScenarioHub({
             title="No hay escenarios disponibles"
             description="Vuelve a intentar en unos segundos o crea uno personalizado."
             actionLabel="Crear escenario"
-            onAction={onCreateScenario}
+            onAction={() => {
+              setTab("custom");
+              openAuthoring(null);
+              onCreateScenario();
+            }}
           />
         ) : (
           <div className="scenario-grid" role="list">
@@ -648,14 +760,6 @@ export function ScenarioHub({
           </div>
         )}
       </div>
-
-      {!isAgenteHub && tab === "custom" && custom.length > 0 ? (
-        <div className="train-hub__secondary-action">
-          <Button variant="ghost" onClick={onCreateScenario}>
-            + Crear otro escenario
-          </Button>
-        </div>
-      ) : null}
 
       {!isAgenteHub && tab === "custom" && customRetired.length > 0 ? (
         <section className="train-hub__retired" aria-labelledby="retired-scenarios-title">

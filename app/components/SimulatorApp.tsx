@@ -421,18 +421,15 @@ function SimulatorShell() {
             assignedScenarioSlugs={agentAssignment?.scenarioSlugs ?? null}
             onStart={(c) => void handleStart(c)}
             onCreateScenario={() => {
-              if (productRole !== "capacitador") return;
-              setBuilderScenario(null);
-              setFlow((prev) => openBuilder(prev));
+              /* Mis escenarios opens the embedded builder in ScenarioHub. */
             }}
+            onScenarioSaved={handleScenarioSaved}
             onOpenIa={() => {
               if (productRole !== "capacitador") return;
               goToView("agent");
             }}
-            onEditScenario={(scenario) => {
-              if (productRole !== "capacitador") return;
-              setBuilderScenario(scenario);
-              setFlow((prev) => openBuilder(prev));
+            onEditScenario={() => {
+              /* Editar abre el diseñador embebido en Mis escenarios. */
             }}
           />
         )}
