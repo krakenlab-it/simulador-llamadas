@@ -107,21 +107,32 @@ export function VoiceAgentControls({
             })
           }
         />
-        <SegmentedControl
-          label="Tono del cliente"
-          labelId={toneId}
-          value={(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS).toneId}
-          options={TONE_OPTIONS}
-          onChange={(nextTone) =>
-            onChange({
-              ...value,
-              clientLayer: {
-                ...(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS),
-                toneId: nextTone,
-              },
-            })
-          }
-        />
+        <div className="voice-controls__select-field config-panel__section">
+          <label className="config-panel__label" htmlFor={toneId}>
+            Tono del cliente
+          </label>
+          <select
+            id={toneId}
+            className="config-panel__select"
+            value={(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS).toneId}
+            onChange={(event) => {
+              const nextTone = event.target.value as ClientToneId;
+              onChange({
+                ...value,
+                clientLayer: {
+                  ...(value.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS),
+                  toneId: nextTone,
+                },
+              });
+            }}
+          >
+            {TONE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <Button
           variant="ghost"
           aria-expanded={value.advancedOpen}
@@ -176,14 +187,27 @@ export function VoiceAgentControls({
             />
           </div>
 
-          <div className="config-panel__section">
-            <SegmentedControl
-              label="Personalidad"
-              labelId={personalityId}
+          <div className="config-panel__section voice-controls__select-field">
+            <label className="config-panel__label" htmlFor={personalityId}>
+              Personalidad
+            </label>
+            <select
+              id={personalityId}
+              className="config-panel__select"
               value={value.personality}
-              options={PERSONALITY_OPTIONS}
-              onChange={(personality) => onChange({ ...value, personality })}
-            />
+              onChange={(event) =>
+                onChange({
+                  ...value,
+                  personality: event.target.value as AgentPersonality,
+                })
+              }
+            >
+              {PERSONALITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {showBargeIn ? (

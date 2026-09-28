@@ -824,10 +824,29 @@ body {
 
 .voice-controls__essentials .segmented-field {
   flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.voice-controls__select-field {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.voice-controls__select-field .config-panel__select {
+  width: 100%;
+  max-width: 100%;
 }
 
 .voice-controls__essentials .btn {
   min-height: 2.5rem;
+}
+
+@media (max-width: 640px) {
+  .voice-controls__essentials .segmented-field {
+    flex: 1 1 100%;
+  }
 }
 
 .voice-controls__advanced {

@@ -124,9 +124,7 @@ describe("ScenarioHub flow", () => {
       screen.getByRole("radiogroup", { name: "Dificultad" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Cliente en vivo" })).toBeChecked();
-    expect(
-      screen.getByRole("radiogroup", { name: "Tono del cliente" }),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Tono del cliente")).toBeInTheDocument();
     expect(screen.getByText(/El pack sale del caso/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("Voz")).not.toBeInTheDocument();
     expect(screen.queryByRole("radiogroup", { name: "Ritmo" })).not.toBeInTheDocument();
@@ -145,12 +143,7 @@ describe("ScenarioHub flow", () => {
       ),
     ).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("switch", { name: "Cliente en vivo" })).toBeChecked();
-    expect(
-      within(screen.getByRole("radiogroup", { name: "Tono del cliente" })).getByRole(
-        "radio",
-        { name: "Según personaje" },
-      ),
-    ).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByLabelText("Tono del cliente")).toHaveValue("auto");
 
     await user.click(screen.getByRole("button", { name: /avanzado/i }));
 
@@ -158,15 +151,8 @@ describe("ScenarioHub flow", () => {
     expect(
       screen.getByRole("radiogroup", { name: "Ritmo" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("radiogroup", { name: "Personalidad" }),
-    ).toBeInTheDocument();
-    expect(
-      within(screen.getByRole("radiogroup", { name: "Personalidad" })).getByRole(
-        "radio",
-        { name: "Escéptico" },
-      ),
-    ).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByLabelText("Personalidad")).toBeInTheDocument();
+    expect(screen.getByLabelText("Personalidad")).toHaveValue("esceptico");
     expect(screen.getByRole("switch", { name: "Interrumpir" })).toBeInTheDocument();
   });
 
@@ -216,7 +202,7 @@ describe("ScenarioHub flow", () => {
     await user.click(screen.getByRole("button", { name: /avanzado/i }));
     await user.selectOptions(screen.getByLabelText("Voz"), PREMADE_VOICES[1].id);
     await user.click(screen.getByRole("radio", { name: "Lento" }));
-    await user.click(screen.getByRole("radio", { name: "Escéptico" }));
+    await user.selectOptions(screen.getByLabelText("Personalidad"), "esceptico");
     await user.click(screen.getByRole("radio", { name: "Intermedio" }));
     await user.click(screen.getByRole("switch", { name: "Interrumpir" }));
     await user.click(screen.getByRole("switch", { name: "Modo voz" }));
@@ -370,10 +356,7 @@ describe("ScenarioHub flow", () => {
       "aria-checked",
       "true",
     );
-    expect(screen.getByRole("radio", { name: "Impaciente" })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    expect(screen.getByLabelText("Personalidad")).toHaveValue("impaciente");
     expect(screen.getByRole("radio", { name: "Avanzado" })).toHaveAttribute(
       "aria-checked",
       "true",

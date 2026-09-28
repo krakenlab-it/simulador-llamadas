@@ -26,10 +26,16 @@ describe("VoiceAgentControls Advanced toggle", () => {
   it("shows language on the default row and hides the rest", () => {
     renderControls();
 
+    const toneSelect = screen.getByLabelText("Tono del cliente");
+    expect(toneSelect.tagName).toBe("SELECT");
+    expect(screen.getAllByRole("option").map((el) => el.textContent)).toContain(
+      "Amigable",
+    );
+
     expect(screen.getByRole("radiogroup", { name: "Idioma" })).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "Género de voz" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Cliente en vivo" })).toBeChecked();
-    expect(screen.getByRole("radiogroup", { name: "Tono del cliente" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Tono del cliente")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /avanzado/i })).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -54,9 +60,7 @@ describe("VoiceAgentControls Advanced toggle", () => {
     expect(screen.getByText(/ELEVENLABS_API_KEY/)).toBeInTheDocument();
     expect(screen.getByText(/ELEVENLABS_VOICE_ID_FEMALE_A/)).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "Ritmo" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("radiogroup", { name: "Personalidad" }),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Personalidad")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Interrumpir" })).toBeInTheDocument();
   });
 
@@ -71,7 +75,7 @@ describe("VoiceAgentControls Advanced toggle", () => {
       }),
     );
 
-    await user.click(screen.getByRole("radio", { name: "Desconfiado" }));
+    await user.selectOptions(screen.getByLabelText("Tono del cliente"), "desconfianza");
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         clientLayer: expect.objectContaining({ toneId: "desconfianza" }),
