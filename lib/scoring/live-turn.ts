@@ -15,6 +15,7 @@ import {
   repairDateDemandAfterAccept,
 } from "@/lib/agent/client-motor";
 import { buyerPsychPackForScenario } from "@/lib/agent/client-pack";
+import { enforceHarnessNoRepeat } from "@/lib/agent/dialogue-memory";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
 import { utteranceHasConcreteDayAndTime } from "./keywords";
 import {
@@ -305,16 +306,36 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     }),
     logistics,
   });
-  clientReply = enforceBuyerTurnPolicy(clientReply, psych, input.utterance);
+  const recentClientReplies = priorTurns
+    .filter((turn) => turn.role === "client")
+    .map((turn) => turn.text);
+  clientReply = enforceBuyerTurnPolicy(
+    clientReply,
+    psych,
+    input.utterance,
+    recentClientReplies,
+  );
 
+  const turnNumber = resolveTurnNumber(input);
+  const rememberedSlot = psych.offeredSlot ?? input.utterance;
   if (logistics.shouldAcknowledgeSlot) {
     const repaired = repairDateDemandAfterAccept(
       clientReply,
-      input.utterance,
-      resolveTurnNumber(input),
+      rememberedSlot,
+      turnNumber,
     );
     if (repaired) clientReply = repaired;
   }
+
+  clientReply = enforceHarnessNoRepeat({
+    candidate: clientReply,
+    recentClientReplies,
+    psych,
+    primaryFallback: logistics.shouldAcknowledgeSlot
+      ? acknowledgeOfferedSlot(rememberedSlot, turnNumber)
+      : clientReply,
+    turnNumber,
+  });
 
   return {
     analytics,
