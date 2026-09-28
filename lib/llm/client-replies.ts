@@ -20,7 +20,6 @@ import {
 import { sanitizeLeakedBuyerReply } from "@/lib/scenarios/authoring-leak";
 import { phaseKeyFromPersistenceKey } from "@/lib/simulation/round-keys";
 import { formatTranscriptBlock } from "@/lib/agent/buyer-transcript";
-import { progressiveBuyerFallback } from "@/lib/agent/buyer-psych";
 
 /** Max wait for Groq preset client replies before scripted fallback. */
 export const GROQ_CLIENT_REPLY_TIMEOUT_MS = 8_000;
