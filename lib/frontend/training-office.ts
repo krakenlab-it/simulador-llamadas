@@ -4,6 +4,11 @@
  */
 
 import { loadLocalHistory } from "@/lib/history/local";
+import {
+  displayNameFromProfile,
+  normalizeAgentProfile,
+  type AgentProfile,
+} from "@/lib/frontend/agent-profile";
 
 export interface TrainingProject {
   id: string;
@@ -15,11 +20,46 @@ export interface AgentAssignment {
   id: string;
   projectId: string;
   agentEmail: string;
+  /** Kept in sync with profile for legacy UI; prefer profile + displayNameFromProfile. */
   agentDisplayName: string;
+  profile: AgentProfile;
   scenarioSlugs: string[];
   requiredSimulations: number;
   /** When false, agente sees progress only — not numeric scorecard. */
   showGradesToAgent: boolean;
+}
+
+function hydrateAssignment(assignment: AgentAssignment): AgentAssignment {
+  if (assignment.profile?.email) {
+    const profile = normalizeAgentProfile({
+      ...assignment.profile,
+      email: assignment.profile.email || assignment.agentEmail,
+    });
+    return {
+      ...assignment,
+      profile,
+      agentDisplayName: displayNameFromProfile(
+        profile,
+        assignment.agentDisplayName,
+      ),
+    };
+  }
+  const legacy = assignment.agentDisplayName?.trim() || "Agente";
+  const parts = legacy.split(/\s+/);
+  const profile = normalizeAgentProfile({
+    firstName: parts[0] ?? "",
+    lastName: parts.slice(1).join(" "),
+    age: null,
+    email: assignment.agentEmail,
+    phone: "",
+    cvFileName: null,
+    cvUploadedAt: null,
+  });
+  return {
+    ...assignment,
+    profile,
+    agentDisplayName: displayNameFromProfile(profile, legacy),
+  };
 }
 
 export interface TrainingOfficeState {
@@ -67,7 +107,9 @@ export function readTrainingOffice(storage?: Storage): TrainingOfficeState {
       ...defaultState(),
       ...parsed,
       projects: parsed.projects,
-      assignments: parsed.assignments ?? [],
+      assignments: (parsed.assignments ?? []).map((row) =>
+        hydrateAssignment(row as AgentAssignment),
+      ),
     };
   } catch {
     return defaultState();
@@ -123,10 +165,33 @@ export function createProject(state: TrainingOfficeState, name: string): Trainin
 
 export function upsertAssignment(
   state: TrainingOfficeState,
-  input: Omit<AgentAssignment, "id"> & { id?: string },
+  input: Omit<AgentAssignment, "id" | "profile"> & {
+    id?: string;
+    profile?: AgentProfile;
+  },
 ): TrainingOfficeState {
   const id = input.id ?? `asg-${Date.now()}`;
-  const next: AgentAssignment = { ...input, id };
+  const hydrated = hydrateAssignment({
+    ...input,
+    id,
+    profile: input.profile ?? {
+      firstName: "",
+      lastName: "",
+      age: null,
+      email: input.agentEmail,
+      phone: "",
+    },
+  } as AgentAssignment);
+  const profile = hydrated.profile;
+  const next: AgentAssignment = {
+    ...input,
+    id,
+    profile,
+    agentDisplayName: displayNameFromProfile(
+      profile,
+      input.agentDisplayName,
+    ),
+  };
   const rest = state.assignments.filter(
     (a) =>
       !(
@@ -168,8 +233,24 @@ export function defaultCapacitadorAssignmentSeed(
     projectId,
     agentEmail: "agente@demo.local",
     agentDisplayName: "Agente demo",
+    profile: normalizeAgentProfile({
+      firstName: "Agente",
+      lastName: "demo",
+      age: null,
+      email: "agente@demo.local",
+      phone: "",
+    }),
     scenarioSlugs: presetSlugs.slice(0, 3),
     requiredSimulations: 5,
     showGradesToAgent: true,
   });
+}
+
+export function assignmentProfileForAgent(
+  state: TrainingOfficeState,
+  projectId: string,
+  agentEmail: string | null | undefined,
+): AgentProfile | null {
+  const assignment = assignmentForAgent(state, projectId, agentEmail);
+  return assignment?.profile ?? null;
 }

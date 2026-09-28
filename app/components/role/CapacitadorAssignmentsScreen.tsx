@@ -10,11 +10,24 @@ import {
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
 import { Spinner } from "@/app/components/ui/Spinner";
+import { useToast } from "@/components/ui/Toast";
+import {
+  applyCvParseToProfile,
+  displayNameFromProfile,
+  extractTextFromCvFile,
+  normalizeAgentProfile,
+  parseCvFieldsFromText,
+  readAgentCvExtract,
+  storeAgentCvExtract,
+  type AgentProfile,
+} from "@/lib/frontend/agent-profile";
 import {
   activeProject,
+  assignmentForAgent,
   readTrainingOffice,
   upsertAssignment,
   writeTrainingOffice,
+  type AgentAssignment,
   type TrainingOfficeState,
 } from "@/lib/frontend/training-office";
 
@@ -22,20 +35,41 @@ interface CapacitadorAssignmentsScreenProps {
   children?: React.ReactNode;
 }
 
+function emptyProfile(email: string): AgentProfile {
+  return normalizeAgentProfile({
+    firstName: "",
+    lastName: "",
+    age: null,
+    email,
+    phone: "",
+  });
+}
+
 export function CapacitadorAssignmentsScreen({
   children,
 }: CapacitadorAssignmentsScreenProps) {
   const formId = useId();
+  const cvInputId = useId();
+  const { showToast } = useToast();
   const [office, setOffice] = useState<TrainingOfficeState>(() => readTrainingOffice());
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [agentEmail, setAgentEmail] = useState("agente@demo.local");
-  const [agentName, setAgentName] = useState("Agente demo");
+  const [cvBusy, setCvBusy] = useState(false);
+  const [profile, setProfile] = useState<AgentProfile>(() =>
+    emptyProfile("agente@demo.local"),
+  );
   const [required, setRequired] = useState(5);
   const [showGrades, setShowGrades] = useState(true);
   const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const project = activeProject(office, "capacitador");
+
+  useEffect(() => {
+    const seeded = assignmentForAgent(office, project.id, "agente@demo.local");
+    if (seeded) loadAssignmentIntoForm(seeded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial demo agent only
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -58,16 +92,76 @@ export function CapacitadorAssignmentsScreen({
     writeTrainingOffice(next);
   };
 
+  const loadAssignmentIntoForm = (assignment: AgentAssignment) => {
+    setEditingId(assignment.id);
+    setProfile(normalizeAgentProfile(assignment.profile));
+    setRequired(assignment.requiredSimulations);
+    setShowGrades(assignment.showGradesToAgent);
+    setSelectedSlugs(assignment.scenarioSlugs);
+  };
+
+  const syncFromEmail = (email: string) => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) return;
+    const existing = assignmentForAgent(office, project.id, trimmed);
+    if (existing) {
+      loadAssignmentIntoForm(existing);
+      return;
+    }
+    setEditingId(null);
+    setProfile(emptyProfile(trimmed));
+  };
+
   const saveAssignment = () => {
+    const normalized = normalizeAgentProfile({
+      ...profile,
+      email: profile.email || "agente@demo.local",
+    });
+    if (!normalized.email) {
+      showToast("El correo es obligatorio — es la llave de acceso del agente.", "error");
+      return;
+    }
     const next = upsertAssignment(office, {
+      id: editingId ?? undefined,
       projectId: project.id,
-      agentEmail: agentEmail.trim(),
-      agentDisplayName: agentName.trim() || agentEmail.trim(),
+      agentEmail: normalized.email,
+      agentDisplayName: displayNameFromProfile(normalized),
+      profile: normalized,
       scenarioSlugs: selectedSlugs,
       requiredSimulations: Math.max(1, Math.min(10, required)),
       showGradesToAgent: showGrades,
     });
     persist(next);
+    setEditingId(next.assignments.find(
+      (a) =>
+        a.projectId === project.id &&
+        a.agentEmail.toLowerCase() === normalized.email.toLowerCase(),
+    )?.id ?? null);
+    showToast("Perfil y asignación guardados.", "success");
+  };
+
+  const handleCvUpload = async (file: File | null) => {
+    if (!file) return;
+    setCvBusy(true);
+    try {
+      const text = await extractTextFromCvFile(file);
+      storeAgentCvExtract(profile.email || file.name, text);
+      const parsed = applyCvParseToProfile(profile, parseCvFieldsFromText(text));
+      const withMeta = {
+        ...parsed,
+        cvFileName: file.name,
+        cvUploadedAt: new Date().toISOString(),
+      };
+      setProfile(normalizeAgentProfile(withMeta));
+      showToast(
+        "CV cargado. Revisa los campos autocompletados antes de guardar.",
+        "success",
+      );
+    } catch {
+      showToast("No se pudo leer el CV. Prueba un .txt o un PDF con texto.", "error");
+    } finally {
+      setCvBusy(false);
+    }
   };
 
   const toggleSlug = (slug: string) => {
@@ -84,31 +178,109 @@ export function CapacitadorAssignmentsScreen({
         <p className="page-hero__eyebrow">Capacitador · Agentes</p>
         <h1 className="page-hero__title">Asigna escenarios y cupo</h1>
         <p className="page-hero__subtitle">
-          Define qué casos practica cada agente y cuántas simulaciones debe completar. Persistencia
-          local de demo — sustituir por back office en producción.
+          Registra el perfil del agente (CV opcional), asigna escenarios publicados en la
+          biblioteca y define cuántas simulaciones debe completar. El correo sigue siendo su
+          llave de acceso en la demo.
         </p>
       </header>
 
       <Card className="role-assignments__form">
         <h2 className="config-panel__title">Nueva o actualizar asignación</h2>
-        <div className="role-assignments__grid">
+
+        <div className="role-assignments__cv">
+          <label className="config-panel__label" htmlFor={cvInputId}>
+            CV del agente (PDF, Word o texto)
+          </label>
+          <input
+            id={cvInputId}
+            type="file"
+            accept=".pdf,.doc,.docx,.txt,.md,application/pdf,text/plain"
+            disabled={cvBusy}
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              void handleCvUpload(file);
+              event.target.value = "";
+            }}
+          />
+          {profile.cvFileName ? (
+            <p className="config-panel__hint">
+              Archivo: <strong>{profile.cvFileName}</strong>
+              {profile.cvUploadedAt
+                ? ` · subido ${new Date(profile.cvUploadedAt).toLocaleString("es-MX")}`
+                : null}
+            </p>
+          ) : (
+            <p className="config-panel__hint">
+              Sube un CV para autocompletar nombre, correo y teléfono cuando el texto sea
+              legible.
+            </p>
+          )}
+        </div>
+
+        <div className="role-assignments__grid role-assignments__grid--profile">
+          <label className="config-panel__label" htmlFor={`${formId}-first`}>
+            Nombre
+          </label>
+          <input
+            id={`${formId}-first`}
+            className="config-panel__input"
+            value={profile.firstName}
+            onChange={(e) =>
+              setProfile((p) => ({ ...p, firstName: e.target.value }))
+            }
+          />
+          <label className="config-panel__label" htmlFor={`${formId}-last`}>
+            Apellido
+          </label>
+          <input
+            id={`${formId}-last`}
+            className="config-panel__input"
+            value={profile.lastName}
+            onChange={(e) =>
+              setProfile((p) => ({ ...p, lastName: e.target.value }))
+            }
+          />
+          <label className="config-panel__label" htmlFor={`${formId}-age`}>
+            Edad
+          </label>
+          <input
+            id={`${formId}-age`}
+            type="number"
+            min={16}
+            max={99}
+            className="config-panel__input"
+            value={profile.age ?? ""}
+            onChange={(e) =>
+              setProfile((p) => ({
+                ...p,
+                age: e.target.value ? Number(e.target.value) : null,
+              }))
+            }
+          />
           <label className="config-panel__label" htmlFor={`${formId}-email`}>
-            Correo del agente
+            Correo (acceso agente)
           </label>
           <input
             id={`${formId}-email`}
+            type="email"
             className="config-panel__input"
-            value={agentEmail}
-            onChange={(e) => setAgentEmail(e.target.value)}
+            value={profile.email}
+            onChange={(e) =>
+              setProfile((p) => ({ ...p, email: e.target.value }))
+            }
+            onBlur={(e) => syncFromEmail(e.target.value)}
           />
-          <label className="config-panel__label" htmlFor={`${formId}-name`}>
-            Nombre visible
+          <label className="config-panel__label" htmlFor={`${formId}-phone`}>
+            Teléfono
           </label>
           <input
-            id={`${formId}-name`}
+            id={`${formId}-phone`}
+            type="tel"
             className="config-panel__input"
-            value={agentName}
-            onChange={(e) => setAgentName(e.target.value)}
+            value={profile.phone}
+            onChange={(e) =>
+              setProfile((p) => ({ ...p, phone: e.target.value }))
+            }
           />
           <label className="config-panel__label" htmlFor={`${formId}-quota`}>
             Simulaciones requeridas (1–10)
@@ -129,6 +301,11 @@ export function CapacitadorAssignmentsScreen({
         </label>
         {loading ? (
           <Spinner label="Cargando escenarios…" />
+        ) : scenarios.length === 0 ? (
+          <p className="config-panel__hint">
+            No hay escenarios publicados en la biblioteca. Crea y publica casos en
+            Escenarios antes de asignar.
+          </p>
         ) : (
           <ul className="role-assignments__checks">
             {scenarios.map((s) => (
@@ -160,15 +337,42 @@ export function CapacitadorAssignmentsScreen({
 
       {existing.length > 0 ? (
         <Card>
-          <h2 className="config-panel__title">Asignaciones en {project.name}</h2>
-          <ul className="role-assignments__list">
-            {existing.map((a) => (
-              <li key={a.id}>
-                <strong>{a.agentDisplayName}</strong> ({a.agentEmail}) — {a.scenarioSlugs.length}{" "}
-                escenarios · cupo {a.requiredSimulations}
-                {a.showGradesToAgent ? "" : " · notas ocultas al agente"}
-              </li>
-            ))}
+          <h2 className="config-panel__title">Perfiles en {project.name}</h2>
+          <ul className="role-assignments__profiles">
+            {existing.map((a) => {
+              const cvPreview = readAgentCvExtract(a.agentEmail);
+              return (
+                <li key={a.id} className="role-assignments__profile-card">
+                  <div className="role-assignments__profile-head">
+                    <strong>
+                      {displayNameFromProfile(a.profile, a.agentDisplayName)}
+                    </strong>
+                    <span className="role-assignments__profile-meta">
+                      {a.agentEmail}
+                      {a.profile.age != null ? ` · ${a.profile.age} años` : ""}
+                      {a.profile.phone ? ` · ${a.profile.phone}` : ""}
+                    </span>
+                  </div>
+                  <p className="config-panel__hint">
+                    {a.scenarioSlugs.length} escenario(s) · cupo {a.requiredSimulations}
+                    {a.profile.cvFileName ? ` · CV: ${a.profile.cvFileName}` : ""}
+                    {a.showGradesToAgent ? "" : " · notas ocultas al agente"}
+                  </p>
+                  {cvPreview ? (
+                    <p className="role-assignments__cv-preview">
+                      {cvPreview.slice(0, 220)}
+                      {cvPreview.length > 220 ? "…" : ""}
+                    </p>
+                  ) : null}
+                  <Button
+                    variant="ghost"
+                    onClick={() => loadAssignmentIntoForm(a)}
+                  >
+                    Editar perfil
+                  </Button>
+                </li>
+              );
+            })}
           </ul>
         </Card>
       ) : null}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/app/components/ui/Button";
 import { Card } from "@/app/components/ui/Card";
+import type { AgentProfile } from "@/lib/frontend/agent-profile";
 import {
   activeProject,
   assignmentForAgent,
@@ -16,6 +17,7 @@ import {
 interface AgenteHomeScreenProps {
   agentEmail: string | null;
   agentDisplayName: string;
+  agentProfile?: AgentProfile | null;
   onOpenPractice: () => void;
   onOpenResults: () => void;
 }
@@ -23,6 +25,7 @@ interface AgenteHomeScreenProps {
 export function AgenteHomeScreen({
   agentEmail,
   agentDisplayName,
+  agentProfile = null,
   onOpenPractice,
   onOpenResults,
 }: AgenteHomeScreenProps) {
@@ -55,6 +58,20 @@ export function AgenteHomeScreen({
           como una llamada real.
         </p>
       </header>
+
+      {agentProfile ? (
+        <Card className="role-home__profile">
+          <h2 className="config-panel__title">Tu perfil</h2>
+          <p className="config-panel__hint">
+            {agentProfile.firstName} {agentProfile.lastName}
+            {agentProfile.age != null ? ` · ${agentProfile.age} años` : ""}
+          </p>
+          <p className="config-panel__hint">
+            {agentProfile.email}
+            {agentProfile.phone ? ` · ${agentProfile.phone}` : ""}
+          </p>
+        </Card>
+      ) : null}
 
       <Card className="role-home__project">
         <h2 className="config-panel__title">Tu proyecto</h2>

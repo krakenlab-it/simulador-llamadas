@@ -42,6 +42,13 @@ describe("training office demo persistence", () => {
       projectId: state.projects[1].id,
       agentEmail: "a@test.com",
       agentDisplayName: "Ana",
+      profile: {
+        firstName: "Ana",
+        lastName: "López",
+        age: 28,
+        email: "a@test.com",
+        phone: "55 0000 0000",
+      },
       scenarioSlugs: ["mariana"],
       requiredSimulations: 3,
       showGradesToAgent: true,
@@ -50,6 +57,7 @@ describe("training office demo persistence", () => {
     const loaded = readTrainingOffice(store);
     expect(assignmentForAgent(loaded, loaded.projects[1].id, "a@test.com")).toMatchObject({
       requiredSimulations: 3,
+      profile: expect.objectContaining({ firstName: "Ana", email: "a@test.com" }),
     });
   });
 

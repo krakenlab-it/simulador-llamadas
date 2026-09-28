@@ -44,6 +44,7 @@ import {
   readTrainingOffice,
   writeTrainingOffice,
 } from "@/lib/frontend/training-office";
+import { displayNameFromProfile } from "@/lib/frontend/agent-profile";
 import { isScenarioPublishedToLibrary } from "@/lib/scenarios/types";
 import { AppShell } from "@/app/components/shell/AppShell";
 import { AgentHarnessScreen } from "@/app/components/agent/AgentHarnessScreen";
@@ -143,6 +144,16 @@ function SimulatorShell() {
     const project = activeProject(office, "agente");
     return assignmentForAgent(office, project.id, traineeEmail);
   }, [productRole, office, traineeEmail]);
+
+  const agenteDisplayName = useMemo(() => {
+    if (agentAssignment?.profile) {
+      return displayNameFromProfile(
+        agentAssignment.profile,
+        shellUser?.displayName ?? "Agente",
+      );
+    }
+    return shellUser?.displayName ?? "Agente";
+  }, [agentAssignment, shellUser]);
 
   const handleTabChange = useCallback(
     (tab: ShellTab) => {
@@ -386,7 +397,8 @@ function SimulatorShell() {
         {flow.view === "home" && productRole === "agente" ? (
           <AgenteHomeScreen
             agentEmail={traineeEmail}
-            agentDisplayName={shellUser?.displayName ?? "Agente"}
+            agentDisplayName={agenteDisplayName}
+            agentProfile={agentAssignment?.profile ?? null}
             onOpenPractice={() => goToView("train")}
             onOpenResults={() => goToView("history")}
           />
