@@ -442,13 +442,7 @@ function SimulatorShell() {
         )}
 
         {flow.view === "agent" && productRole === "capacitador" && (
-          <AgentHarnessScreen
-            onScenarioSaved={handleScenarioSaved}
-            onPracticePreset={(slug) => {
-              setSelectedSlugOnLoad(slug);
-              setFlow(resetToTrain);
-            }}
-          />
+          <AgentHarnessScreen onScenarioSaved={handleScenarioSaved} />
         )}
 
         {flow.view === "teams" && productRole === "capacitador" && (
