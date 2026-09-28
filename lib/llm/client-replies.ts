@@ -257,7 +257,8 @@ function policeClientReply(input: GenerateReplyInput, reply: string): string {
     input.clientName,
   );
   if (logistics.shouldAcknowledgeSlot) {
-    fallback = acknowledgeOfferedSlot(input.traineeUtterance, input.roundNumber);
+    const rememberedSlot = psych.offeredSlot ?? input.traineeUtterance;
+    fallback = acknowledgeOfferedSlot(rememberedSlot, input.roundNumber);
   }
   return enforceHarnessNoRepeat({
     candidate: policed,
