@@ -9,6 +9,10 @@ import {
   mergeLocalScenarioLifecycle,
   setLocalScenarioActive,
 } from "@/lib/frontend/scenario-lifecycle";
+import {
+  mergeLocalScenarioLibrary,
+  setLocalScenarioLibraryPublished,
+} from "@/lib/frontend/scenario-library";
 import type {
   CreateCustomScenarioInput,
   RichTurnFeedback,
@@ -45,6 +49,7 @@ import {
   stubSubmitTurn,
   stubUpdateScenario,
   stubSetScenarioActive,
+  stubSetScenarioLibraryPublished,
   type CreateSessionRequest,
   type EndSessionResponse,
   type HistoryEntry,
@@ -164,7 +169,22 @@ export async function endSession(
 export async function listScenarios(): Promise<ScenarioRecord[]> {
   const remote = await tryFetch<{ scenarios: ScenarioRecord[] }>("/api/scenarios");
   const rows = remote?.scenarios ?? stubListScenarios();
-  return mergeLocalScenarioLifecycle(rows);
+  return mergeLocalScenarioLibrary(mergeLocalScenarioLifecycle(rows));
+}
+
+export async function setScenarioLibraryPublished(
+  slug: string,
+  published: boolean,
+): Promise<ScenarioRecord> {
+  const remote = await tryFetch<ScenarioRecord>(
+    `/api/scenarios/${slug}/library`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ published }),
+    },
+  );
+  setLocalScenarioLibraryPublished(slug, published);
+  return remote ?? stubSetScenarioLibraryPublished(slug, published);
 }
 
 export async function setScenarioActive(

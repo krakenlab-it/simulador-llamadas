@@ -4,6 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { listScenarios } from "@/lib/api/client";
 import {
   isScenarioActiveForPractice,
+  isScenarioPublishedToLibrary,
   type ScenarioRecord,
 } from "@/lib/scenarios/types";
 import { Button } from "@/app/components/ui/Button";
@@ -40,11 +41,14 @@ export function CapacitadorAssignmentsScreen({
     setLoading(true);
     void listScenarios()
       .then((rows) => {
-        setScenarios(rows.filter(isScenarioActiveForPractice));
-        const presets = rows
-          .filter((s) => s.isPreset && isScenarioActiveForPractice(s))
-          .map((s) => s.slug);
-        setSelectedSlugs(presets.slice(0, 3));
+        const library = rows.filter(
+          (s) =>
+            !s.isPreset &&
+            isScenarioActiveForPractice(s) &&
+            isScenarioPublishedToLibrary(s),
+        );
+        setScenarios(library);
+        setSelectedSlugs(library.slice(0, 3).map((s) => s.slug));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -120,7 +124,9 @@ export function CapacitadorAssignmentsScreen({
           />
         </div>
 
-        <label className="config-panel__label">Escenarios incluidos</label>
+        <label className="config-panel__label">
+          Escenarios de la biblioteca (publicados)
+        </label>
         {loading ? (
           <Spinner label="Cargando escenarios…" />
         ) : (
@@ -134,7 +140,6 @@ export function CapacitadorAssignmentsScreen({
                     onChange={() => toggleSlug(s.slug)}
                   />
                   {s.clientName}
-                  {s.isPreset ? " (clínica)" : " (propio)"}
                 </label>
               </li>
             ))}

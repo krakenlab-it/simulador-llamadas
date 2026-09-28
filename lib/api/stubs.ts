@@ -198,6 +198,7 @@ const traineeIdByEmail = new Map<string, string>();
 const customScenarios = new Map<string, StubScenario>();
 const voiceAgentBySlug = new Map<string, VoiceAgentSettings>();
 const deactivatedAtBySlug = new Map<string, string>();
+const libraryPublishedAtBySlug = new Map<string, string>();
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -242,7 +243,13 @@ function withSavedVoiceAgent(record: ScenarioRecord): ScenarioRecord {
   const saved = voiceAgentBySlug.get(record.slug);
   const withVoice = saved ? applyVoiceAgentToRecord(record, saved) : record;
   const deactivatedAt = deactivatedAtBySlug.get(withVoice.slug);
-  return deactivatedAt ? { ...withVoice, deactivatedAt } : withVoice;
+  const libraryPublishedAt = libraryPublishedAtBySlug.get(withVoice.slug);
+  let merged = withVoice;
+  if (deactivatedAt) merged = { ...merged, deactivatedAt };
+  if (libraryPublishedAt) {
+    merged = { ...merged, libraryPublishedAt };
+  }
+  return merged;
 }
 
 function getScenario(slug: string): StubScenario | null {
@@ -252,16 +259,9 @@ function getScenario(slug: string): StubScenario | null {
 }
 
 export function stubListScenarios(): ScenarioRecord[] {
-  const presets = ["mariana", "rodrigo", "efrain"]
-    .map((slug) => buildPresetScenario(slug)?.record)
-    .filter((s): s is ScenarioRecord => s !== undefined)
-    .map(withSavedVoiceAgent);
-  return [
-    ...presets,
-    ...Array.from(customScenarios.values()).map((s) =>
-      withSavedVoiceAgent(s.record),
-    ),
-  ];
+  return Array.from(customScenarios.values()).map((s) =>
+    withSavedVoiceAgent(s.record),
+  );
 }
 
 export function stubSaveVoiceAgent(
@@ -361,6 +361,31 @@ export function stubSetScenarioActive(
   const record = withSavedVoiceAgent({
     ...scenario.record,
     deactivatedAt,
+  });
+  customScenarios.set(slug, { record });
+  return record;
+}
+
+export function stubSetScenarioLibraryPublished(
+  slug: string,
+  published: boolean,
+): ScenarioRecord {
+  const scenario = getScenario(slug);
+  if (!scenario) {
+    throw new Error(`Cliente no encontrado: ${slug}`);
+  }
+  if (scenario.record.isPreset) {
+    throw new Error("Los casos de la clínica no se publican en la biblioteca.");
+  }
+  const libraryPublishedAt = published ? new Date().toISOString() : null;
+  if (published) {
+    libraryPublishedAtBySlug.set(slug, libraryPublishedAt!);
+  } else {
+    libraryPublishedAtBySlug.delete(slug);
+  }
+  const record = withSavedVoiceAgent({
+    ...scenario.record,
+    libraryPublishedAt,
   });
   customScenarios.set(slug, { record });
   return record;
@@ -692,6 +717,7 @@ export function resetStubSessions(): void {
   voiceAgentBySlug.clear();
   customScenarios.clear();
   deactivatedAtBySlug.clear();
+  libraryPublishedAtBySlug.clear();
 }
 
 export function stubGetAgentHarness() {

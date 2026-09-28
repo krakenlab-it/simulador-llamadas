@@ -44,6 +44,7 @@ import {
   readTrainingOffice,
   writeTrainingOffice,
 } from "@/lib/frontend/training-office";
+import { isScenarioPublishedToLibrary } from "@/lib/scenarios/types";
 import { AppShell } from "@/app/components/shell/AppShell";
 import { AgentHarnessScreen } from "@/app/components/agent/AgentHarnessScreen";
 import { TeamCompareScreen } from "@/app/components/teams/TeamCompareScreen";
@@ -107,9 +108,16 @@ function SimulatorShell() {
   useEffect(() => {
     if (productRole !== "capacitador") return;
     void listScenarios().then((rows) => {
-      const presets = rows.filter((s) => s.isPreset).map((s) => s.slug);
+      const published = rows
+        .filter(
+          (s) =>
+            !s.isPreset &&
+            isScenarioPublishedToLibrary(s) &&
+            !s.deactivatedAt,
+        )
+        .map((s) => s.slug);
       const office = readTrainingOffice();
-      const seeded = defaultCapacitadorAssignmentSeed(office, presets);
+      const seeded = defaultCapacitadorAssignmentSeed(office, published);
       if (seeded !== office) {
         writeTrainingOffice(seeded);
         setOfficeRevision((k) => k + 1);

@@ -7,11 +7,14 @@ import { ToastProvider } from "@/components/ui/Toast";
 import {
   customGymScenarioFixture,
   marianaScenarioFixture,
+  publishedMarianaLibraryFixture,
 } from "@/tests/frontend/fixtures";
 
 vi.mock("@/lib/api/client", () => ({
   listScenarios: vi.fn(),
   saveScenarioVoiceAgent: vi.fn(),
+  setScenarioActive: vi.fn(),
+  setScenarioLibraryPublished: vi.fn(),
 }));
 
 vi.mock("@/lib/hooks/useSpeechRecognition", () => ({
@@ -61,10 +64,21 @@ function renderHub(
   return { onStart, onCreateScenario, onEditScenario };
 }
 
+async function openBiblioteca(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("tab", { name: "Biblioteca" }));
+  await waitFor(() => {
+    expect(
+      screen.getByRole("button", { name: /Mariana Escobedo/i }),
+    ).toBeInTheDocument();
+  });
+}
+
 describe("ScenarioHub flow", () => {
   beforeEach(() => {
-    vi.mocked(listScenarios).mockResolvedValue([marianaScenarioFixture]);
-    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(marianaScenarioFixture);
+    vi.mocked(listScenarios).mockResolvedValue([publishedMarianaLibraryFixture]);
+    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(
+      publishedMarianaLibraryFixture,
+    );
   });
 
   afterEach(() => {
@@ -76,11 +90,7 @@ describe("ScenarioHub flow", () => {
     const user = userEvent.setup();
     const { onStart } = renderHub();
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Mariana Escobedo/i }),
-      ).toBeInTheDocument();
-    });
+    await openBiblioteca(user);
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
     await user.click(screen.getByRole("switch", { name: "Modo voz" }));
@@ -105,11 +115,7 @@ describe("ScenarioHub flow", () => {
     const user = userEvent.setup();
     renderHub();
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Mariana Escobedo/i }),
-      ).toBeInTheDocument();
-    });
+    await openBiblioteca(user);
 
     const panel = screen.getByRole("complementary", {
       name: "Configuración de la llamada",
@@ -152,7 +158,7 @@ describe("ScenarioHub flow", () => {
       screen.getByRole("radiogroup", { name: "Ritmo" }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Personalidad")).toBeInTheDocument();
-    expect(screen.getByLabelText("Personalidad")).toHaveValue("esceptico");
+    expect(screen.getByLabelText("Personalidad")).toHaveValue("neutral");
     expect(screen.getByRole("switch", { name: "Interrumpir" })).toBeInTheDocument();
   });
 
@@ -160,11 +166,8 @@ describe("ScenarioHub flow", () => {
     const user = userEvent.setup();
     renderHub();
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Mariana Escobedo/i }),
-      ).toBeInTheDocument();
-    });
+    await openBiblioteca(user);
+    await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
 
     await user.click(screen.getByRole("button", { name: /avanzado/i }));
     expect(screen.getByLabelText("Voz")).toBeInTheDocument();
@@ -177,7 +180,7 @@ describe("ScenarioHub flow", () => {
   it("persists knobs on the scenario so a replay starts with the same agent", async () => {
     const user = userEvent.setup();
     vi.mocked(saveScenarioVoiceAgent).mockResolvedValue({
-      ...marianaScenarioFixture,
+      ...publishedMarianaLibraryFixture,
       voiceAgent: {
         ...DEFAULT_VOICE_AGENT_SETTINGS,
         language: "en",
@@ -191,11 +194,7 @@ describe("ScenarioHub flow", () => {
     });
     const { onStart } = renderHub();
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Mariana Escobedo/i }),
-      ).toBeInTheDocument();
-    });
+    await openBiblioteca(user);
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
     await user.click(screen.getByRole("radio", { name: "English" }));
@@ -253,11 +252,7 @@ describe("ScenarioHub flow", () => {
     );
     const { onStart } = renderHub();
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Mariana Escobedo/i }),
-      ).toBeInTheDocument();
-    });
+    await openBiblioteca(user);
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
     await user.click(screen.getByRole("switch", { name: "Modo voz" }));
@@ -267,7 +262,7 @@ describe("ScenarioHub flow", () => {
     expect(onStart).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Iniciar llamada" })).toBeDisabled();
 
-    resolveSave(marianaScenarioFixture);
+    resolveSave(publishedMarianaLibraryFixture);
 
     await waitFor(() => {
       expect(onStart).toHaveBeenCalledTimes(1);
@@ -281,11 +276,7 @@ describe("ScenarioHub flow", () => {
     );
     const { onStart } = renderHub();
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Mariana Escobedo/i }),
-      ).toBeInTheDocument();
-    });
+    await openBiblioteca(user);
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
     await user.click(screen.getByRole("switch", { name: "Modo voz" }));
@@ -318,7 +309,7 @@ describe("ScenarioHub flow", () => {
     const user = userEvent.setup();
     vi.mocked(listScenarios).mockResolvedValue([
       {
-        ...marianaScenarioFixture,
+        ...publishedMarianaLibraryFixture,
         voiceAgent: {
           language: "en",
           voiceGender: "auto",
@@ -336,11 +327,7 @@ describe("ScenarioHub flow", () => {
 
     renderHub();
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Mariana Escobedo/i }),
-      ).toBeInTheDocument();
-    });
+    await openBiblioteca(user);
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
 
     expect(screen.getByRole("radio", { name: "English" })).toHaveAttribute(
@@ -382,19 +369,15 @@ describe("ScenarioHub flow", () => {
     expect(screen.getByText("Cargando escenarios…")).toBeInTheDocument();
   });
 
-  it("offers edit on custom scenarios and never on clinic presets", async () => {
+  it("offers edit on custom scenarios and not on Biblioteca cards", async () => {
     vi.mocked(listScenarios).mockResolvedValue([
-      marianaScenarioFixture,
+      publishedMarianaLibraryFixture,
       customGymScenarioFixture,
     ]);
     const user = userEvent.setup();
     const { onEditScenario } = renderHub();
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Mariana Escobedo/i }),
-      ).toBeInTheDocument();
-    });
+    await openBiblioteca(user);
 
     expect(
       screen.queryByRole("button", { name: /Editar Mariana/i }),

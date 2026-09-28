@@ -9,9 +9,11 @@ import {
   listScenarios,
   saveScenarioVoiceAgent,
   setScenarioActive,
+  setScenarioLibraryPublished,
 } from "@/lib/api/client";
 import {
   isScenarioActiveForPractice,
+  isScenarioPublishedToLibrary,
   type ScenarioRecord,
 } from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
@@ -98,7 +100,7 @@ export function ScenarioHub({
   assignedScenarioSlugs = null,
 }: ScenarioHubProps) {
   const isAgenteHub = hubMode === "agente";
-  const [tab, setTab] = useState<ScenarioTab>("library");
+  const [tab, setTab] = useState<ScenarioTab>(isAgenteHub ? "library" : "custom");
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
   const [loadingScenarios, setLoadingScenarios] = useState(true);
@@ -175,7 +177,6 @@ export function ScenarioHub({
     return next.filter((s) => allowed.has(s.slug));
   };
 
-  const presets = filterAssigned(scenarios.filter((s) => s.isPreset));
   const customAll = scenarios.filter((s) => !s.isPreset);
   const customActive = filterAssigned(
     customAll.filter(isScenarioActiveForPractice),
@@ -185,45 +186,33 @@ export function ScenarioHub({
       ? customAll.filter((s) => !isScenarioActiveForPractice(s))
       : [];
   const custom = customActive;
-  const displayPresets =
-    catalogFailed
-      ? []
-      : presets.length > 0
-      ? presets
-      : CLIENTS.map(
-          (c) =>
-            ({
-              slug: c.slug,
-              clientName: c.name,
-              clientTitle: c.title,
-              companyContext: c.company,
-              difficultyLabel: c.difficulty,
-              indicator: c.indicator,
-              painPoints: c.pains,
-              isPreset: true,
-              language: "es",
-              config: { rounds: [] },
-            }) as unknown as ScenarioRecord,
-        );
+  const libraryCatalog = filterAssigned(
+    customAll.filter(
+      (s) =>
+        isScenarioPublishedToLibrary(s) && isScenarioActiveForPractice(s),
+    ),
+  );
 
   const agenteScenarios = useMemo(() => {
-    const bySlug = new Map<string, ScenarioRecord>();
-    for (const s of [...displayPresets, ...custom]) {
-      bySlug.set(s.slug, s);
-    }
-    return [...bySlug.values()];
-  }, [displayPresets, custom]);
+    if (!isAgenteHub) return [];
+    const allowed = assignedScenarioSlugs?.length
+      ? new Set(assignedScenarioSlugs)
+      : null;
+    return scenarios.filter((s) => {
+      if (!isScenarioActiveForPractice(s)) return false;
+      if (allowed && !allowed.has(s.slug)) return false;
+      if (s.isPreset) return true;
+      return isScenarioPublishedToLibrary(s);
+    });
+  }, [isAgenteHub, scenarios, assignedScenarioSlugs]);
 
   const visibleScenarios = isAgenteHub
     ? agenteScenarios
     : tab === "library"
-      ? displayPresets
+      ? libraryCatalog
       : custom;
 
-  const selected =
-    scenarios.find((s) => s.slug === selectedSlug) ??
-    displayPresets.find((s) => s.slug === selectedSlug) ??
-    null;
+  const selected = scenarios.find((s) => s.slug === selectedSlug) ?? null;
 
   const selectedClient = CLIENTS.find((c) => c.slug === selectedSlug) ?? null;
 
@@ -354,6 +343,24 @@ export function ScenarioHub({
     });
   };
 
+  const handlePublishToLibrary = async (scenario: ScenarioRecord) => {
+    if (isScenarioPublishedToLibrary(scenario)) return;
+    try {
+      const updated = await setScenarioLibraryPublished(scenario.slug, true);
+      setScenarios((prev) =>
+        prev.map((s) => (s.slug === updated.slug ? updated : s)),
+      );
+      showToast("Escenario publicado en la biblioteca.", "success");
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "No se pudo publicar en la biblioteca.",
+        "error",
+      );
+    }
+  };
+
   const handleScenarioLifecycle = async (
     scenario: ScenarioRecord,
     active: boolean,
@@ -386,10 +393,12 @@ export function ScenarioHub({
 
   const renderScenarioCard = (
     scenario: ScenarioRecord,
-    options?: { retired?: boolean },
+    options?: { retired?: boolean; showDraftActions?: boolean },
   ) => {
     const isSelected = selectedSlug === scenario.slug;
     const retired = options?.retired ?? false;
+    const showDraftActions = options?.showDraftActions ?? false;
+    const published = isScenarioPublishedToLibrary(scenario);
     return (
       <div
         key={scenario.slug}
@@ -432,6 +441,13 @@ export function ScenarioHub({
           </p>
           {!scenario.isPreset ? (
             <p className="scenario-card__tags">
+              {showDraftActions ? (
+                <span
+                  className={`scenario-card__tag ${published ? "scenario-card__tag--published" : "scenario-card__tag--draft"}`}
+                >
+                  {published ? "Publicado en biblioteca" : "Borrador"}
+                </span>
+              ) : null}
               <span className="scenario-card__tag">
                 {scenario.temperament ?? "Temperamento"}
               </span>
@@ -444,10 +460,21 @@ export function ScenarioHub({
             </p>
           ) : null}
         </Card>
-        {!scenario.isPreset && !isAgenteHub ? (
+        {!scenario.isPreset && !isAgenteHub && showDraftActions ? (
           <div className="scenario-card__actions">
             {!retired ? (
               <>
+                {!published ? (
+                  <Button
+                    variant="secondary"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handlePublishToLibrary(scenario);
+                    }}
+                  >
+                    Enviar a la biblioteca
+                  </Button>
+                ) : null}
                 <Button
                   variant="ghost"
                   onClick={(event) => {
@@ -547,6 +574,13 @@ export function ScenarioHub({
           </button>
         ) : null}
       </div>
+      {!isAgenteHub ? (
+        <p className="train-hub__tab-hint" role="note">
+          {tab === "library"
+            ? "Biblioteca: catálogo publicado para asignar a agentes. Solo aparecen escenarios activos que enviaste desde Mis escenarios."
+            : "Mis escenarios: borradores y copias de trabajo. Pruébalos aquí y publícalos cuando estén listos."}
+        </p>
+      ) : null}
 
       <div
         id={scenarioPanelId}
@@ -574,6 +608,13 @@ export function ScenarioHub({
             actionLabel="Crear escenario"
             onAction={onCreateScenario}
           />
+        ) : tab === "library" && libraryCatalog.length === 0 && !isAgenteHub ? (
+          <EmptyState
+            title="Biblioteca vacía"
+            description="Aquí verás los escenarios que publiques para el equipo. Créalos y pruébalos en Mis escenarios y usa «Enviar a la biblioteca» cuando estén listos."
+            actionLabel="Ir a Mis escenarios"
+            onAction={() => setTab("custom")}
+          />
         ) : visibleScenarios.length === 0 ? (
           <EmptyState
             title="No hay escenarios disponibles"
@@ -583,7 +624,11 @@ export function ScenarioHub({
           />
         ) : (
           <div className="scenario-grid" role="list">
-            {visibleScenarios.map((scenario) => renderScenarioCard(scenario))}
+            {visibleScenarios.map((scenario) =>
+              renderScenarioCard(scenario, {
+                showDraftActions: !isAgenteHub && tab === "custom",
+              }),
+            )}
           </div>
         )}
       </div>
@@ -606,7 +651,10 @@ export function ScenarioHub({
           </p>
           <div className="scenario-grid" role="list">
             {customRetired.map((scenario) =>
-              renderScenarioCard(scenario, { retired: true }),
+              renderScenarioCard(scenario, {
+                retired: true,
+                showDraftActions: true,
+              }),
             )}
           </div>
         </section>

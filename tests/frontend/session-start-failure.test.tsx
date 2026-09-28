@@ -4,7 +4,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SimulatorApp } from "@/app/components/SimulatorApp";
 import { clearProductRole } from "@/lib/frontend/product-role";
-import { marianaScenarioFixture } from "@/tests/frontend/fixtures";
+import { publishedMarianaLibraryFixture } from "@/tests/frontend/fixtures";
 import type { SessionResponse } from "@/lib/api/stubs";
 
 vi.mock("@/lib/api/client", () => ({
@@ -72,8 +72,10 @@ import { createSession, listScenarios, saveScenarioVoiceAgent } from "@/lib/api/
 describe("session start failure", () => {
   beforeEach(() => {
     clearProductRole();
-    vi.mocked(listScenarios).mockResolvedValue([marianaScenarioFixture]);
-    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(marianaScenarioFixture);
+    vi.mocked(listScenarios).mockResolvedValue([publishedMarianaLibraryFixture]);
+    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(
+      publishedMarianaLibraryFixture,
+    );
     vi.mocked(createSession).mockRejectedValue(
       new Error("Servicio no disponible"),
     );
@@ -90,6 +92,7 @@ describe("session start failure", () => {
       await screen.findByRole("button", { name: /Entrar como Capacitador/i }),
     );
     await user.click(screen.getByRole("button", { name: "Escenarios" }));
+    await user.click(await screen.findByRole("tab", { name: "Biblioteca" }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Mariana Escobedo/i })).toBeInTheDocument();
     });

@@ -33,6 +33,18 @@ export const marianaScenarioFixture: ScenarioRecord = {
 };
 
 /** Custom scenario fixture for authoring/edit tests. */
+/** Custom scenario published to Biblioteca (not a clinic preset). */
+export const publishedMarianaLibraryFixture: ScenarioRecord = {
+  ...marianaScenarioFixture,
+  id: "custom-mariana-published",
+  isPreset: false,
+  industry: "desarrolladora",
+  productSold: "vivienda media",
+  temperament: "escéptica",
+  clientProblem: "medición",
+  libraryPublishedAt: "2026-09-01T12:00:00.000Z",
+};
+
 export const customGymScenarioFixture: ScenarioRecord = {
   id: "custom-gym",
   slug: "laura-gimnasio",

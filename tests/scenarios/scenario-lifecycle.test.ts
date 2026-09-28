@@ -4,8 +4,12 @@ import {
   stubCreateScenario,
   stubCreateSession,
   stubSetScenarioActive,
+  stubSetScenarioLibraryPublished,
 } from "@/lib/api/stubs";
-import { isScenarioActiveForPractice } from "@/lib/scenarios/types";
+import {
+  isScenarioActiveForPractice,
+  isScenarioPublishedToLibrary,
+} from "@/lib/scenarios/types";
 import { customGymScenarioFixture } from "@/tests/frontend/fixtures";
 
 describe("scenario lifecycle (soft deactivate)", () => {
@@ -34,6 +38,26 @@ describe("scenario lifecycle (soft deactivate)", () => {
 
     const again = stubSetScenarioActive(created.slug, true);
     expect(again.deactivatedAt).toBeFalsy();
+  });
+
+  it("publishes custom scenarios to the library catalog", () => {
+    const created = stubCreateScenario({
+      industry: "Retail",
+      productSold: "POS",
+      clientName: "Lucía Paz",
+      clientTitle: "Dueña",
+      companyContext: "Tienda",
+      temperament: "Directa",
+      difficultyLabel: "Media",
+      clientProblem: "inventario",
+      objections: [],
+      winCriteria: "Demo",
+    });
+    expect(isScenarioPublishedToLibrary(created)).toBe(false);
+    const published = stubSetScenarioLibraryPublished(created.slug, true);
+    expect(isScenarioPublishedToLibrary(published)).toBe(true);
+    const unpublished = stubSetScenarioLibraryPublished(created.slug, false);
+    expect(isScenarioPublishedToLibrary(unpublished)).toBe(false);
   });
 
   it("blocks starting a session on a deactivated scenario", () => {
