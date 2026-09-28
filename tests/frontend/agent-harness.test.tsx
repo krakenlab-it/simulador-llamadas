@@ -39,9 +39,9 @@ describe("AgentHarnessScreen", () => {
       </ToastProvider>,
     );
     expect(
-      await screen.findByRole("heading", { name: /Arma el escenario/i }),
+      await screen.findByRole("heading", { name: /Arma casos en conversación/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Vercel AI Gateway/i)).toBeInTheDocument();
+    expect(screen.getByText(/mismo motor en vivo/i)).toBeInTheDocument();
     expect(screen.getByText(/Hechos del caso/i)).toBeInTheDocument();
     expect(screen.getByText(/Coach aparte/i)).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Cliente en vivo" })).toBeChecked();

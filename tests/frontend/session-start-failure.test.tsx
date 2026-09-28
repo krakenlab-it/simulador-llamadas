@@ -100,7 +100,7 @@ describe("session start failure", () => {
     });
 
     expect(
-      screen.getByRole("heading", { name: "Elige un escenario y empieza" }),
+      screen.getByRole("heading", { name: /Practica la llamada antes de marcar/i }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Llamada en vivo")).not.toBeInTheDocument();
     expect(createSession).toHaveBeenCalledTimes(1);

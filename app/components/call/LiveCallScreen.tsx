@@ -42,6 +42,9 @@ import {
   toPublicVoiceConsoleEntry,
   type VoiceConsoleEntry,
 } from "@/lib/voice/console-log";
+import { CoachCallout } from "@/app/components/ui/CoachCallout";
+import { PRACTICE_CALL_BANNER } from "@/lib/frontend/training-copy";
+import { DIFFICULTY_LABELS } from "@/lib/frontend/training-readiness";
 
 interface DialogueEntry {
   role: "client" | "you";
@@ -59,6 +62,8 @@ interface LiveCallScreenProps {
   totalRounds: number;
   phaseLabels?: string[];
   openingLine?: string;
+  buyerTemperament?: string;
+  buyerDifficultyLabel?: string;
   verifiedUserId?: string;
   voiceAgent?: VoiceAgentSettings;
   ending?: boolean;
@@ -89,6 +94,8 @@ export function LiveCallScreen({
   totalRounds,
   phaseLabels,
   openingLine: authoredOpeningLine,
+  buyerTemperament,
+  buyerDifficultyLabel,
   verifiedUserId,
   voiceAgent = DEFAULT_VOICE_AGENT_SETTINGS,
   ending = false,
@@ -606,8 +613,11 @@ export function LiveCallScreen({
           </p>
           <h1 className="call-screen__client">{clientName}</h1>
           <p className="call-screen__meta">
-            Nivel {level} · {mode} ·{" "}
-            {agentSettings.language === "en" ? "EN" : "ES"}
+            {DIFFICULTY_LABELS[level as 1 | 2 | 3] ?? `Nivel ${level}`}
+            {buyerDifficultyLabel ? ` · Caso ${buyerDifficultyLabel}` : ""}
+            {buyerTemperament ? ` · ${buyerTemperament}` : ""}
+            {" · "}
+            {mode} · {agentSettings.language === "en" ? "EN" : "ES"}
           </p>
         </div>
         <Button variant="danger" onClick={handleHangUp} loading={hangingUp || ending}>
@@ -656,8 +666,16 @@ export function LiveCallScreen({
         </p>
       </div>
 
-      <div className="call-console__body">
-        <VoiceConsoleLog entries={consoleLogs} />
+      <div className="call-console__body call-console__split">
+        <div className="call-console__conversation">
+        <CoachCallout title="Conversación en vivo" tone="success">
+          {PRACTICE_CALL_BANNER}
+        </CoachCallout>
+
+        <details className="call-console__tech">
+          <summary>Consola de voz (técnico)</summary>
+          <VoiceConsoleLog entries={consoleLogs} />
+        </details>
 
         <div className="dialogue" ref={dialogueRef} aria-live="polite">
           {dialogue.map((entry, i) => (
@@ -792,11 +810,18 @@ export function LiveCallScreen({
             {speech.error}
           </p>
         ) : null}
+        </div>
 
-        <TurnFeedbackRail
-          entries={feedbackHistory}
-          onToggle={handleToggleFeedback}
-        />
+        <aside className="call-console__coaching" aria-label="Coaching del vendedor">
+          <h2 className="call-console__coaching-title">Coaching</h2>
+          <p className="call-console__coaching-hint">
+            Notas para ti después de cada turno. No es la voz del comprador.
+          </p>
+          <TurnFeedbackRail
+            entries={feedbackHistory}
+            onToggle={handleToggleFeedback}
+          />
+        </aside>
       </div>
     </section>
   );

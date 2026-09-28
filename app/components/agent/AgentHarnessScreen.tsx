@@ -181,13 +181,13 @@ export function AgentHarnessScreen({
 
   return (
     <div className="agent-harness">
-      <header className="page-hero">
-        <p className="page-hero__eyebrow">Arranque guiado</p>
-        <h1 className="page-hero__title">Arma el escenario o practica ya</h1>
+      <header className="page-hero page-hero--compact">
+        <p className="page-hero__eyebrow">Simulador de Confianza · Agente</p>
+        <h1 className="page-hero__title">Arma casos en conversación</h1>
         <p className="page-hero__subtitle">
-          Tres pasos: elige un caso listo o un ejemplo (Kraken Flow, Me We,
-          Wellness), revisa tono y si el cliente vive, practica. Luego compara
-          al equipo. Camino feliz: Vercel AI Gateway → DeepSeek.
+          Habla con el agente para proponer un perfil de comprador. Revisa el
+          borrador, guárdalo y practícalo en Entrenar — mismo motor en vivo que
+          el diseñador manual.
         </p>
       </header>
 

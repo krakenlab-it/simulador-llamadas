@@ -375,6 +375,8 @@ function SimulatorShell() {
             totalRounds={config.totalRounds}
             phaseLabels={config.phaseLabels}
             openingLine={config.openingLine}
+            buyerTemperament={config.temperament}
+            buyerDifficultyLabel={config.difficultyLabel}
             verifiedUserId={config.verifiedUserId}
             voiceAgent={config.voiceAgent}
             ending={ending}

@@ -312,7 +312,7 @@ describe("ScenarioHub flow", () => {
     });
     expect(onStart).not.toHaveBeenCalled();
     expect(
-      screen.getByRole("heading", { name: "Elige un escenario y empieza" }),
+      screen.getByRole("heading", { name: /Practica la llamada antes de marcar/i }),
     ).toBeInTheDocument();
   });
 

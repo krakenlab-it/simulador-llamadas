@@ -80,11 +80,14 @@ describe("ScenarioBuilderScreen", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
-    expect(screen.getByText("Fases de la llamada")).toBeInTheDocument();
+    expect(screen.getByText("Briefing de fases (coach)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Completar con IA" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Continuar" }));
-    expect(screen.getByText("Éxito y puntuación")).toBeInTheDocument();
-    expect(screen.getByText("Qué se ve bien (6 dimensiones)")).toBeInTheDocument();
+    expect(screen.getByText("Cómo se gana la práctica")).toBeInTheDocument();
+    expect(
+      screen.getByText("Afinar las 6 dimensiones (opcional)"),
+    ).toBeInTheDocument();
 
     const win = screen.getByPlaceholderText(/Cita con día y hora/i);
     await user.clear(win);

@@ -13,7 +13,7 @@ export function TurnFeedbackRail({ entries, onToggle }: TurnFeedbackRailProps) {
 
   return (
     <section className="turn-feedback" aria-label="Coaching por turno">
-      <ol className="turn-feedback__list" aria-label="Historial de coaching">
+      <ol className="turn-feedback__list" aria-label="Historial de coaching por turno">
         {entries.map((entry) => {
           const expanded = !entry.collapsed;
           return (

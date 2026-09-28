@@ -28,6 +28,11 @@ import {
   DIFFICULTY_LABELS,
   MODE_LABELS,
 } from "@/lib/frontend/training-readiness";
+import {
+  difficultyCoachHint,
+  hubDifficultyHint,
+} from "@/lib/frontend/training-copy";
+import { normalizeDifficultyEtiqueta } from "@/lib/scenarios/difficulty-etiquette";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Spinner } from "@/app/components/ui/Spinner";
@@ -56,6 +61,8 @@ export interface SetupConfig {
   verifiedEmail?: string;
   client?: ClientPersona;
   voiceAgent: VoiceAgentSettings;
+  temperament?: string;
+  difficultyLabel?: string;
 }
 
 interface ScenarioHubProps {
@@ -295,6 +302,8 @@ export function ScenarioHub({
       verifiedUserId: verifiedUserId ?? undefined,
       verifiedEmail: verifiedEmail ?? undefined,
       voiceAgent: settings,
+      temperament: selected.temperament ?? selected.config.temperament,
+      difficultyLabel: selected.difficultyLabel,
     });
   };
 
@@ -336,12 +345,18 @@ export function ScenarioHub({
                 `Indicador: ${scenario.indicator}`
               : `Vende: ${scenario.productSold}`}
           </p>
-          {(scenario.painPoints ?? []).length > 0 ? (
-            <ul className="scenario-card__pains">
-              {(scenario.painPoints ?? []).slice(0, 2).map((pain) => (
-                <li key={pain}>{pain}</li>
-              ))}
-            </ul>
+          {!scenario.isPreset ? (
+            <p className="scenario-card__tags">
+              <span className="scenario-card__tag">
+                {scenario.temperament ?? "Temperamento"}
+              </span>
+              <span className="scenario-card__tag">
+                {normalizeDifficultyEtiqueta(
+                  scenario.difficultyLabel,
+                  normalizeAuthoringLanguage(scenario.language),
+                )}
+              </span>
+            </p>
           ) : null}
         </Card>
         {!scenario.isPreset ? (
@@ -357,17 +372,17 @@ export function ScenarioHub({
 
   return (
     <div className="train-hub">
-      <header className="page-hero">
-        <p className="page-hero__eyebrow">Tu sesión de práctica</p>
-        <h1 className="page-hero__title">Elige un escenario y empieza</h1>
+      <header className="page-hero page-hero--compact">
+        <p className="page-hero__eyebrow">Simulador de Confianza · Entrenar</p>
+        <h1 className="page-hero__title">Practica la llamada antes de marcar</h1>
         <p className="page-hero__subtitle">
-          Elige el caso. El pack (hechos, objeción real, qué concede) ya viene
-          armado — no es un formulario. Tú eliges dificultad, tono e idioma.
-          Cinco rondas; gana con día y hora. Luego compara al equipo en el
-          mismo examen.
+          Elige el comprador que contesta el teléfono. Ajusta dificultad y voz.
+          El cliente en vivo improvisa; el coaching va aparte.
         </p>
       </header>
 
+      <div className="train-hub__layout">
+        <div className="train-hub__main">
       <div
         className="train-hub__tabs"
         role="tablist"
@@ -451,8 +466,41 @@ export function ScenarioHub({
           </Button>
         </div>
       ) : null}
+        </div>
 
-      <aside className="config-panel" aria-label="Configuración de la llamada">
+        <div className="train-hub__aside">
+      {selected ? (
+        <div className="train-session-card" aria-label="Resumen del comprador">
+          <p className="train-session-card__eyebrow">Comprador seleccionado</p>
+          <h2 className="train-session-card__name">{selected.clientName}</h2>
+          <p className="train-session-card__role">
+            {selected.clientTitle} · {selected.companyContext}
+          </p>
+          <ul className="train-session-card__chips">
+            <li>{selected.temperament ?? selected.config.temperament}</li>
+            <li>
+              {normalizeDifficultyEtiqueta(
+                selected.difficultyLabel,
+                normalizeAuthoringLanguage(selected.language),
+              )}
+            </li>
+            <li>{MODE_LABELS[mode]}</li>
+          </ul>
+          <p className="train-session-card__hint">
+            {difficultyCoachHint(
+              selected.difficultyLabel ?? "Intermedio",
+              normalizeAuthoringLanguage(selected.language),
+            )}
+          </p>
+        </div>
+      ) : (
+        <div className="train-session-card train-session-card--empty">
+          <p>Elige un escenario para ver el perfil del comprador y armar la llamada.</p>
+        </div>
+      )}
+
+      <aside className="config-panel config-panel--stacked" aria-label="Configuración de la llamada">
+        <h2 className="config-panel__title">Antes de marcar</h2>
         <div className="config-panel__section">
           <Switch
             label="Modo voz"
@@ -484,6 +532,7 @@ export function ScenarioHub({
               setVoiceAgent((prev) => ({ ...prev, difficultyLevel: next }));
             }}
           />
+          <p className="config-panel__hint">{hubDifficultyHint(level)}</p>
         </div>
 
         <p className="config-panel__hint">
@@ -590,6 +639,8 @@ export function ScenarioHub({
         >
           Iniciar llamada
         </Button>
+      </div>
+        </div>
       </div>
     </div>
   );

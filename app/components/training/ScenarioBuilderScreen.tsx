@@ -33,7 +33,12 @@ import {
 import type { ScenarioLanguage, ScenarioRecord, ScenarioRoundDef } from "@/lib/scenarios/types";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
 import { Button } from "@/app/components/ui/Button";
+import { CoachCallout } from "@/app/components/ui/CoachCallout";
 import { SegmentedControl } from "@/app/components/ui/Switch";
+import {
+  AUTHORING_MENTAL_MODEL,
+  difficultyCoachHint,
+} from "@/lib/frontend/training-copy";
 
 export interface ScenarioBuilderResult {
   scenario: ScenarioRecord;
@@ -48,11 +53,11 @@ interface ScenarioBuilderScreenProps {
 function stepLabel(step: AuthoringStep): string {
   switch (step) {
     case "persona":
-      return "Cliente";
+      return "Perfil del comprador";
     case "beats":
-      return "Fases";
+      return "Briefing de fases";
     case "success":
-      return "Éxito";
+      return "Cómo se gana";
     default: {
       const _exhaustive: never = step;
       return _exhaustive;
@@ -63,11 +68,11 @@ function stepLabel(step: AuthoringStep): string {
 function stepHint(step: AuthoringStep): string {
   switch (step) {
     case "persona":
-      return "Quién es el cliente y en qué idioma habla.";
+      return "Quién contesta el teléfono: rol, temperamento y dificultad.";
     case "beats":
-      return "El arco de la llamada: de 3 a 7 fases, con lo que debe lograr el vendedor.";
+      return "Arco de la llamada para el coach — no es lo que el comprador lee en voz alta.";
     case "success":
-      return "Cómo se gana y qué se ve bien. Misma tarjeta de 6 puntos de cada llamada.";
+      return "Qué debe lograr el vendedor para ganar la práctica.";
     default: {
       const _exhaustive: never = step;
       return _exhaustive;
@@ -194,15 +199,14 @@ export function ScenarioBuilderScreen({
       aria-label={editing ? "Editar escenario" : "Crear escenario"}
     >
       <header className="page-hero page-hero--compact">
-        <p className="page-hero__eyebrow">
-          {editing ? "Editar escenario" : "Escenario personalizado"}
-        </p>
+        <p className="page-hero__eyebrow">Simulador de Confianza · Autoría</p>
         <h1 className="page-hero__title">
-          {editing ? "Afinar el caso de venta" : "Diseña tu caso de venta"}
+          {editing ? "Afinar el perfil del comprador" : "Armar un caso de práctica"}
         </h1>
         <p className="page-hero__subtitle">
-          Tres pasos: persona del cliente, fases de la llamada y cómo se gana.
-          Clínica de Citas sigue siendo un preset; esto no lo cambia.
+          Tres bloques: quién contesta, briefing de fases para el coach, y cómo
+          gana el vendedor. La llamada en vivo usa este contexto — no copia tus
+          textos palabra por palabra.
         </p>
       </header>
 
@@ -233,13 +237,19 @@ export function ScenarioBuilderScreen({
       </ol>
 
       <div className="builder-form">
+        <CoachCallout title={AUTHORING_MENTAL_MODEL.title}>
+          {AUTHORING_MENTAL_MODEL.body}
+        </CoachCallout>
+
         {step === "persona" ? (
           <fieldset className="builder-form__group">
-            <legend>Persona del cliente</legend>
+            <legend>Perfil del comprador</legend>
             <p className="builder-form__note">
-              Así habla y se presenta el cliente simulado. El idioma se guarda
-              para la llamada; no cambia la voz desde aquí.
+              Define a la persona que contesta el teléfono. El idioma del cliente
+              se guarda para la simulación.
             </p>
+            <div className="builder-subcard">
+              <h3 className="builder-subcard__title">Identidad</h3>
             <div className="builder-form__grid">
               <div className="field field--full">
                 <SegmentedControl
@@ -277,6 +287,11 @@ export function ScenarioBuilderScreen({
                   placeholder="Ej. Cadena nacional de gimnasios"
                 />
               </label>
+            </div>
+            </div>
+            <div className="builder-subcard">
+              <h3 className="builder-subcard__title">Contexto de venta</h3>
+              <div className="builder-form__grid">
               <label className="field">
                 <span className="field__label">Industria / negocio</span>
                 <input
@@ -293,6 +308,34 @@ export function ScenarioBuilderScreen({
                   placeholder="Ej. membresía premium, póliza de auto"
                 />
               </label>
+              <label className="field field--full">
+                <span className="field__label">Problema real del cliente</span>
+                <textarea
+                  value={draft.clientProblem}
+                  onChange={(e) => setField("clientProblem", e.target.value)}
+                  placeholder="¿Qué le duele hoy? (briefing — no se lee en voz alta)"
+                  rows={2}
+                />
+              </label>
+              {draft.objections.map((obj, i) => (
+                <label key={`obj-${i}`} className="field field--full">
+                  <span className="field__label">Objeción esperada {i + 1}</span>
+                  <input
+                    value={obj}
+                    onChange={(e) => {
+                      const next = [...draft.objections];
+                      next[i] = e.target.value;
+                      setField("objections", next);
+                    }}
+                    placeholder="Ej. Ya tenemos proveedor"
+                  />
+                </label>
+              ))}
+              </div>
+            </div>
+            <div className="builder-subcard">
+              <h3 className="builder-subcard__title">Psicología en la llamada</h3>
+            <div className="builder-form__grid">
               <label className="field">
                 <span className="field__label">Temperamento</span>
                 <select
@@ -351,49 +394,36 @@ export function ScenarioBuilderScreen({
                   ))}
                 </select>
               </label>
-              <label className="field field--full">
-                <span className="field__label">Problema real del cliente</span>
-                <textarea
-                  value={draft.clientProblem}
-                  onChange={(e) => setField("clientProblem", e.target.value)}
-                  placeholder="¿Qué le duele hoy?"
-                  rows={2}
-                />
-              </label>
-              {draft.objections.map((obj, i) => (
-                <label key={`obj-${i}`} className="field field--full">
-                  <span className="field__label">Objeción esperada {i + 1}</span>
-                  <input
-                    value={obj}
-                    onChange={(e) => {
-                      const next = [...draft.objections];
-                      next[i] = e.target.value;
-                      setField("objections", next);
-                    }}
-                    placeholder="Ej. Ya tenemos proveedor"
-                  />
-                </label>
-              ))}
+              <p className="field field--full builder-form__note builder-form__note--tight">
+                {difficultyCoachHint(draft.difficultyLabel, draft.language)}
+              </p>
+            </div>
             </div>
           </fieldset>
         ) : null}
 
         {step === "beats" ? (
           <fieldset className="builder-form__group">
-            <legend>Fases de la llamada</legend>
+            <legend>Briefing de fases (coach)</legend>
             <p className="builder-form__note">
-              Cada fase es un momento de la conversación. La clínica usa cinco
-              (apertura → cierre); aquí puedes ajustar de {MIN_AUTHORED_BEATS} a{" "}
-              {MAX_AUTHORED_BEATS}. Los textos de fases son briefing del coach:
-              la IA los usa como contexto, no como guion literal del cliente.
+              De {MIN_AUTHORED_BEATS} a {MAX_AUTHORED_BEATS} momentos. Describe
+              qué debe lograr el vendedor y qué presión pone el comprador — la IA
+              improvisa el diálogo en vivo.
             </p>
-            <div className="builder-form__actions builder-form__actions--inline">
+            <div className="builder-autofill-card">
+              <div className="builder-autofill-card__copy">
+                <strong>Completar con IA</strong>
+                <p>
+                  Rellena fases, presiones y objeciones con criterio de piso de
+                  ventas. Siempre puedes editar cada campo después.
+                </p>
+              </div>
               <Button
-                variant="secondary"
+                variant="primary"
                 loading={autofilling}
                 onClick={() => void handleAutofill()}
               >
-                Completar fases con IA
+                Completar con IA
               </Button>
             </div>
             <ol className="builder-beats">
@@ -480,11 +510,10 @@ export function ScenarioBuilderScreen({
 
         {step === "success" ? (
           <fieldset className="builder-form__group">
-            <legend>Éxito y puntuación</legend>
+            <legend>Cómo se gana la práctica</legend>
             <p className="builder-form__note">
-              Usamos la misma tarjeta de 6 puntos de cada llamada (KLM-50). No
-              inventamos otra rúbrica. Aquí solo describes qué se ve bien en
-              este caso.
+              Define el «advance» concreto (día y hora cuando aplique). La
+              puntuación usa la misma tarjeta de 6 puntos en cada llamada.
             </p>
             <div className="builder-form__grid">
               <div className="field field--full">
@@ -513,9 +542,11 @@ export function ScenarioBuilderScreen({
               </label>
             </div>
 
-            <div className="builder-scorecard" aria-label="Tarjeta de puntuación">
+            <details className="builder-scorecard" open>
+              <summary className="builder-scorecard__summary">
+                Afinar las 6 dimensiones (opcional)
+              </summary>
               <header className="builder-scorecard__head">
-                <h3>Qué se ve bien (6 dimensiones)</h3>
                 <p>
                   Pesos fijos: apertura 15%, discovery 25%, dolor 20%, valor 15%,
                   objeción 10%, cierre 15%.
@@ -546,7 +577,7 @@ export function ScenarioBuilderScreen({
                   </li>
                 ))}
               </ol>
-            </div>
+            </details>
           </fieldset>
         ) : null}
 

@@ -106,13 +106,13 @@ describe("Guardar y practicar", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: "Elige un escenario y empieza" }),
+        screen.getByRole("heading", { name: /Practica la llamada antes de marcar/i }),
       ).toBeInTheDocument();
     });
 
     await user.click(screen.getByRole("button", { name: "Agente" }));
     expect(
-      await screen.findByRole("heading", { name: /Arma el escenario/i }),
+      await screen.findByRole("heading", { name: /Arma casos en conversación/i }),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Cargar Kraken Flow/i }));
@@ -124,12 +124,12 @@ describe("Guardar y practicar", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: "Elige un escenario y empieza" }),
+        screen.getByRole("heading", { name: /Practica la llamada antes de marcar/i }),
       ).toBeInTheDocument();
     });
     expect(screen.getByText("Caso listo para practicar.")).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: /Arma el escenario/i }),
+      screen.queryByRole("heading", { name: /Arma casos en conversación/i }),
     ).not.toBeInTheDocument();
 
     expect(
