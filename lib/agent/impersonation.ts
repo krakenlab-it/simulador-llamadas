@@ -36,10 +36,11 @@ import {
 } from "./client-motor";
 import { buildClientPack, formatClientPack } from "./client-pack";
 import {
-  buildDialogueTranscriptBlock,
+  buildBuyerHarnessContextBlocks,
   buildImpersonationChatMessages,
+  enforceHarnessNoRepeat,
+  isHardRepeatViolation,
   pickNonRepeatingFallback,
-  resolveLiveSessionMaxTurns,
 } from "./dialogue-memory";
 import { composeSeparatedSystemPrompt } from "./roles";
 import {
@@ -109,7 +110,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     seed: preset?.clientPack ?? parseCatalogClientPackSeed(input.config.clientPack),
     difficultyLevel: difficulty,
     mode: input.mode,
-    maxTurns: resolveLiveSessionMaxTurns(configuredPhases, input.roundNumber),
+    maxTurns: configuredPhases,
   });
   const priorTurns = input.priorTurns ?? [];
   const logistics = analyzeMeetingLogistics(priorTurns, input.traineeUtterance);
@@ -123,7 +124,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     meters,
     logistics,
     turnNumber: input.roundNumber,
-    maxTurns: resolveLiveSessionMaxTurns(configuredPhases, input.roundNumber),
+    maxTurns: Math.max(configuredPhases, input.roundNumber),
   });
   const tone = toneHint(layer.toneId, mood);
   const psych = analyzeBuyerPsych({
@@ -160,13 +161,23 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
 
   const user = `El vendedor (usuario) dijo: "${input.traineeUtterance}"`;
 
-  const transcriptBlock = buildDialogueTranscriptBlock(priorTurns);
+  const recentClientReplies = (input.recentReplies ?? []).length
+    ? (input.recentReplies ?? [])
+    : priorTurns.filter((turn) => turn.role === "client").map((turn) => turn.text);
+
+  const harnessContext = buildBuyerHarnessContextBlocks({
+    priorTurns,
+    recentClientReplies,
+    psych,
+    logistics,
+    roundNumber: input.roundNumber,
+  });
 
   const context = [
     formatClientPack(pack),
     liveBlock,
     buildBuyerPsychBlock(psych),
-    transcriptBlock,
+    harnessContext,
     `Turno de práctica: ${input.round.label} (${input.roundNumber})`,
     recent.length ? `Réplicas recientes (NO clones):\n- ${recent.join("\n- ")}` : "",
     questions.length
@@ -185,13 +196,7 @@ export function buildImpersonationPrompt(input: ImpersonationInput): string {
 }
 
 export function isCloneReply(candidate: string, recentReplies: string[]): boolean {
-  const normalized = candidate.trim().toLowerCase().replace(/\s+/g, " ");
-  if (!normalized) return true;
-  if (/^(ok|okay|s[ií]|vale|claro|entendido)\.?$/.test(normalized)) return true;
-  return recentReplies.some((item) => {
-    const other = item.trim().toLowerCase().replace(/\s+/g, " ");
-    return other === normalized || (other.length > 12 && normalized.includes(other));
-  });
+  return isHardRepeatViolation(candidate, recentReplies);
 }
 
 export async function generateImpersonatedReply(
@@ -254,15 +259,22 @@ export async function generateImpersonatedReply(
       input.traineeUtterance,
       input.recentReplies ?? [],
     );
+    let finalLine = policed;
     if (logistics.shouldAcknowledgeSlot) {
       const repaired = repairDateDemandAfterAccept(
         policed,
         input.traineeUtterance,
         input.roundNumber,
       );
-      if (repaired) return repaired;
+      if (repaired) finalLine = repaired;
     }
-    return policed;
+    return enforceHarnessNoRepeat({
+      candidate: finalLine,
+      recentClientReplies: recentReplies,
+      phase: psych.phase,
+      primaryFallback: fallbackText,
+      turnNumber: input.roundNumber,
+    });
   } catch {
     return fallbackText;
   } finally {

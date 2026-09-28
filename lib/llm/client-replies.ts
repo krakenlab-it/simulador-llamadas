@@ -10,7 +10,11 @@ import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { templateClientReply } from "@/lib/feedback/evaluation";
 import { isDeepSeekAvailable } from "@/lib/agent/availability";
 import { buyerPsychPackForScenario } from "@/lib/agent/client-pack";
-import { buildDialogueTranscriptBlock } from "@/lib/agent/dialogue-memory";
+import { analyzeMeetingLogistics } from "@/lib/agent/client-motor";
+import {
+  buildBuyerHarnessContextBlocks,
+  enforceHarnessNoRepeat,
+} from "@/lib/agent/dialogue-memory";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
 import { callLlm, isLlmAvailable } from "@/lib/llm/provider";
 import { getCatalogPreset } from "@/lib/scenarios/catalog-presets";
@@ -93,9 +97,33 @@ export function buildClientReplyPrompt(input: GenerateReplyInput): string {
     ? `Si preguntas, usa un ángulo de este cliente: ${preset.questionBank[0]} No copies las réplicas de otros clientes.`
     : "No repitas la misma pregunta. Cambia el ángulo.";
 
-  const transcript = input.priorTurns?.length
-    ? buildDialogueTranscriptBlock(input.priorTurns)
-    : "";
+  const harness =
+    input.priorTurns && input.priorTurns.length > 0
+      ? buildBuyerHarnessContextBlocks({
+          priorTurns: input.priorTurns,
+          recentClientReplies: input.priorTurns
+            .filter((turn) => turn.role === "client")
+            .map((turn) => turn.text),
+          psych: analyzeBuyerPsych({
+            traineeUtterance: input.traineeUtterance,
+            priorTurns: input.priorTurns,
+            roundNumber: input.roundNumber,
+            scenarioSlug: input.scenarioSlug,
+            pack: buyerPsychPackForScenario({
+              scenarioSlug: input.scenarioSlug,
+              config: input.config,
+              clientName: input.clientName,
+              difficultyLevel: input.difficultyLevel,
+              mode: input.mode,
+            }),
+          }),
+          logistics: analyzeMeetingLogistics(
+            input.priorTurns,
+            input.traineeUtterance,
+          ),
+          roundNumber: input.roundNumber,
+        })
+      : "";
 
   return `Eres ${input.clientName}, cliente en ${input.config.industry}.
 Problema: ${input.config.clientProblem}.
@@ -104,7 +132,7 @@ Temperamento: ${input.config.temperament}.
 Idioma obligatorio: ${language.promptName} (${language.iso639}). Habla SOLO en ${language.promptName}.
 ${turnLabel}
 ${goodLooksLike ? `En esta fase, una buena respuesta del vendedor se ve así: ${goodLooksLike}.` : ""}
-${transcript ? `${transcript}\n` : ""}El vendedor dijo ahora: "${input.traineeUtterance}".
+${harness ? `${harness}\n\n` : ""}El vendedor dijo ahora: "${input.traineeUtterance}".
 Responde en 1-2 oraciones cortas, tono ${mood}. No repitas una réplica que ya dijiste en el transcript.
 ${questionHint}
 Solo la réplica del cliente, sin comillas ni explicación.`;
@@ -206,7 +234,28 @@ function policeClientReply(input: GenerateReplyInput, reply: string): string {
       mode: input.mode,
     }),
   });
-  return enforceBuyerTurnPolicy(reply, psych, input.traineeUtterance);
+  const recentClientReplies = (input.priorTurns ?? [])
+    .filter((turn) => turn.role === "client")
+    .map((turn) => turn.text);
+  const policed = enforceBuyerTurnPolicy(
+    reply,
+    psych,
+    input.traineeUtterance,
+    recentClientReplies,
+  );
+  const fallback = templateClientReply(
+    input.config,
+    input.round,
+    input.reaction,
+    input.clientName,
+  );
+  return enforceHarnessNoRepeat({
+    candidate: policed,
+    recentClientReplies,
+    phase: psych.phase,
+    primaryFallback: fallback,
+    turnNumber: input.roundNumber,
+  });
 }
 
 export function getOpeningLine(config: ScenarioConfig): string {
