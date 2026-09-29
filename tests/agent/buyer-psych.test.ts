@@ -30,6 +30,9 @@ describe("buyer psych harness", () => {
     expect(prompt).toMatch(/CLIENTE en el teléfono/i);
     expect(prompt).toMatch(/Nunca hables como el vendedor/);
     expect(prompt).toMatch(/PROHIBIDO/);
+    expect(prompt).toMatch(/llamada en frío/i);
+    expect(prompt).toMatch(/pregunta poderosa/i);
+    expect(prompt).toMatch(/simulaci[oó]n o clínica/i);
     expect(prompt).toMatch(/FAIL:.*En qué más te puedo ayudar/i);
     expect(ASSISTANT_CLOSING.test("¿En qué más te puedo ayudar?")).toBe(true);
     expect(

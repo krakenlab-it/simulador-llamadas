@@ -24,33 +24,152 @@ export const DECISION_ROLES = [
 ] as const;
 export type DecisionRole = (typeof DECISION_ROLES)[number];
 
+export interface ClientLayerEngineCopy {
+  title: string;
+  body: string;
+}
+
 export const CLIENT_LAYER_ENGINES = [
   {
-    id: "grounding",
+    id: "grounding" as const,
     title: "Hechos del caso",
-    body: "El cliente solo usa datos del pack. No inventa cifras ni nombres.",
+    body:
+      "Solo hechos del pack del caso. No inventes cifras ni nombres. El briefing de la clínica y las notas del coach no se leen en la llamada.",
   },
   {
-    id: "persona",
+    id: "persona" as const,
     title: "Persona y tono",
-    body: "Habla como esa persona, con el tono que elijas o el del personaje.",
+    body:
+      "Comprador real en llamada en frío: poco tiempo, desconfianza sana, no eres asistente ni coach. Habla con el temperamento del personaje o el tono elegido.",
   },
   {
-    id: "dialogo",
+    id: "dialogo" as const,
     title: "Diálogo en vivo",
-    body: "Una réplica corta por turno. Recuerda lo que ya aceptó.",
+    body:
+      "Réplicas cortas (1–2 frases). Recuerda lo ya aceptado. Cuando la fase lo permita, una pregunta poderosa (resultado medible, por qué ahora, quién más, prueba concreta) para tensionar al vendedor — no un cuestionario cada turno.",
   },
   {
-    id: "coach",
+    id: "coach" as const,
     title: "Coach aparte",
-    body: "El coaching es para el vendedor. Nunca habla con la voz del cliente.",
+    body:
+      "El coach guía al vendedor aparte; nunca usa la voz del cliente. Puede referir metas de la clínica de entrenamiento solo en canal coach, no en el diálogo en vivo.",
   },
 ] as const;
+
+export type ClientLayerEngineId = (typeof CLIENT_LAYER_ENGINES)[number]["id"];
 
 export interface ClientLayerSettings {
   /** Motor mode: live client, not a cloned script, when a model is available. */
   motorEnabled: boolean;
   toneId: ClientToneId;
+  /** Trainer-editable guardrails (IA screen); merged into live client/coach prompts. */
+  engineCopy?: Partial<Record<ClientLayerEngineId, ClientLayerEngineCopy>>;
+}
+
+const CLIENT_LAYER_ENGINE_IDS: ClientLayerEngineId[] = [
+  "grounding",
+  "persona",
+  "dialogo",
+  "coach",
+];
+
+function isClientLayerEngineId(value: string): value is ClientLayerEngineId {
+  return (CLIENT_LAYER_ENGINE_IDS as readonly string[]).includes(value);
+}
+
+function defaultEngineCopy(id: ClientLayerEngineId): ClientLayerEngineCopy {
+  const row = CLIENT_LAYER_ENGINES.find((engine) => engine.id === id);
+  return {
+    title: row?.title ?? id,
+    body: row?.body ?? "",
+  };
+}
+
+export function resolvedClientLayerEngineCopy(
+  layer: ClientLayerSettings | null | undefined,
+  id: ClientLayerEngineId,
+): ClientLayerEngineCopy {
+  const override = layer?.engineCopy?.[id];
+  const defaults = defaultEngineCopy(id);
+  const title =
+    typeof override?.title === "string" && override.title.trim()
+      ? override.title.trim()
+      : defaults.title;
+  const body =
+    typeof override?.body === "string" && override.body.trim()
+      ? override.body.trim()
+      : defaults.body;
+  return { title, body };
+}
+
+/** Guardrails for the live buyer motor (not the seller coach). */
+export function buildLiveClientGuardrailsBlock(
+  layer: ClientLayerSettings | null | undefined,
+): string {
+  return (["grounding", "persona", "dialogo"] as const)
+    .map((id) => {
+      const copy = resolvedClientLayerEngineCopy(layer, id);
+      return `${copy.title}: ${copy.body}`;
+    })
+    .join("\n");
+}
+
+export function buildCoachSeparationGuardrail(
+  layer: ClientLayerSettings | null | undefined,
+): string {
+  const copy = resolvedClientLayerEngineCopy(layer, "coach");
+  return `${copy.title}: ${copy.body}`;
+}
+
+export function mergeClientLayerSettings(
+  base?: ClientLayerSettings | null,
+  overlay?: ClientLayerSettings | null,
+): ClientLayerSettings {
+  const parsedBase = parseClientLayerSettings(base);
+  const parsedOverlay = parseClientLayerSettings(overlay);
+  const engineCopy: Partial<Record<ClientLayerEngineId, ClientLayerEngineCopy>> =
+    {};
+  for (const id of CLIENT_LAYER_ENGINE_IDS) {
+    const merged = {
+      ...resolvedClientLayerEngineCopy(parsedBase, id),
+      ...parsedOverlay.engineCopy?.[id],
+    };
+    const defaults = defaultEngineCopy(id);
+    if (merged.title !== defaults.title || merged.body !== defaults.body) {
+      engineCopy[id] = merged;
+    }
+  }
+  return {
+    motorEnabled: parsedBase.motorEnabled,
+    toneId: parsedBase.toneId,
+    ...(Object.keys(engineCopy).length > 0 ? { engineCopy } : {}),
+  };
+}
+
+export function patchClientLayerEngineCopy(
+  layer: ClientLayerSettings,
+  id: ClientLayerEngineId,
+  patch: Partial<ClientLayerEngineCopy>,
+): ClientLayerSettings {
+  const parsed = parseClientLayerSettings(layer);
+  const current = resolvedClientLayerEngineCopy(parsed, id);
+  const next: ClientLayerEngineCopy = {
+    title: patch.title?.trim() ? patch.title.trim() : current.title,
+    body: patch.body?.trim() ? patch.body.trim() : current.body,
+  };
+  const defaults = defaultEngineCopy(id);
+  const engineCopy = { ...parsed.engineCopy };
+  if (next.title === defaults.title && next.body === defaults.body) {
+    delete engineCopy[id];
+  } else {
+    engineCopy[id] = next;
+  }
+  const hasCopy = Object.keys(engineCopy).length > 0;
+  return {
+    motorEnabled: parsed.motorEnabled,
+    toneId: parsed.toneId,
+    ...(hasCopy ? { engineCopy } : {}),
+  };
 }
 
 export const DEFAULT_CLIENT_LAYER_SETTINGS: ClientLayerSettings = {
@@ -95,6 +214,28 @@ export function snapshotSessionConfig(input: {
   };
 }
 
+function parseEngineCopyRecord(
+  raw: unknown,
+): Partial<Record<ClientLayerEngineId, ClientLayerEngineCopy>> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const source = raw as Record<string, unknown>;
+  const engineCopy: Partial<Record<ClientLayerEngineId, ClientLayerEngineCopy>> =
+    {};
+  for (const [key, value] of Object.entries(source)) {
+    if (!isClientLayerEngineId(key)) continue;
+    if (!value || typeof value !== "object") continue;
+    const row = value as Record<string, unknown>;
+    const title = typeof row.title === "string" ? row.title.trim() : "";
+    const body = typeof row.body === "string" ? row.body.trim() : "";
+    if (!title && !body) continue;
+    engineCopy[key] = {
+      title: title || defaultEngineCopy(key).title,
+      body: body || defaultEngineCopy(key).body,
+    };
+  }
+  return Object.keys(engineCopy).length > 0 ? engineCopy : undefined;
+}
+
 export function parseClientLayerSettings(raw: unknown): ClientLayerSettings {
   if (!raw || typeof raw !== "object") {
     return { ...DEFAULT_CLIENT_LAYER_SETTINGS };
@@ -104,9 +245,11 @@ export function parseClientLayerSettings(raw: unknown): ClientLayerSettings {
     typeof source.toneId === "string" && isClientToneId(source.toneId)
       ? source.toneId
       : "auto";
+  const engineCopy = parseEngineCopyRecord(source.engineCopy);
   return {
     motorEnabled: source.motorEnabled !== false,
     toneId: tone,
+    ...(engineCopy ? { engineCopy } : {}),
   };
 }
 

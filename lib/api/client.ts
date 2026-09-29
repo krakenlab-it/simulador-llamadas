@@ -4,6 +4,15 @@ import type {
   TeamComparisonView,
 } from "@/lib/agent/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
+import type { ScenarioAuthoringDraft } from "@/lib/scenarios/authoring";
+import {
+  mergeLocalScenarioLifecycle,
+  setLocalScenarioActive,
+} from "@/lib/frontend/scenario-lifecycle";
+import {
+  mergeLocalScenarioLibrary,
+  setLocalScenarioLibraryPublished,
+} from "@/lib/frontend/scenario-library";
 import type {
   CreateCustomScenarioInput,
   RichTurnFeedback,
@@ -39,6 +48,8 @@ import {
   stubListScenarios,
   stubSubmitTurn,
   stubUpdateScenario,
+  stubSetScenarioActive,
+  stubSetScenarioLibraryPublished,
   type CreateSessionRequest,
   type EndSessionResponse,
   type HistoryEntry,
@@ -157,7 +168,35 @@ export async function endSession(
 
 export async function listScenarios(): Promise<ScenarioRecord[]> {
   const remote = await tryFetch<{ scenarios: ScenarioRecord[] }>("/api/scenarios");
-  return remote?.scenarios ?? stubListScenarios();
+  const rows = remote?.scenarios ?? stubListScenarios();
+  return mergeLocalScenarioLibrary(mergeLocalScenarioLifecycle(rows));
+}
+
+export async function setScenarioLibraryPublished(
+  slug: string,
+  published: boolean,
+): Promise<ScenarioRecord> {
+  const remote = await tryFetch<ScenarioRecord>(
+    `/api/scenarios/${slug}/library`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ published }),
+    },
+  );
+  setLocalScenarioLibraryPublished(slug, published);
+  return remote ?? stubSetScenarioLibraryPublished(slug, published);
+}
+
+export async function setScenarioActive(
+  slug: string,
+  active: boolean,
+): Promise<ScenarioRecord> {
+  const remote = await tryFetch<ScenarioRecord>(`/api/scenarios/${slug}/lifecycle`, {
+    method: "PATCH",
+    body: JSON.stringify({ active }),
+  });
+  setLocalScenarioActive(slug, active);
+  return remote ?? stubSetScenarioActive(slug, active);
 }
 
 export type CreateScenarioRequest = CreateCustomScenarioInput;
@@ -301,6 +340,38 @@ export async function recordTeamResult(
     },
   );
   return remote ?? stubRecordTeamResult(testId, body);
+}
+
+export async function autofillScenarioDraft(
+  draft: ScenarioAuthoringDraft,
+): Promise<{
+  patch: Partial<ScenarioAuthoringDraft>;
+  validationError: string | null;
+}> {
+  const remote = await tryFetch<{
+    patch: Partial<ScenarioAuthoringDraft>;
+    validationError: string | null;
+  }>("/api/scenarios/autofill", {
+    method: "POST",
+    body: JSON.stringify(draft),
+  });
+  if (remote) return remote;
+  const { buildDeterministicAuthoringAutofill } = await import(
+    "@/lib/scenarios/authoring-autofill"
+  );
+  const patch = buildDeterministicAuthoringAutofill({
+    industry: draft.industry,
+    productSold: draft.productSold,
+    clientName: draft.clientName,
+    clientTitle: draft.clientTitle,
+    companyContext: draft.companyContext,
+    clientProblem: draft.clientProblem,
+    language: draft.language,
+    callType: draft.callType,
+    temperament: draft.temperament,
+    difficultyLabel: draft.difficultyLabel,
+  });
+  return { patch, validationError: null };
 }
 
 export async function compareTeamTest(

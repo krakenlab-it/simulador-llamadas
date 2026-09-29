@@ -14,6 +14,10 @@ interface HistoryViewProps {
   traineeEmail?: string | null;
   onStartTraining?: () => void;
   onOpenCall?: (callAttemptId: string) => void;
+  /** Capacitador sees team-wide copy; agente sees assigned progress framing. */
+  audience?: "capacitador" | "agente" | "trainee";
+  /** When false, hide numeric scores (capacitador chose to withhold grades). */
+  showScoreDetails?: boolean;
 }
 
 function completedOnly(entries: HistoryEntry[]): HistoryEntry[] {
@@ -26,6 +30,8 @@ export function HistoryView({
   traineeEmail = null,
   onStartTraining,
   onOpenCall,
+  audience = "trainee",
+  showScoreDetails = true,
 }: HistoryViewProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,17 +87,34 @@ export function HistoryView({
     );
   }
 
+  const eyebrow =
+    audience === "capacitador"
+      ? "Capacitador · Calificaciones"
+      : audience === "agente"
+        ? "Agente · Mis resultados"
+        : "Inicio";
+  const title =
+    audience === "capacitador"
+      ? "Calificaciones y cumplimiento"
+      : audience === "agente"
+        ? "Tus simulaciones"
+        : "Tus prácticas";
+  const subtitle =
+    audience === "capacitador"
+      ? "Revisa scorecards de los agentes y abre cada llamada para ver métricas y coaching."
+      : showScoreDetails
+        ? rows.length === 0
+          ? "Cada llamada queda guardada con su scorecard. Completa las simulaciones que te asignó el capacitador."
+          : `${rows.length} ${rows.length === 1 ? "llamada guardada" : "llamadas guardadas"} · abre una para ver el scorecard`
+        : "El capacitador limitó las calificaciones visibles. Solo verás el historial de intentos.";
+
   return (
     <div className="history-view dashboard-home">
       <header className="page-hero page-hero--compact dashboard-home__hero">
         <div>
-          <p className="page-hero__eyebrow">Inicio</p>
-          <h1 className="page-hero__title">Tus prácticas</h1>
-          <p className="page-hero__subtitle">
-            {rows.length === 0
-              ? "Cada llamada queda guardada con su scorecard y coaching. Empieza una práctica cuando quieras."
-              : `${rows.length} ${rows.length === 1 ? "llamada guardada" : "llamadas guardadas"} · abre una para ver el scorecard`}
-          </p>
+          <p className="page-hero__eyebrow">{eyebrow}</p>
+          <h1 className="page-hero__title">{title}</h1>
+          <p className="page-hero__subtitle">{subtitle}</p>
         </div>
         {onStartTraining ? (
           <Button
@@ -126,11 +149,11 @@ export function HistoryView({
                   className="history-list__item history-list__item--button"
                   onClick={() => onOpenCall(row.id)}
                 >
-                  <HistoryRowContent row={row} />
+                  <HistoryRowContent row={row} showScoreDetails={showScoreDetails} />
                 </button>
               ) : (
                 <div className="history-list__item">
-                  <HistoryRowContent row={row} />
+                  <HistoryRowContent row={row} showScoreDetails={showScoreDetails} />
                 </div>
               )}
             </li>
@@ -143,14 +166,18 @@ export function HistoryView({
 
 function HistoryRowContent({
   row,
+  showScoreDetails,
 }: {
   row: ReturnType<typeof formatHistoryEntries>[number];
+  showScoreDetails: boolean;
 }) {
   return (
     <>
       <div className="history-list__main">
         <span className="history-list__client">{row.clientName}</span>
-        <span className="history-list__score">{row.scoreLabel}</span>
+        {showScoreDetails ? (
+          <span className="history-list__score">{row.scoreLabel}</span>
+        ) : null}
       </div>
       <div className="history-list__meta">
         <span>{row.when}</span>

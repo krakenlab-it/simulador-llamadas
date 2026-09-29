@@ -8,14 +8,24 @@ import { isDeepSeekAvailable } from "@/lib/agent/availability";
 import {
   analyzeBuyerPsych,
   enforceBuyerTurnPolicy,
+  progressiveBuyerFallback,
+  traineePresentedIdentity,
 } from "@/lib/agent/buyer-psych";
+import { isNearDuplicateReply } from "@/lib/agent/buyer-transcript";
 import {
   acknowledgeOfferedSlot,
   analyzeMeetingLogistics,
   repairDateDemandAfterAccept,
 } from "@/lib/agent/client-motor";
+import { buildCoachSeparationGuardrail } from "@/lib/agent/client-layer";
 import { buyerPsychPackForScenario } from "@/lib/agent/client-pack";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
+import { withCallOpeningInTranscript } from "@/lib/agent/buyer-transcript";
+import { openingLineForCall } from "@/lib/scenarios/authoring";
+import { getClientBySlug } from "@/lib/clients";
+import { getClientLine } from "@/lib/simulation/rounds";
+import { sanitizeLeakedBuyerReply } from "@/lib/scenarios/authoring-leak";
+import { combinedPracticeDifficulty } from "@/lib/scenarios/difficulty-etiquette";
 import { utteranceHasConcreteDayAndTime } from "./keywords";
 import {
   generateClientReply,
@@ -39,6 +49,7 @@ export interface LiveTurnInput {
   roundLabel: string;
   roundGoal: string;
   difficultyLevel: DifficultyLevel;
+  difficultyLabel?: string | null;
   scenarioSlug: string;
   isPreset: boolean;
   config: ScenarioConfig | null;
@@ -122,20 +133,34 @@ function buildCoachingNote(
   analytics: CallAnalytics,
   roundLabel: string,
   utterance: string,
+  clientLayer?: VoiceAgentSettings["clientLayer"],
 ): string {
+  const coachGuard = buildCoachSeparationGuardrail(clientLayer);
+  const prefix = (note: string) =>
+    coachGuard ? `${coachGuard} · ${note}` : note;
   if (utterance.trim().length < 15) {
-    return `${roundLabel}: tu turno fue muy corto; amplía con una pregunta abierta.`;
+    return prefix(
+      `${roundLabel}: tu turno fue muy corto; amplía con una pregunta abierta.`,
+    );
   }
   if (analytics.talkPercent > 80) {
-    return `${roundLabel}: hablaste ${analytics.talkPercent}% del tiempo; deja más espacio al cliente.`;
+    return prefix(
+      `${roundLabel}: hablaste ${analytics.talkPercent}% del tiempo; deja más espacio al cliente.`,
+    );
   }
   if (analytics.questionTypes.open === 0) {
-    return `${roundLabel}: prueba una pregunta abierta antes de proponer solución.`;
+    return prefix(
+      `${roundLabel}: prueba una pregunta abierta antes de proponer solución.`,
+    );
   }
   if (analytics.hasNextStep) {
-    return `${roundLabel}: buen avance hacia un siguiente paso concreto.`;
+    return prefix(
+      `${roundLabel}: buen avance hacia un siguiente paso concreto.`,
+    );
   }
-  return `${roundLabel}: escucha activa; profundiza en el impacto del problema.`;
+  return prefix(
+    `${roundLabel}: escucha activa; profundiza en el impacto del problema.`,
+  );
 }
 
 function resolveTurnNumber(input: LiveTurnInput): number {
@@ -179,19 +204,40 @@ function buildImpersonationHistory(priorLines: TranscriptLine[]): {
   };
 }
 
+function resolveCallOpeningLine(input: LiveTurnInput): string | undefined {
+  const selectedClient = getClientBySlug(input.scenarioSlug);
+  const presetLine =
+    input.isPreset && selectedClient
+      ? getClientLine(selectedClient, 0)
+      : undefined;
+  return openingLineForCall(input.config, input.isPreset, presetLine);
+}
+
 export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResult> {
+  const priorLines = withCallOpeningInTranscript(
+    input.priorLines,
+    resolveCallOpeningLine(input),
+  );
+
+  const language = input.config?.language === "en" ? "en" : "es";
+  const effectiveDifficulty = combinedPracticeDifficulty(
+    input.difficultyLevel,
+    input.difficultyLabel,
+    language,
+  );
   const analytics = computeTurnAnalytics({
     utterance: input.utterance,
-    priorLines: input.priorLines,
+    priorLines,
   });
 
-  const priorTurns = priorTurnsFromLines(input.priorLines);
+  const priorTurns = priorTurnsFromLines(priorLines);
   const logistics = analyzeMeetingLogistics(priorTurns, input.utterance);
   const clientReaction = reactionFromAnalytics(analytics, input.utterance, input);
   const coachingNote = buildCoachingNote(
     analytics,
     input.roundLabel,
     input.utterance,
+    input.voiceAgent?.clientLayer,
   );
 
   let clientReply: string;
@@ -233,13 +279,14 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
         roundNumber: resolveTurnNumber(input),
         scenarioSlug: input.scenarioSlug,
         priorTurns,
-        difficultyLevel: input.difficultyLevel,
+        difficultyLevel: effectiveDifficulty,
+        difficultyLabel: input.difficultyLabel,
         mode: "voz" as const,
         clientLayer: input.voiceAgent?.clientLayer,
       };
       const motorOn = input.voiceAgent?.clientLayer?.motorEnabled !== false;
       if (motorOn && isDeepSeekAvailable()) {
-        const history = buildImpersonationHistory(input.priorLines);
+        const history = buildImpersonationHistory(priorLines);
         clientReply = await generateImpersonatedReply(
           { ...impersonationInput, ...history },
           templatedReply,
@@ -272,7 +319,7 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
       traineeUtterance: input.utterance,
       roundNumber: resolveTurnNumber(input),
       priorTurns,
-      difficultyLevel: input.difficultyLevel,
+      difficultyLevel: effectiveDifficulty,
       mode: "voz",
       clientLayer: input.voiceAgent?.clientLayer,
     });
@@ -296,16 +343,42 @@ export async function scoreLiveTurn(input: LiveTurnInput): Promise<LiveTurnResul
     priorTurns,
     roundNumber: resolveTurnNumber(input),
     scenarioSlug: input.scenarioSlug,
+    difficultyLevel: effectiveDifficulty,
     pack: buyerPsychPackForScenario({
       scenarioSlug: input.scenarioSlug,
       config: input.config,
       clientName: input.clientName,
-      difficultyLevel: input.difficultyLevel,
+      difficultyLevel: effectiveDifficulty,
+      difficultyLabel: input.difficultyLabel,
       mode: "voz",
     }),
     logistics,
   });
-  clientReply = enforceBuyerTurnPolicy(clientReply, psych, input.utterance);
+  const languageCode = input.config?.language === "en" ? "en" : "es";
+  clientReply = sanitizeLeakedBuyerReply(clientReply, input.config, languageCode);
+  const recentClientReplies = priorLines
+    .filter((line) => line.role === "client")
+    .map((line) => line.text);
+  clientReply = enforceBuyerTurnPolicy(
+    clientReply,
+    psych,
+    input.utterance,
+    recentClientReplies,
+  );
+
+  if (
+    isNearDuplicateReply(clientReply, recentClientReplies) ||
+    (traineePresentedIdentity(priorTurns, input.utterance) &&
+      priorTurns.some((turn) => turn.role === "client") &&
+      /qui[eé]n habla|qui[eé]n hablo|con qui[eé]n hablo/i.test(clientReply))
+  ) {
+    clientReply = progressiveBuyerFallback(
+      psych,
+      input.utterance,
+      recentClientReplies,
+      clientReply,
+    );
+  }
 
   if (logistics.shouldAcknowledgeSlot) {
     const repaired = repairDateDemandAfterAccept(

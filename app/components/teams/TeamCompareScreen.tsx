@@ -419,7 +419,7 @@ export function TeamCompareScreen({
           <Card className="team-workspace__exam">
             <h2>Mismo caso para todos</h2>
             <p className="team-empty">
-              Clínica o un caso que hayas guardado en Agente (Kraken Flow,
+              Clínica o un caso que hayas guardado con IA (Kraken Flow,
               Me We, Wellness). Todos enfrentan al mismo cliente.
             </p>
             <fieldset className="team-case-grid">

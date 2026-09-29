@@ -20,6 +20,8 @@ import {
   createBuyerAiSdkTools,
 } from "./buyer-tools";
 import {
+  buildCoachSeparationGuardrail,
+  buildLiveClientGuardrailsBlock,
   DEFAULT_CLIENT_LAYER_SETTINGS,
   parseCatalogClientPackSeed,
   toneHint,
@@ -34,8 +36,23 @@ import {
   type ConversationTurn,
   type MeetingLogisticsState,
 } from "./client-motor";
+import {
+  combinedPracticeDifficulty,
+  difficultyEtiquetaInstruction,
+} from "@/lib/scenarios/difficulty-etiquette";
+import { sanitizeLeakedBuyerReply } from "@/lib/scenarios/authoring-leak";
+import {
+  buildBuyerChatMessages,
+  type BuyerChatMessage,
+  isNearDuplicateReply,
+} from "@/lib/agent/buyer-transcript";
+import { progressiveBuyerFallback } from "@/lib/agent/buyer-psych";
 import { buildClientPack, formatClientPack } from "./client-pack";
 import { composeSeparatedSystemPrompt } from "./roles";
+import {
+  buildUniversalClinicSystemFrame,
+  powerfulQuestionHintForPhase,
+} from "./clinic-frame";
 import {
   readProviderAvailability,
   resolveAgentProvider,
@@ -56,6 +73,7 @@ export interface ImpersonationInput {
   askedQuestions?: string[];
   priorTurns?: ConversationTurn[];
   difficultyLevel?: DifficultyLevel;
+  difficultyLabel?: string | null;
   mode?: PracticeMode;
   clientLayer?: ClientLayerSettings;
 }
@@ -75,6 +93,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
   user: string;
   context: string;
   psych: ReturnType<typeof analyzeBuyerPsych>;
+  transcriptMessages: BuyerChatMessage[];
 } {
   const language = resolveScenarioLanguage(input.config);
   const preset = input.scenarioSlug
@@ -93,7 +112,11 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
   const unused = questions.filter((item) => !asked.has(item.toLowerCase()));
   const recent = (input.recentReplies ?? []).slice(-4);
   const layer = input.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS;
-  const difficulty = input.difficultyLevel ?? 1;
+  const difficulty = combinedPracticeDifficulty(
+    input.difficultyLevel ?? 1,
+    input.difficultyLabel,
+    language.iso639 === "en" ? "en" : "es",
+  );
   const pack = buildClientPack({
     clientName: input.clientName,
     clientTitle: preset?.title,
@@ -101,6 +124,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     config: input.config,
     seed: preset?.clientPack ?? parseCatalogClientPackSeed(input.config.clientPack),
     difficultyLevel: difficulty,
+    difficultyLabel: input.difficultyLabel,
     mode: input.mode,
     maxTurns: input.config.rounds.length || 5,
   });
@@ -124,11 +148,18 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     priorTurns,
     roundNumber: input.roundNumber,
     scenarioSlug: input.scenarioSlug,
+    difficultyLevel: difficulty,
     pack,
     logistics,
   });
 
+  const powerfulHint = powerfulQuestionHintForPhase(
+    psych.phase,
+    unused[0] ?? questions[0],
+  );
+
   const agent = [
+    buildUniversalClinicSystemFrame(),
     buildBuyerRoleLock({
       name: input.clientName,
       title: pack.clientTitle || preset?.title,
@@ -137,18 +168,34 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
       state: psych,
     }),
     `Temperamento: ${pack.temperament}. Tono: ${tone}.`,
+    input.difficultyLabel
+      ? difficultyEtiquetaInstruction(
+          input.difficultyLabel,
+          language.iso639 === "en" ? "en" : "es",
+        )
+      : "",
+    `Nivel efectivo de práctica (1=fácil, 3=duro): ${difficulty}.`,
     `Rol en la decisión: ${pack.decisionRole}.`,
     buildLanguageLockSystemPrompt(language),
+    buildLiveClientGuardrailsBlock(layer),
+    buildCoachSeparationGuardrail(layer),
     "No inventes datos fuera del pack. Lo que ya aceptaste sigue aceptado.",
+    "NUNCA copies texto del briefing (problema real, metas de fase, objeciones del formulario).",
     logisticsGrantInstruction(logistics),
     buyerToolsPromptHint(),
     "No repitas una pregunta que ya hiciste. No clones la última réplica.",
-    unused[0] && (psych.phase === "opening_id" || psych.phase === "reason_probe")
-      ? `Si preguntas algo, una sola variante de: ${unused[0]}`
-      : "Este turno termina en afirmación o salida suave, no en otra pregunta.",
+    powerfulHint ??
+      "Este turno termina en afirmación o salida suave, no en otra pregunta.",
   ].join("\n");
 
-  const user = `El vendedor (usuario) dijo: "${input.traineeUtterance}"`;
+  const transcriptMessages = buildBuyerChatMessages(
+    priorTurns,
+    input.traineeUtterance,
+  );
+  const user =
+    transcriptMessages.length > 1
+      ? "Continúa la llamada. Responde solo como el cliente al último turno del vendedor."
+      : `El vendedor (usuario) dijo: "${input.traineeUtterance}"`;
 
   const context = [
     formatClientPack(pack),
@@ -157,13 +204,13 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     `Turno de práctica: ${input.round.label} (${input.roundNumber})`,
     recent.length ? `Réplicas recientes (NO clones):\n- ${recent.join("\n- ")}` : "",
     questions.length
-      ? `Banco de este cliente (no es un quiz; usa una solo si la fase pide pregunta):\n- ${questions.join("\n- ")}`
+      ? `Banco de preguntas del caso (clínica en frío — elige UNA si la fase lo permite; tensiona resiliencia/innovación, no interrogatorio):\n- ${questions.join("\n- ")}`
       : "",
   ]
     .filter(Boolean)
     .join("\n\n");
 
-  return { agent, user, context, psych };
+  return { agent, user, context, psych, transcriptMessages };
 }
 
 export function buildImpersonationPrompt(input: ImpersonationInput): string {
@@ -209,10 +256,15 @@ export async function generateImpersonatedReply(
   });
 
   try {
+    const chatMessages =
+      roles.transcriptMessages.length > 0
+        ? roles.transcriptMessages
+        : [{ role: "user" as const, content: roles.user }];
+
     const result = await generateText({
       model,
       system: composeSeparatedSystemPrompt(roles),
-      messages: [{ role: "user", content: roles.user }],
+      messages: chatMessages,
       tools: tools as Parameters<typeof generateText>[0]["tools"],
       temperature: BUYER_LIVE_TEMPERATURE,
       maxOutputTokens: BUYER_MAX_OUTPUT_TOKENS,
@@ -220,9 +272,26 @@ export async function generateImpersonatedReply(
     });
     const text = (result.text?.trim() || toolSpoken).trim();
     if (!text || text.length > 400) return fallbackText;
-    if (isCloneReply(text, input.recentReplies ?? [])) return fallbackText;
+    if (isCloneReply(text, input.recentReplies ?? [])) {
+      return progressiveBuyerFallback(
+        psych,
+        input.traineeUtterance,
+        input.recentReplies ?? [],
+        fallbackText,
+      );
+    }
+    if (isNearDuplicateReply(text, input.recentReplies ?? [])) {
+      return progressiveBuyerFallback(
+        psych,
+        input.traineeUtterance,
+        input.recentReplies ?? [],
+        fallbackText,
+      );
+    }
+    const languageCode = input.config.language === "en" ? "en" : "es";
+    const leakSafe = sanitizeLeakedBuyerReply(text, input.config, languageCode);
     const policed = enforceBuyerTurnPolicy(
-      text,
+      leakSafe,
       psych,
       input.traineeUtterance,
       input.recentReplies ?? [],

@@ -1,7 +1,17 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { createScenario, updateScenario } from "@/lib/api/client";
+import { autofillScenarioDraft, createScenario, updateScenario } from "@/lib/api/client";
+import {
+  difficultyEtiquetaOptions,
+  normalizeDifficultyEtiqueta,
+} from "@/lib/scenarios/difficulty-etiquette";
+import {
+  TEMPERAMENT_OTHER_VALUE,
+  isListedTemperament,
+  resolveTemperamentSelectValue,
+  temperamentOptions,
+} from "@/lib/scenarios/temperament-options";
 import { SCORE_DIMENSIONS } from "@/lib/scoring/dimensions";
 import {
   AUTHORING_STEPS,
@@ -23,7 +33,12 @@ import {
 import type { ScenarioLanguage, ScenarioRecord, ScenarioRoundDef } from "@/lib/scenarios/types";
 import type { ScoreDimensionId } from "@/lib/scoring/types";
 import { Button } from "@/app/components/ui/Button";
+import { CoachCallout } from "@/app/components/ui/CoachCallout";
 import { SegmentedControl } from "@/app/components/ui/Switch";
+import {
+  AUTHORING_MENTAL_MODEL,
+  difficultyCoachHint,
+} from "@/lib/frontend/training-copy";
 
 export interface ScenarioBuilderResult {
   scenario: ScenarioRecord;
@@ -31,6 +46,8 @@ export interface ScenarioBuilderResult {
 
 interface ScenarioBuilderScreenProps {
   initialScenario?: ScenarioRecord | null;
+  /** Page = full-screen flow; embedded = inside Escenarios → Mis escenarios. */
+  variant?: "page" | "embedded";
   onSave: (result: ScenarioBuilderResult) => void;
   onCancel: () => void;
 }
@@ -38,11 +55,11 @@ interface ScenarioBuilderScreenProps {
 function stepLabel(step: AuthoringStep): string {
   switch (step) {
     case "persona":
-      return "Cliente";
+      return "Perfil del comprador";
     case "beats":
-      return "Fases";
+      return "Briefing de fases";
     case "success":
-      return "Éxito";
+      return "Cómo se gana";
     default: {
       const _exhaustive: never = step;
       return _exhaustive;
@@ -53,11 +70,11 @@ function stepLabel(step: AuthoringStep): string {
 function stepHint(step: AuthoringStep): string {
   switch (step) {
     case "persona":
-      return "Quién es el cliente y en qué idioma habla.";
+      return "Quién contesta el teléfono: rol, temperamento y dificultad.";
     case "beats":
-      return "El arco de la llamada: de 3 a 7 fases, con lo que debe lograr el vendedor.";
+      return "Arco de la llamada para el coach — no es lo que el comprador lee en voz alta.";
     case "success":
-      return "Cómo se gana y qué se ve bien. Misma tarjeta de 6 puntos de cada llamada.";
+      return "Qué debe lograr el vendedor para ganar la práctica.";
     default: {
       const _exhaustive: never = step;
       return _exhaustive;
@@ -79,9 +96,11 @@ function newBeat(index: number): ScenarioRoundDef {
 
 export function ScenarioBuilderScreen({
   initialScenario = null,
+  variant = "page",
   onSave,
   onCancel,
 }: ScenarioBuilderScreenProps) {
+  const embedded = variant === "embedded";
   const editing = Boolean(initialScenario && !initialScenario.isPreset);
   const languageGroupId = useId();
   const callTypeGroupId = useId();
@@ -90,6 +109,8 @@ export function ScenarioBuilderScreen({
     initialScenario ? draftFromRecord(initialScenario) : emptyAuthoringDraft(),
   );
   const [saving, setSaving] = useState(false);
+  const [autofilling, setAutofilling] = useState(false);
+  const [customTemperament, setCustomTemperament] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const stepIndex = AUTHORING_STEPS.indexOf(step);
@@ -130,6 +151,31 @@ export function ScenarioBuilderScreen({
     });
   };
 
+  const temperamentSelectValue = resolveTemperamentSelectValue(
+    draft.temperament,
+    draft.language,
+  );
+  const showCustomTemperament =
+    temperamentSelectValue === TEMPERAMENT_OTHER_VALUE;
+
+  const handleAutofill = async () => {
+    if (!draft.industry.trim() || !draft.clientProblem.trim()) {
+      setError("Completa industria y problema del cliente antes del autofill.");
+      return;
+    }
+    setAutofilling(true);
+    setError(null);
+    try {
+      const { patch } = await autofillScenarioDraft(draft);
+      setDraft((prev) => ({ ...prev, ...patch }));
+      setStep("beats");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo autocompletar.");
+    } finally {
+      setAutofilling(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!canSave) {
       setError(validationError);
@@ -153,21 +199,32 @@ export function ScenarioBuilderScreen({
 
   return (
     <section
-      className="builder-screen"
+      className={`builder-screen${embedded ? " builder-screen--embedded" : ""}`}
       aria-label={editing ? "Editar escenario" : "Crear escenario"}
     >
-      <header className="page-hero page-hero--compact">
-        <p className="page-hero__eyebrow">
-          {editing ? "Editar escenario" : "Escenario personalizado"}
-        </p>
-        <h1 className="page-hero__title">
-          {editing ? "Afinar el caso de venta" : "Diseña tu caso de venta"}
-        </h1>
-        <p className="page-hero__subtitle">
-          Tres pasos: persona del cliente, fases de la llamada y cómo se gana.
-          Clínica de Citas sigue siendo un preset; esto no lo cambia.
-        </p>
-      </header>
+      {embedded ? (
+        <header className="builder-screen__embedded-head">
+          <h2 className="builder-screen__embedded-title">
+            {editing ? "Editar borrador" : "Nuevo caso de práctica"}
+          </h2>
+          <p className="builder-screen__embedded-lead">
+            Tres pasos: perfil del comprador, briefing de fases para el coach y
+            cómo se gana la llamada.
+          </p>
+        </header>
+      ) : (
+        <header className="page-hero page-hero--compact">
+          <p className="page-hero__eyebrow">Capacitador · Diseño de escenario</p>
+          <h1 className="page-hero__title">
+            {editing ? "Afinar el perfil del comprador" : "Armar un caso de práctica"}
+          </h1>
+          <p className="page-hero__subtitle">
+            Tres bloques: quién contesta, briefing de fases para el coach, y cómo
+            gana el vendedor. La llamada en vivo usa este contexto — no copia tus
+            textos palabra por palabra.
+          </p>
+        </header>
+      )}
 
       <ol className="builder-steps" aria-label="Pasos del diseñador">
         {AUTHORING_STEPS.map((item, index) => {
@@ -196,13 +253,19 @@ export function ScenarioBuilderScreen({
       </ol>
 
       <div className="builder-form">
+        <CoachCallout title={AUTHORING_MENTAL_MODEL.title}>
+          {AUTHORING_MENTAL_MODEL.body}
+        </CoachCallout>
+
         {step === "persona" ? (
           <fieldset className="builder-form__group">
-            <legend>Persona del cliente</legend>
+            <legend>Perfil del comprador</legend>
             <p className="builder-form__note">
-              Así habla y se presenta el cliente simulado. El idioma se guarda
-              para la llamada; no cambia la voz desde aquí.
+              Define a la persona que contesta el teléfono. El idioma del cliente
+              se guarda para la simulación.
             </p>
+            <div className="builder-subcard">
+              <h3 className="builder-subcard__title">Identidad</h3>
             <div className="builder-form__grid">
               <div className="field field--full">
                 <SegmentedControl
@@ -240,6 +303,11 @@ export function ScenarioBuilderScreen({
                   placeholder="Ej. Cadena nacional de gimnasios"
                 />
               </label>
+            </div>
+            </div>
+            <div className="builder-subcard">
+              <h3 className="builder-subcard__title">Contexto de venta</h3>
+              <div className="builder-form__grid">
               <label className="field">
                 <span className="field__label">Industria / negocio</span>
                 <input
@@ -256,28 +324,12 @@ export function ScenarioBuilderScreen({
                   placeholder="Ej. membresía premium, póliza de auto"
                 />
               </label>
-              <label className="field">
-                <span className="field__label">Temperamento</span>
-                <input
-                  value={draft.temperament}
-                  onChange={(e) => setField("temperament", e.target.value)}
-                  placeholder="Ej. Escéptico, directo"
-                />
-              </label>
-              <label className="field">
-                <span className="field__label">Dificultad (etiqueta)</span>
-                <input
-                  value={draft.difficultyLabel}
-                  onChange={(e) => setField("difficultyLabel", e.target.value)}
-                  placeholder="Media"
-                />
-              </label>
               <label className="field field--full">
                 <span className="field__label">Problema real del cliente</span>
                 <textarea
                   value={draft.clientProblem}
                   onChange={(e) => setField("clientProblem", e.target.value)}
-                  placeholder="¿Qué le duele hoy?"
+                  placeholder="¿Qué le duele hoy? (briefing — no se lee en voz alta)"
                   rows={2}
                 />
               </label>
@@ -295,18 +347,101 @@ export function ScenarioBuilderScreen({
                   />
                 </label>
               ))}
+              </div>
+            </div>
+            <div className="builder-subcard">
+              <h3 className="builder-subcard__title">Psicología en la llamada</h3>
+            <div className="builder-form__grid">
+              <label className="field">
+                <span className="field__label">Temperamento</span>
+                <select
+                  value={temperamentSelectValue}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === TEMPERAMENT_OTHER_VALUE) {
+                      setField(
+                        "temperament",
+                        customTemperament.trim() || draft.temperament,
+                      );
+                      return;
+                    }
+                    setCustomTemperament("");
+                    setField("temperament", value);
+                  }}
+                >
+                  {temperamentOptions(draft.language).map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                  <option value={TEMPERAMENT_OTHER_VALUE}>Otro (escribir)</option>
+                </select>
+              </label>
+              {showCustomTemperament ? (
+                <label className="field">
+                  <span className="field__label">Temperamento (otro)</span>
+                  <input
+                    value={
+                      isListedTemperament(draft.temperament, draft.language)
+                        ? customTemperament
+                        : draft.temperament
+                    }
+                    onChange={(e) => {
+                      setCustomTemperament(e.target.value);
+                      setField("temperament", e.target.value);
+                    }}
+                    placeholder="Ej. Escéptico, directo"
+                  />
+                </label>
+              ) : null}
+              <label className="field">
+                <span className="field__label">Dificultad (etiqueta)</span>
+                <select
+                  value={normalizeDifficultyEtiqueta(
+                    draft.difficultyLabel,
+                    draft.language,
+                  )}
+                  onChange={(e) => setField("difficultyLabel", e.target.value)}
+                >
+                  {difficultyEtiquetaOptions(draft.language).map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="field field--full builder-form__note builder-form__note--tight">
+                {difficultyCoachHint(draft.difficultyLabel, draft.language)}
+              </p>
+            </div>
             </div>
           </fieldset>
         ) : null}
 
         {step === "beats" ? (
           <fieldset className="builder-form__group">
-            <legend>Fases de la llamada</legend>
+            <legend>Briefing de fases (coach)</legend>
             <p className="builder-form__note">
-              Cada fase es un momento de la conversación. La clínica usa cinco
-              (apertura → cierre); aquí puedes ajustar de {MIN_AUTHORED_BEATS} a{" "}
-              {MAX_AUTHORED_BEATS}.
+              De {MIN_AUTHORED_BEATS} a {MAX_AUTHORED_BEATS} momentos. Describe
+              qué debe lograr el vendedor y qué presión pone el comprador — la IA
+              improvisa el diálogo en vivo.
             </p>
+            <div className="builder-autofill-card">
+              <div className="builder-autofill-card__copy">
+                <strong>Completar con IA</strong>
+                <p>
+                  Rellena fases, presiones y objeciones con criterio de piso de
+                  ventas. Siempre puedes editar cada campo después.
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                loading={autofilling}
+                onClick={() => void handleAutofill()}
+              >
+                Completar con IA
+              </Button>
+            </div>
             <ol className="builder-beats">
               {draft.rounds.map((round, index) => (
                 <li key={round.key || `beat-${index}`} className="builder-beat">
@@ -350,7 +485,9 @@ export function ScenarioBuilderScreen({
                       />
                     </label>
                     <label className="field field--full">
-                      <span className="field__label">Qué dice el cliente</span>
+                      <span className="field__label">
+                        Presión del cliente (coach, no diálogo)
+                      </span>
                       <textarea
                         value={round.clientPrompt}
                         onChange={(e) =>
@@ -389,11 +526,10 @@ export function ScenarioBuilderScreen({
 
         {step === "success" ? (
           <fieldset className="builder-form__group">
-            <legend>Éxito y puntuación</legend>
+            <legend>Cómo se gana la práctica</legend>
             <p className="builder-form__note">
-              Usamos la misma tarjeta de 6 puntos de cada llamada (KLM-50). No
-              inventamos otra rúbrica. Aquí solo describes qué se ve bien en
-              este caso.
+              Define el «advance» concreto (día y hora cuando aplique). La
+              puntuación usa la misma tarjeta de 6 puntos en cada llamada.
             </p>
             <div className="builder-form__grid">
               <div className="field field--full">
@@ -422,9 +558,11 @@ export function ScenarioBuilderScreen({
               </label>
             </div>
 
-            <div className="builder-scorecard" aria-label="Tarjeta de puntuación">
+            <details className="builder-scorecard" open>
+              <summary className="builder-scorecard__summary">
+                Afinar las 6 dimensiones (opcional)
+              </summary>
               <header className="builder-scorecard__head">
-                <h3>Qué se ve bien (6 dimensiones)</h3>
                 <p>
                   Pesos fijos: apertura 15%, discovery 25%, dolor 20%, valor 15%,
                   objeción 10%, cierre 15%.
@@ -455,7 +593,7 @@ export function ScenarioBuilderScreen({
                   </li>
                 ))}
               </ol>
-            </div>
+            </details>
           </fieldset>
         ) : null}
 
@@ -475,7 +613,7 @@ export function ScenarioBuilderScreen({
             </Button>
           ) : (
             <Button variant="ghost" onClick={onCancel}>
-              Volver
+              {embedded ? "Cerrar editor" : "Volver"}
             </Button>
           )}
           {step !== "success" ? (

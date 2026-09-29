@@ -16,6 +16,7 @@ export interface AdaptiveScoreInput {
   roundLabel: string;
   roundGoal: string;
   difficultyLevel: DifficultyLevel;
+  difficultyLabel?: string | null;
   scenarioSlug: string;
   isPreset: boolean;
   config: ScenarioConfig | null;

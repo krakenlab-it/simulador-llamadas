@@ -17,7 +17,9 @@ import {
   buildLanguageLockSystemPrompt,
   resolveScenarioLanguage,
 } from "@/lib/scenarios/language";
+import { sanitizeLeakedBuyerReply } from "@/lib/scenarios/authoring-leak";
 import { phaseKeyFromPersistenceKey } from "@/lib/simulation/round-keys";
+import { formatTranscriptBlock } from "@/lib/agent/buyer-transcript";
 
 /** Max wait for Groq preset client replies before scripted fallback. */
 export const GROQ_CLIENT_REPLY_TIMEOUT_MS = 8_000;
@@ -32,6 +34,7 @@ export interface GenerateReplyInput {
   scenarioSlug?: string;
   priorTurns?: ConversationTurn[];
   difficultyLevel?: DifficultyLevel;
+  difficultyLabel?: string | null;
   mode?: PracticeMode;
   clientLayer?: ClientLayerSettings;
 }
@@ -96,17 +99,22 @@ export function buildClientReplyPrompt(input: GenerateReplyInput): string {
     ? `Si preguntas, usa un ángulo de este cliente: ${preset.questionBank[0]} No copies las réplicas de otros clientes.`
     : "No repitas la misma pregunta. Cambia el ángulo.";
 
+  const prior = input.priorTurns ?? [];
+  const transcript =
+    prior.length > 0
+      ? `\nTranscript hasta ahora:\n${formatTranscriptBlock(prior, input.traineeUtterance)}\n`
+      : "";
+
   return `Eres ${input.clientName}, cliente en ${input.config.industry}.
-Problema: ${input.config.clientProblem}.
-Vendes/compras: ${input.config.productSold}.
+Contexto interno (NUNCA lo copies palabra por palabra): problema del negocio, objeciones y fases son briefing del coach.
 Temperamento: ${input.config.temperament}.
 Idioma obligatorio: ${language.promptName} (${language.iso639}). Habla SOLO en ${language.promptName}.
 ${turnLabel}
 ${goodLooksLike ? `En esta fase, una buena respuesta del vendedor se ve así: ${goodLooksLike}.` : ""}
-El vendedor dijo: "${input.traineeUtterance}".
-Responde en 1-2 oraciones cortas, tono ${mood}.
+${transcript}Responde al ÚLTIMO turno del vendedor en 1-2 oraciones cortas, tono ${mood}, como persona real al teléfono.
+Si ya te presentaron, NO vuelvas a preguntar quién habla.
 ${questionHint}
-Solo la réplica del cliente, sin comillas ni explicación.`;
+PROHIBIDO pegar texto del perfil (problema real, metas de fase, banco de objeciones). Solo la réplica del cliente, sin comillas ni explicación.`;
 }
 
 export function isGroqAvailable(): boolean {
@@ -180,24 +188,39 @@ export async function generateClientReply(
 }
 
 function policeClientReply(input: GenerateReplyInput, reply: string): string {
+  const recentReplies = (input.priorTurns ?? [])
+    .filter((turn) => turn.role === "client")
+    .map((turn) => turn.text);
   const psych = analyzeBuyerPsych({
     traineeUtterance: input.traineeUtterance,
     priorTurns: input.priorTurns,
     roundNumber: input.roundNumber,
     scenarioSlug: input.scenarioSlug,
+    difficultyLevel: input.difficultyLevel,
     pack: buyerPsychPackForScenario({
       scenarioSlug: input.scenarioSlug,
       config: input.config,
       clientName: input.clientName,
       difficultyLevel: input.difficultyLevel,
+      difficultyLabel: input.difficultyLabel,
       mode: input.mode,
     }),
   });
-  return enforceBuyerTurnPolicy(reply, psych, input.traineeUtterance);
+  const language = input.config.language === "en" ? "en" : "es";
+  const leakSafe = sanitizeLeakedBuyerReply(reply, input.config, language);
+  return enforceBuyerTurnPolicy(
+    leakSafe,
+    psych,
+    input.traineeUtterance,
+    recentReplies,
+  );
 }
 
 export function getOpeningLine(config: ScenarioConfig): string {
-  return config.openingLines[0] ?? config.rounds[0]?.clientPrompt ?? "¿Quién habla?";
+  const stored = config.openingLines[0]?.trim();
+  if (stored) return stored;
+  const language = config.language ?? "es";
+  return language === "en" ? "Hello, who's calling?" : "¿Quién habla?";
 }
 
 export { isLlmAvailable } from "@/lib/llm/provider";

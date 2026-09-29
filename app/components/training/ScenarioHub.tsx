@@ -1,12 +1,21 @@
 "use client";
 
-import { useEffect, useId, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useDocumentLang } from "@/lib/a11y/document-lang";
 import { nextRovingValue } from "@/lib/a11y/roving-options";
 import { useToast } from "@/components/ui/Toast";
 import { CLIENTS, getClientBySlug, type ClientPersona } from "@/lib/clients";
-import { listScenarios, saveScenarioVoiceAgent } from "@/lib/api/client";
-import type { ScenarioRecord } from "@/lib/scenarios/types";
+import {
+  listScenarios,
+  saveScenarioVoiceAgent,
+  setScenarioActive,
+  setScenarioLibraryPublished,
+} from "@/lib/api/client";
+import {
+  isScenarioActiveForPractice,
+  isScenarioPublishedToLibrary,
+  type ScenarioRecord,
+} from "@/lib/scenarios/types";
 import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import { resolveHubVoiceAgent } from "@/lib/scenarios/catalog-defaults";
 import {
@@ -28,18 +37,30 @@ import {
   DIFFICULTY_LABELS,
   MODE_LABELS,
 } from "@/lib/frontend/training-readiness";
+import {
+  difficultyCoachHint,
+  hubDifficultyHint,
+} from "@/lib/frontend/training-copy";
+import { normalizeDifficultyEtiqueta } from "@/lib/scenarios/difficulty-etiquette";
 import { Card } from "@/app/components/ui/Card";
 import { Button } from "@/app/components/ui/Button";
 import { Spinner } from "@/app/components/ui/Spinner";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { SegmentedControl, Switch } from "@/app/components/ui/Switch";
 import { unlockClientPlayback } from "@/lib/voice/client-playback";
+import { applyTrainerGuardsToVoiceAgent } from "@/lib/frontend/trainer-client-layer";
 import {
+  normalizeAuthoringLanguage,
   openingLineForCall,
   phaseLabelsForCall,
   scoringPhaseCount,
 } from "@/lib/scenarios/authoring";
+import { difficultyLevelFromEtiqueta } from "@/lib/scenarios/difficulty-etiquette";
 import { getClientLine } from "@/lib/simulation/rounds";
+import {
+  ScenarioBuilderScreen,
+  type ScenarioBuilderResult,
+} from "@/app/components/training/ScenarioBuilderScreen";
 
 export interface SetupConfig {
   scenarioSlug: string;
@@ -54,15 +75,25 @@ export interface SetupConfig {
   verifiedEmail?: string;
   client?: ClientPersona;
   voiceAgent: VoiceAgentSettings;
+  temperament?: string;
+  difficultyLabel?: string;
 }
 
 interface ScenarioHubProps {
   onStart: (config: SetupConfig) => void;
   onCreateScenario: () => void;
+  /** Abre IA conversacional para armar el caso desde un briefing. */
+  onOpenIa?: () => void;
   onEditScenario: (scenario: ScenarioRecord) => void;
+  /** After save from the embedded builder (refresh parent + toast). */
+  onScenarioSaved?: (slug: string) => void;
   refreshKey?: number;
   selectedSlugOnLoad?: string | null;
   isStarting?: boolean;
+  /** Capacitador prueba calidad; agente solo ve asignados y voz por defecto. */
+  hubMode?: "capacitador" | "agente";
+  /** When set (agente), only these scenario slugs are listed. */
+  assignedScenarioSlugs?: string[] | null;
 }
 
 type ScenarioTab = "library" | "custom";
@@ -70,16 +101,26 @@ type ScenarioTab = "library" | "custom";
 export function ScenarioHub({
   onStart,
   onCreateScenario,
+  onOpenIa,
   onEditScenario,
+  onScenarioSaved,
   refreshKey = 0,
   selectedSlugOnLoad = null,
   isStarting = false,
+  hubMode = "capacitador",
+  assignedScenarioSlugs = null,
 }: ScenarioHubProps) {
-  const [tab, setTab] = useState<ScenarioTab>("library");
+  const isAgenteHub = hubMode === "agente";
+  const [tab, setTab] = useState<ScenarioTab>(isAgenteHub ? "library" : "custom");
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioRecord[]>([]);
   const [loadingScenarios, setLoadingScenarios] = useState(true);
-  const [catalogFailed, setCatalogFailed] = useState(false);
+  const [catalogSyncFailed, setCatalogSyncFailed] = useState(false);
+  const [authoringOpen, setAuthoringOpen] = useState(false);
+  const [authoringScenario, setAuthoringScenario] =
+    useState<ScenarioRecord | null>(null);
+  const [authoringDismissed, setAuthoringDismissed] = useState(false);
+  const [authoringSessionKey, setAuthoringSessionKey] = useState(0);
   const [savingVoiceAgent, setSavingVoiceAgent] = useState(false);
   const { showToast } = useToast();
   const [mode, setMode] = useState<PracticeMode>("voz");
@@ -88,6 +129,8 @@ export function ScenarioHub({
     DEFAULT_VOICE_AGENT_SETTINGS,
   );
   const [micVerified, setMicVerified] = useState(false);
+  const [micTestActive, setMicTestActive] = useState(false);
+  const micTestStartedAtRef = useRef<number | null>(null);
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
   const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
   const [voiceAuthSkipped, setVoiceAuthSkipped] = useState(false);
@@ -117,55 +160,114 @@ export function ScenarioHub({
 
   useEffect(() => {
     setLoadingScenarios(true);
-    setCatalogFailed(false);
+    setCatalogSyncFailed(false);
     void listScenarios()
       .then((rows) => {
         setScenarios(rows);
-        setCatalogFailed(false);
+        setCatalogSyncFailed(false);
       })
       .catch(() => {
         setScenarios([]);
-        setCatalogFailed(true);
+        setCatalogSyncFailed(true);
       })
       .finally(() => setLoadingScenarios(false));
   }, [refreshKey]);
 
   useEffect(() => {
+    if (isAgenteHub) {
+      setMode("voz");
+    }
+  }, [isAgenteHub]);
+
+  useEffect(() => {
     if (selectedSlugOnLoad) {
       setSelectedSlug(selectedSlugOnLoad);
-      setTab("custom");
+      setTab(isAgenteHub ? "library" : "custom");
     }
-  }, [selectedSlugOnLoad, refreshKey]);
+  }, [selectedSlugOnLoad, refreshKey, isAgenteHub]);
 
-  const presets = scenarios.filter((s) => s.isPreset);
-  const custom = scenarios.filter((s) => !s.isPreset);
-  const displayPresets =
-    catalogFailed
-      ? []
-      : presets.length > 0
-      ? presets
-      : CLIENTS.map(
-          (c) =>
-            ({
-              slug: c.slug,
-              clientName: c.name,
-              clientTitle: c.title,
-              companyContext: c.company,
-              difficultyLabel: c.difficulty,
-              indicator: c.indicator,
-              painPoints: c.pains,
-              isPreset: true,
-              language: "es",
-              config: { rounds: [] },
-            }) as unknown as ScenarioRecord,
-        );
+  const filterAssigned = (list: ScenarioRecord[]) => {
+    const next = list.filter(isScenarioActiveForPractice);
+    if (!isAgenteHub || !assignedScenarioSlugs?.length) return next;
+    const allowed = new Set(assignedScenarioSlugs);
+    return next.filter((s) => allowed.has(s.slug));
+  };
 
-  const visibleScenarios = tab === "library" ? displayPresets : custom;
+  const customAll = scenarios.filter((s) => !s.isPreset);
+  const customActive = filterAssigned(
+    customAll.filter(isScenarioActiveForPractice),
+  );
+  const customRetired =
+    !isAgenteHub
+      ? customAll.filter((s) => !isScenarioActiveForPractice(s))
+      : [];
+  const custom = customActive;
+  const libraryCatalog = filterAssigned(
+    customAll.filter(
+      (s) =>
+        isScenarioPublishedToLibrary(s) && isScenarioActiveForPractice(s),
+    ),
+  );
 
-  const selected =
-    scenarios.find((s) => s.slug === selectedSlug) ??
-    displayPresets.find((s) => s.slug === selectedSlug) ??
-    null;
+  const agenteScenarios = useMemo(() => {
+    if (!isAgenteHub) return [];
+    const allowed = assignedScenarioSlugs?.length
+      ? new Set(assignedScenarioSlugs)
+      : null;
+    return scenarios.filter((s) => {
+      if (!isScenarioActiveForPractice(s)) return false;
+      if (allowed && !allowed.has(s.slug)) return false;
+      if (s.isPreset) return true;
+      return isScenarioPublishedToLibrary(s);
+    });
+  }, [isAgenteHub, scenarios, assignedScenarioSlugs]);
+
+  const visibleScenarios = isAgenteHub
+    ? agenteScenarios
+    : tab === "library"
+      ? libraryCatalog
+      : custom;
+
+  const showMisEscenariosBuilder =
+    !isAgenteHub &&
+    tab === "custom" &&
+    !loadingScenarios &&
+    (authoringOpen || (custom.length === 0 && !authoringDismissed));
+
+  const openAuthoring = (scenario: ScenarioRecord | null) => {
+    setAuthoringScenario(scenario);
+    setAuthoringOpen(true);
+    setAuthoringDismissed(false);
+    setAuthoringSessionKey((k) => k + 1);
+  };
+
+  const closeAuthoring = () => {
+    setAuthoringOpen(false);
+    setAuthoringScenario(null);
+    if (custom.length === 0) {
+      setAuthoringDismissed(true);
+    }
+  };
+
+  const handleBuilderSave = (result: ScenarioBuilderResult) => {
+    const { scenario } = result;
+    setScenarios((prev) => {
+      const index = prev.findIndex((s) => s.slug === scenario.slug);
+      if (index >= 0) {
+        const next = [...prev];
+        next[index] = scenario;
+        return next;
+      }
+      return [...prev, scenario];
+    });
+    setSelectedSlug(scenario.slug);
+    setAuthoringOpen(false);
+    setAuthoringScenario(null);
+    setAuthoringDismissed(false);
+    onScenarioSaved?.(scenario.slug);
+  };
+
+  const selected = scenarios.find((s) => s.slug === selectedSlug) ?? null;
 
   const selectedClient = CLIENTS.find((c) => c.slug === selectedSlug) ?? null;
 
@@ -198,17 +300,67 @@ export function ScenarioHub({
   const handleMicTest = () => {
     if (mode !== "voz" || !speech.supported) return;
     unlockClientPlayback();
+    setMicTestActive(true);
+    setMicVerified(false);
+    micTestStartedAtRef.current = Date.now();
     speech.startListening();
-    setMicVerified(true);
+  };
+
+  useEffect(() => {
+    if (!micTestActive || speech.listening) return;
+    const heard = Boolean(speech.transcript?.trim());
+    if (heard) {
+      setMicVerified(true);
+      setMicTestActive(false);
+      return;
+    }
+    if (speech.error) {
+      setMicVerified(false);
+      setMicTestActive(false);
+      return;
+    }
+    const elapsed = micTestStartedAtRef.current
+      ? Date.now() - micTestStartedAtRef.current
+      : 0;
+    if (elapsed > 800) {
+      setMicVerified(false);
+      setMicTestActive(false);
+    }
+  }, [
+    micTestActive,
+    speech.listening,
+    speech.transcript,
+    speech.error,
+  ]);
+
+  const micHelpText = (() => {
+    if (!speech.error) return null;
+    if (/not-allowed|permission/i.test(speech.error)) {
+      return "Permiso bloqueado: en Chrome/Edge abre el candado junto a la URL → Micrófono → Permitir. En el celular revisa Ajustes → Privacidad → Micrófono para el navegador.";
+    }
+    if (/no-speech/i.test(speech.error)) {
+      return "No se escuchó voz. Habla cerca del micrófono o revisa que el dispositivo correcto esté seleccionado en el sistema.";
+    }
+    return speech.error;
+  })();
+
+  const selectScenario = (scenario: ScenarioRecord) => {
+    setSelectedSlug(scenario.slug);
+    const language = normalizeAuthoringLanguage(
+      scenario.language ?? scenario.config.language,
+    );
+    setLevel(difficultyLevelFromEtiqueta(scenario.difficultyLabel, language));
   };
 
   const handleStart = async () => {
     if (!selected || !canStart || savingVoiceAgent) return;
     unlockClientPlayback();
-    const settings = parseVoiceAgentSettings({
-      ...voiceAgent,
-      difficultyLevel: level,
-    });
+    const settings = applyTrainerGuardsToVoiceAgent(
+      parseVoiceAgentSettings({
+        ...voiceAgent,
+        difficultyLevel: level,
+      }),
+    );
     setSavingVoiceAgent(true);
     try {
       await saveScenarioVoiceAgent(selected.slug, settings);
@@ -243,13 +395,73 @@ export function ScenarioHub({
       verifiedUserId: verifiedUserId ?? undefined,
       verifiedEmail: verifiedEmail ?? undefined,
       voiceAgent: settings,
+      temperament: selected.temperament ?? selected.config.temperament,
+      difficultyLabel: selected.difficultyLabel,
     });
   };
 
-  const renderScenarioCard = (scenario: ScenarioRecord) => {
+  const handlePublishToLibrary = async (scenario: ScenarioRecord) => {
+    if (isScenarioPublishedToLibrary(scenario)) return;
+    try {
+      const updated = await setScenarioLibraryPublished(scenario.slug, true);
+      setScenarios((prev) =>
+        prev.map((s) => (s.slug === updated.slug ? updated : s)),
+      );
+      showToast("Escenario publicado en la biblioteca.", "success");
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "No se pudo publicar en la biblioteca.",
+        "error",
+      );
+    }
+  };
+
+  const handleScenarioLifecycle = async (
+    scenario: ScenarioRecord,
+    active: boolean,
+  ) => {
+    if (!active) {
+      const ok = window.confirm(
+        `¿Dar de baja «${scenario.clientName}»? Los agentes dejarán de practicarlo; el historial y las calificaciones se conservan.`,
+      );
+      if (!ok) return;
+    }
+    try {
+      const updated = await setScenarioActive(scenario.slug, active);
+      setScenarios((prev) =>
+        prev.map((s) => (s.slug === updated.slug ? updated : s)),
+      );
+      if (!active && selectedSlug === scenario.slug) {
+        setSelectedSlug(null);
+      }
+      showToast(
+        active ? "Escenario reactivado." : "Escenario dado de baja.",
+        "success",
+      );
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "No se pudo actualizar el escenario.",
+        "error",
+      );
+    }
+  };
+
+  const renderScenarioCard = (
+    scenario: ScenarioRecord,
+    options?: { retired?: boolean; showDraftActions?: boolean },
+  ) => {
     const isSelected = selectedSlug === scenario.slug;
+    const retired = options?.retired ?? false;
+    const showDraftActions = options?.showDraftActions ?? false;
+    const published = isScenarioPublishedToLibrary(scenario);
     return (
-      <div key={scenario.slug} className="scenario-card-wrap" role="listitem">
+      <div
+        key={scenario.slug}
+        className={`scenario-card-wrap ${retired ? "scenario-card-wrap--retired" : ""}`}
+        role="listitem"
+      >
         <Card
           interactive
           selected={isSelected}
@@ -257,11 +469,11 @@ export function ScenarioHub({
           tabIndex={0}
           aria-pressed={isSelected}
           aria-label={`Escenario ${scenario.clientName}`}
-          onClick={() => setSelectedSlug(scenario.slug)}
+          onClick={() => selectScenario(scenario)}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              setSelectedSlug(scenario.slug);
+              selectScenario(scenario);
             }
           }}
         >
@@ -284,19 +496,74 @@ export function ScenarioHub({
                 `Indicador: ${scenario.indicator}`
               : `Vende: ${scenario.productSold}`}
           </p>
-          {(scenario.painPoints ?? []).length > 0 ? (
-            <ul className="scenario-card__pains">
-              {(scenario.painPoints ?? []).slice(0, 2).map((pain) => (
-                <li key={pain}>{pain}</li>
-              ))}
-            </ul>
+          {!scenario.isPreset ? (
+            <p className="scenario-card__tags">
+              {showDraftActions ? (
+                <span
+                  className={`scenario-card__tag ${published ? "scenario-card__tag--published" : "scenario-card__tag--draft"}`}
+                >
+                  {published ? "Publicado en biblioteca" : "Borrador"}
+                </span>
+              ) : null}
+              <span className="scenario-card__tag">
+                {scenario.temperament ?? "Temperamento"}
+              </span>
+              <span className="scenario-card__tag">
+                {normalizeDifficultyEtiqueta(
+                  scenario.difficultyLabel,
+                  normalizeAuthoringLanguage(scenario.language),
+                )}
+              </span>
+            </p>
           ) : null}
         </Card>
-        {!scenario.isPreset ? (
+        {!scenario.isPreset && !isAgenteHub && showDraftActions ? (
           <div className="scenario-card__actions">
-            <Button variant="ghost" onClick={() => onEditScenario(scenario)}>
-              Editar {scenario.clientName}
-            </Button>
+            {!retired ? (
+              <>
+                {!published ? (
+                  <Button
+                    variant="secondary"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handlePublishToLibrary(scenario);
+                    }}
+                  >
+                    Enviar a la biblioteca
+                  </Button>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openAuthoring(scenario);
+                    onEditScenario(scenario);
+                  }}
+                >
+                  Editar {scenario.clientName}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="scenario-card__deactivate"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleScenarioLifecycle(scenario, false);
+                  }}
+                >
+                  Dar de baja
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="ghost"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void handleScenarioLifecycle(scenario, true);
+                }}
+              >
+                Reactivar
+              </Button>
+            )}
           </div>
         ) : null}
       </div>
@@ -305,17 +572,24 @@ export function ScenarioHub({
 
   return (
     <div className="train-hub">
-      <header className="page-hero">
-        <p className="page-hero__eyebrow">Tu sesión de práctica</p>
-        <h1 className="page-hero__title">Elige un escenario y empieza</h1>
+      <header className="page-hero page-hero--compact">
+        <p className="page-hero__eyebrow">
+          {isAgenteHub ? "Agente · Practicar" : "Capacitador · Escenarios"}
+        </p>
+        <h1 className="page-hero__title">
+          {isAgenteHub
+            ? "Simulación de llamada por voz"
+            : "Arma y prueba la llamada"}
+        </h1>
         <p className="page-hero__subtitle">
-          Elige el caso. El pack (hechos, objeción real, qué concede) ya viene
-          armado — no es un formulario. Tú eliges dificultad, tono e idioma.
-          Cinco rondas; gana con día y hora. Luego compara al equipo en el
-          mismo examen.
+          {isAgenteHub
+            ? "Solo verás escenarios asignados por tu capacitador. Habla por micrófono; el cliente responde en vivo y el coaching va aparte."
+            : "Elige el comprador, ajusta dificultad y voz, y valida la experiencia antes de asignarla al equipo."}
         </p>
       </header>
 
+      <div className="train-hub__layout">
+        <div className="train-hub__main">
       <div
         className="train-hub__tabs"
         role="tablist"
@@ -343,19 +617,36 @@ export function ScenarioHub({
         >
           Biblioteca
         </button>
-        <button
-          type="button"
-          id={customTabId}
-          role="tab"
-          aria-selected={tab === "custom"}
-          aria-controls={scenarioPanelId}
-          tabIndex={tab === "custom" ? 0 : -1}
-          className={`train-hub__tab ${tab === "custom" ? "train-hub__tab--active" : ""}`}
-          onClick={() => setTab("custom")}
-        >
-          Mis escenarios
-        </button>
+        {!isAgenteHub ? (
+          <button
+            type="button"
+            id={customTabId}
+            role="tab"
+            aria-selected={tab === "custom"}
+            aria-controls={scenarioPanelId}
+            tabIndex={tab === "custom" ? 0 : -1}
+            className={`train-hub__tab ${tab === "custom" ? "train-hub__tab--active" : ""}`}
+            onClick={() => setTab("custom")}
+          >
+            Mis escenarios
+          </button>
+        ) : null}
       </div>
+      {!isAgenteHub ? (
+        <p className="train-hub__tab-hint" role="note">
+          {tab === "library"
+            ? "Biblioteca: catálogo publicado para asignar a agentes. Solo aparecen escenarios activos que enviaste desde Mis escenarios."
+            : "Mis escenarios: borradores y copias de trabajo. Pruébalos aquí y publícalos cuando estén listos."}
+        </p>
+      ) : null}
+
+      {!loadingScenarios && catalogSyncFailed && !isAgenteHub ? (
+        <p className="train-hub__sync-hint" role="status">
+          No pudimos sincronizar el catálogo remoto. Puedes seguir creando borradores y
+          practicando en este navegador; cuando el servidor responda, verás la lista
+          actualizada.
+        </p>
+      ) : null}
 
       <div
         id={scenarioPanelId}
@@ -366,56 +657,184 @@ export function ScenarioHub({
           <div className="train-hub__loading">
             <Spinner label="Cargando escenarios…" />
           </div>
-        ) : catalogFailed ? (
+        ) : isAgenteHub && catalogSyncFailed ? (
           <EmptyState
             title="No se pudieron cargar los escenarios"
-            description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo — no arrancamos la clínica de respaldo para no ensayar un caso distinto al de producción."
+            description="El catálogo no respondió. Revisa la conexión e inténtalo de nuevo en unos segundos."
           />
-        ) : tab === "custom" && custom.length === 0 ? (
+        ) : isAgenteHub && (!assignedScenarioSlugs || assignedScenarioSlugs.length === 0) ? (
           <EmptyState
-            title="Aún no tienes escenarios propios"
-            description="Crea un caso de venta a tu medida — banco, SaaS, seguros, retail — y practícalo con el mismo motor de cinco rondas."
-            actionLabel="Crear escenario"
-            onAction={onCreateScenario}
+            title="Sin escenarios asignados"
+            description="Tu capacitador aún no te asignó casos en este proyecto. Vuelve al inicio o pídele que te agregue en Agentes."
+          />
+        ) : !isAgenteHub && tab === "custom" ? (
+          <div className="train-hub__mis-workspace">
+            {custom.length > 0 ? (
+              <div className="scenario-grid" role="list">
+                {custom.map((scenario) =>
+                  renderScenarioCard(scenario, {
+                    showDraftActions: true,
+                  }),
+                )}
+              </div>
+            ) : authoringDismissed && !showMisEscenariosBuilder ? (
+              <EmptyState
+                title="Empieza tu primer caso"
+                description="Captura la información del comprador y del reto a simular. Usa el diseñador de tres pasos abajo o pide a la IA que complete el borrador."
+                actionLabel="Abrir diseñador"
+                onAction={() => openAuthoring(null)}
+                secondaryActionLabel={onOpenIa ? "Completar con IA (pantalla IA)" : undefined}
+                onSecondaryAction={onOpenIa}
+              />
+            ) : custom.length === 0 && !authoringDismissed ? (
+              <p className="train-hub__workspace-intro" role="note">
+                Sin borradores todavía. Completa el diseñador para guardar tu primer
+                caso y probar la llamada a la derecha.
+              </p>
+            ) : null}
+
+            {custom.length > 0 && !showMisEscenariosBuilder ? (
+              <div className="train-hub__secondary-action">
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    openAuthoring(null);
+                    onCreateScenario();
+                  }}
+                >
+                  + Crear escenario
+                </Button>
+                {onOpenIa ? (
+                  <Button variant="ghost" onClick={onOpenIa}>
+                    Completar con IA
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {onOpenIa && showMisEscenariosBuilder && custom.length === 0 ? (
+              <div className="train-hub__secondary-action train-hub__secondary-action--tight">
+                <Button variant="ghost" onClick={onOpenIa}>
+                  Completar con IA (pantalla IA)
+                </Button>
+              </div>
+            ) : null}
+
+            {showMisEscenariosBuilder ? (
+              <div className="train-hub__builder">
+                <ScenarioBuilderScreen
+                  key={`${authoringSessionKey}-${authoringScenario?.slug ?? "new"}`}
+                  variant="embedded"
+                  initialScenario={authoringScenario}
+                  onCancel={closeAuthoring}
+                  onSave={handleBuilderSave}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : tab === "library" && libraryCatalog.length === 0 && !isAgenteHub ? (
+          <EmptyState
+            title="Biblioteca vacía"
+            description="Aquí verás los escenarios que publiques para el equipo. Créalos y pruébalos en Mis escenarios y usa «Enviar a la biblioteca» cuando estén listos."
+            actionLabel="Ir a Mis escenarios"
+            onAction={() => setTab("custom")}
           />
         ) : visibleScenarios.length === 0 ? (
           <EmptyState
             title="No hay escenarios disponibles"
             description="Vuelve a intentar en unos segundos o crea uno personalizado."
             actionLabel="Crear escenario"
-            onAction={onCreateScenario}
+            onAction={() => {
+              setTab("custom");
+              openAuthoring(null);
+              onCreateScenario();
+            }}
           />
         ) : (
           <div className="scenario-grid" role="list">
-            {visibleScenarios.map(renderScenarioCard)}
+            {visibleScenarios.map((scenario) =>
+              renderScenarioCard(scenario, {
+                showDraftActions: !isAgenteHub && tab === "custom",
+              }),
+            )}
           </div>
         )}
       </div>
 
-      {tab === "custom" && custom.length > 0 ? (
-        <div className="train-hub__secondary-action">
-          <Button variant="ghost" onClick={onCreateScenario}>
-            + Crear otro escenario
-          </Button>
-        </div>
+      {!isAgenteHub && tab === "custom" && customRetired.length > 0 ? (
+        <section className="train-hub__retired" aria-labelledby="retired-scenarios-title">
+          <h2 id="retired-scenarios-title" className="config-panel__title">
+            Dados de baja
+          </h2>
+          <p className="config-panel__hint">
+            No aparecen para los agentes; puedes reactivarlos cuando quieras.
+          </p>
+          <div className="scenario-grid" role="list">
+            {customRetired.map((scenario) =>
+              renderScenarioCard(scenario, {
+                retired: true,
+                showDraftActions: true,
+              }),
+            )}
+          </div>
+        </section>
       ) : null}
-
-      <aside className="config-panel" aria-label="Configuración de la llamada">
-        <div className="config-panel__section">
-          <Switch
-            label="Modo voz"
-            description={
-              mode === "voz"
-                ? "Habla con el micrófono o escribe"
-                : "Solo texto — sin micrófono"
-            }
-            checked={mode === "voz"}
-            onCheckedChange={(on) => {
-              setMode(on ? "voz" : "texto");
-              if (!on) setMicVerified(false);
-            }}
-          />
         </div>
+
+        <div className="train-hub__aside">
+      {selected ? (
+        <div className="train-session-card" aria-label="Resumen del comprador">
+          <p className="train-session-card__eyebrow">Comprador seleccionado</p>
+          <h2 className="train-session-card__name">{selected.clientName}</h2>
+          <p className="train-session-card__role">
+            {selected.clientTitle} · {selected.companyContext}
+          </p>
+          <ul className="train-session-card__chips">
+            <li>{selected.temperament ?? selected.config.temperament}</li>
+            <li>
+              {normalizeDifficultyEtiqueta(
+                selected.difficultyLabel,
+                normalizeAuthoringLanguage(selected.language),
+              )}
+            </li>
+            <li>{MODE_LABELS[mode]}</li>
+          </ul>
+          <p className="train-session-card__hint">
+            {difficultyCoachHint(
+              selected.difficultyLabel ?? "Intermedio",
+              normalizeAuthoringLanguage(selected.language),
+            )}
+          </p>
+        </div>
+      ) : (
+        <div className="train-session-card train-session-card--empty">
+          <p>Elige un escenario para ver el perfil del comprador y armar la llamada.</p>
+        </div>
+      )}
+
+      <aside className="config-panel config-panel--stacked" aria-label="Configuración de la llamada">
+        <h2 className="config-panel__title">Antes de marcar</h2>
+        {!isAgenteHub ? (
+          <div className="config-panel__section">
+            <Switch
+              label="Modo voz"
+              description={
+                mode === "voz"
+                  ? "Habla con el micrófono o escribe"
+                  : "Solo texto — sin micrófono"
+              }
+              checked={mode === "voz"}
+              onCheckedChange={(on) => {
+                setMode(on ? "voz" : "texto");
+                if (!on) setMicVerified(false);
+              }}
+            />
+          </div>
+        ) : (
+          <p className="config-panel__hint config-panel__hint--ok">
+            Modo voz activo — el agente practica como en una llamada real.
+          </p>
+        )}
 
         <div className="config-panel__section">
           <SegmentedControl
@@ -432,6 +851,7 @@ export function ScenarioHub({
               setVoiceAgent((prev) => ({ ...prev, difficultyLevel: next }));
             }}
           />
+          <p className="config-panel__hint">{hubDifficultyHint(level)}</p>
         </div>
 
         <p className="config-panel__hint">
@@ -477,19 +897,34 @@ export function ScenarioHub({
                 >
                   {speech.listening ? "Escuchando…" : "Probar micrófono"}
                 </Button>
-                {speech.transcript ? (
+                {speech.transcript && !micVerified ? (
                   <p className="config-panel__hint">
                     Escuché: &ldquo;{speech.transcript}&rdquo;
                   </p>
                 ) : null}
-                {speech.error ? (
+                {micHelpText ? (
                   <p className="config-panel__hint config-panel__hint--warn">
-                    {speech.error}
+                    {micHelpText}
                   </p>
                 ) : null}
                 {micVerified && !speech.error ? (
                   <p className="config-panel__hint config-panel__hint--ok">
-                    Micrófono listo.
+                    Prueba exitosa: el micrófono está escuchando.
+                    {speech.transcript ? ` Escuché: «${speech.transcript}»` : ""}
+                  </p>
+                ) : null}
+                {!micVerified && micHelpText ? (
+                  <p className="config-panel__hint config-panel__hint--warn">
+                    {micHelpText}
+                  </p>
+                ) : null}
+                {!micVerified &&
+                micTestActive === false &&
+                !speech.error &&
+                !speech.transcript ? (
+                  <p className="config-panel__hint">
+                    Pulsa probar y di una frase corta. Si no hay audio, revisa
+                    permisos del navegador y el micrófono del sistema.
                   </p>
                 ) : null}
               </>
@@ -523,6 +958,8 @@ export function ScenarioHub({
         >
           Iniciar llamada
         </Button>
+      </div>
+        </div>
       </div>
     </div>
   );

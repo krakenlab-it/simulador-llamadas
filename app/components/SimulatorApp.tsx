@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   createSession,
   endSession,
   getSessionDetail,
+  listScenarios,
   type EndSessionResponse,
   type TurnSummary,
 } from "@/lib/api/client";
@@ -18,13 +19,33 @@ import {
   enterResults,
   initialFlowState,
   navigate,
-  openBuilder,
   resetToHome,
   resetToTrain,
   type AppView,
   type FlowState,
 } from "@/lib/frontend/flow";
-import { AppShell, type ShellTab } from "@/app/components/shell/AppShell";
+import {
+  canAccessView,
+  resolveShellTabForView,
+  viewForShellTab,
+  type ShellTab,
+} from "@/lib/frontend/role-navigation";
+import {
+  clearProductRole,
+  readProductRole,
+  writeProductRole,
+  type ProductRole,
+} from "@/lib/frontend/product-role";
+import {
+  activeProject,
+  assignmentForAgent,
+  defaultCapacitadorAssignmentSeed,
+  readTrainingOffice,
+  writeTrainingOffice,
+} from "@/lib/frontend/training-office";
+import { displayNameFromProfile } from "@/lib/frontend/agent-profile";
+import { isScenarioPublishedToLibrary } from "@/lib/scenarios/types";
+import { AppShell } from "@/app/components/shell/AppShell";
 import { AgentHarnessScreen } from "@/app/components/agent/AgentHarnessScreen";
 import { TeamCompareScreen } from "@/app/components/teams/TeamCompareScreen";
 import { ScreenTransition } from "@/app/components/ui/ScreenTransition";
@@ -43,55 +64,23 @@ import { AuthProvider, useAuth } from "@/lib/auth/context";
 import type { ScenarioRecord } from "@/lib/scenarios/types";
 import { replaySetupFromDetail } from "@/lib/frontend/replay-setup";
 import { durationSecondsBetween } from "@/lib/session/duration";
+import { RolePickerScreen } from "@/app/components/role/RolePickerScreen";
+import { CapacitadorHomeScreen } from "@/app/components/role/CapacitadorHomeScreen";
+import { AgenteHomeScreen } from "@/app/components/role/AgenteHomeScreen";
+import { CapacitadorAssignmentsScreen } from "@/app/components/role/CapacitadorAssignmentsScreen";
+import { TrainerGradesPanel } from "@/app/components/role/TrainerGradesPanel";
 
 interface EvaluationState {
   result: EndSessionResponse;
   turns: TurnSummary[];
 }
 
-function shellTabFromView(view: AppView): ShellTab {
-  switch (view) {
-    case "home":
-    case "history":
-    case "detail":
-    case "results":
-      return "home";
-    case "train":
-    case "builder":
-    case "call":
-      return "train";
-    case "agent":
-      return "agent";
-    case "teams":
-      return "teams";
-    default: {
-      const _exhaustive: never = view;
-      return _exhaustive;
-    }
-  }
-}
-
-function tabToView(tab: ShellTab): AppView {
-  switch (tab) {
-    case "home":
-      return "home";
-    case "train":
-      return "train";
-    case "agent":
-      return "agent";
-    case "teams":
-      return "teams";
-    default: {
-      const _exhaustive: never = tab;
-      return _exhaustive;
-    }
-  }
-}
-
 function SimulatorShell() {
   const { session, loading, signOut } = useAuth();
   const { showToast } = useToast();
   const [textOnly, setTextOnly] = useState(false);
+  const [productRole, setProductRole] = useState<ProductRole | null>(null);
+  const [roleHydrated, setRoleHydrated] = useState(false);
   const [flow, setFlow] = useState<FlowState>(initialFlowState);
   const [callAttemptId, setCallAttemptId] = useState<string | null>(null);
   const [traineeId, setTraineeId] = useState<string | null>(null);
@@ -109,6 +98,32 @@ function SimulatorShell() {
   const [builderScenario, setBuilderScenario] = useState<ScenarioRecord | null>(
     null,
   );
+  const [officeRevision, setOfficeRevision] = useState(0);
+
+  useEffect(() => {
+    setProductRole(readProductRole());
+    setRoleHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (productRole !== "capacitador") return;
+    void listScenarios().then((rows) => {
+      const published = rows
+        .filter(
+          (s) =>
+            !s.isPreset &&
+            isScenarioPublishedToLibrary(s) &&
+            !s.deactivatedAt,
+        )
+        .map((s) => s.slug);
+      const office = readTrainingOffice();
+      const seeded = defaultCapacitadorAssignmentSeed(office, published);
+      if (seeded !== office) {
+        writeTrainingOffice(seeded);
+        setOfficeRevision((k) => k + 1);
+      }
+    });
+  }, [productRole]);
 
   const shellUser = useMemo(
     () => (session?.user ? sessionToShellUser(session.user) : null),
@@ -118,14 +133,49 @@ function SimulatorShell() {
   const isStarting = flow.phase === "starting";
   const traineeEmail = session?.user.email ?? null;
 
-  const handleTabChange = useCallback((tab: ShellTab) => {
-    setFlow((prev) => navigate(prev, tabToView(tab)));
-  }, []);
+  const office = useMemo(
+    () => readTrainingOffice(),
+    // officeRevision bumps after demo seed writes
+    [officeRevision],
+  );
+  const agentAssignment = useMemo(() => {
+    if (productRole !== "agente") return null;
+    const project = activeProject(office, "agente");
+    return assignmentForAgent(office, project.id, traineeEmail);
+  }, [productRole, office, traineeEmail]);
 
-  const handleGoHome = useCallback(() => {
-    setFlow(resetToHome);
+  const agenteDisplayName = useMemo(() => {
+    if (agentAssignment?.profile) {
+      return displayNameFromProfile(
+        agentAssignment.profile,
+        shellUser?.displayName ?? "Agente",
+      );
+    }
+    return shellUser?.displayName ?? "Agente";
+  }, [agentAssignment, shellUser]);
+
+  const handleTabChange = useCallback(
+    (tab: ShellTab) => {
+      if (!productRole) return;
+      const target = viewForShellTab(tab);
+      setFlow((prev) => navigate(prev, target));
+    },
+    [productRole],
+  );
+
+  const goToView = useCallback((view: AppView) => {
+    if (!productRole || !canAccessView(productRole, view)) return;
+    setFlow((prev) => navigate(prev, view));
+  }, [productRole]);
+
+  const handleViewHistoryAfterCall = useCallback(() => {
     setHistoryRefresh((k) => k + 1);
-  }, []);
+    if (productRole === "agente") {
+      setFlow((prev) => navigate(prev, "history"));
+      return;
+    }
+    setFlow(resetToHome);
+  }, [productRole]);
 
   const handleStart = useCallback(
     async (setup: SetupConfig) => {
@@ -261,7 +311,19 @@ function SimulatorShell() {
     [showToast],
   );
 
-  if (loading) {
+  const handleSelectRole = useCallback((role: ProductRole) => {
+    writeProductRole(role);
+    setProductRole(role);
+    setFlow(initialFlowState());
+  }, []);
+
+  const handleChangeRole = useCallback(() => {
+    clearProductRole();
+    setProductRole(null);
+    setFlow(initialFlowState());
+  }, []);
+
+  if (loading || !roleHydrated) {
     return (
       <main>
         <div className="loading-overlay" role="status" aria-live="polite">
@@ -285,9 +347,20 @@ function SimulatorShell() {
     );
   }
 
+  if (!productRole) {
+    return (
+      <main className="app-main app-main--auth">
+        <RolePickerScreen onSelect={handleSelectRole} />
+      </main>
+    );
+  }
+
   const compactShell = flow.view === "call";
   const showScorecard =
     (flow.view === "results" || flow.view === "detail") && config;
+
+  const activeTab = resolveShellTabForView(flow.view, productRole);
+  const showGradesToAgente = agentAssignment?.showGradesToAgent ?? true;
 
   return (
     <AppShell
@@ -299,40 +372,68 @@ function SimulatorShell() {
           initials: "TX",
         }
       }
-      activeTab={shellTabFromView(flow.view)}
+      productRole={productRole}
+      activeTab={activeTab}
       onTabChange={handleTabChange}
+      onChangeRole={handleChangeRole}
       onSignOut={session ? () => void signOut() : undefined}
       compact={compactShell}
     >
       <ScreenTransition screenKey={flow.view}>
-        {(flow.view === "home" || flow.view === "history") && (
-          <HistoryView
-            refreshKey={historyRefresh}
-            traineeId={traineeId}
-            traineeEmail={traineeEmail}
-            onStartTraining={() => handleTabChange("train")}
-            onOpenCall={(id) => void handleOpenCall(id)}
+        {flow.view === "home" && productRole === "capacitador" ? (
+          <CapacitadorHomeScreen />
+        ) : null}
+
+        {flow.view === "home" && productRole === "agente" ? (
+          <AgenteHomeScreen
+            agentEmail={traineeEmail}
+            agentDisplayName={agenteDisplayName}
+            agentProfile={agentAssignment?.profile ?? null}
+            onOpenPractice={() => goToView("train")}
+            onOpenResults={() => goToView("history")}
           />
-        )}
+        ) : null}
+
+        {flow.view === "history" ? (
+          <div className="grades-stack">
+            {productRole === "capacitador" ? <TrainerGradesPanel /> : null}
+            <HistoryView
+              refreshKey={historyRefresh}
+              traineeId={traineeId}
+              traineeEmail={traineeEmail}
+              audience={productRole === "capacitador" ? "capacitador" : "agente"}
+              showScoreDetails={
+                productRole === "capacitador" ? true : showGradesToAgente
+              }
+              onStartTraining={() => handleTabChange("train")}
+              onOpenCall={(id) => void handleOpenCall(id)}
+            />
+          </div>
+        ) : null}
 
         {flow.view === "train" && (
           <ScenarioHub
             refreshKey={scenarioRefresh}
             selectedSlugOnLoad={selectedSlugOnLoad}
             isStarting={isStarting}
+            hubMode={productRole}
+            assignedScenarioSlugs={agentAssignment?.scenarioSlugs ?? null}
             onStart={(c) => void handleStart(c)}
             onCreateScenario={() => {
-              setBuilderScenario(null);
-              setFlow((prev) => openBuilder(prev));
+              /* Mis escenarios opens the embedded builder in ScenarioHub. */
             }}
-            onEditScenario={(scenario) => {
-              setBuilderScenario(scenario);
-              setFlow((prev) => openBuilder(prev));
+            onScenarioSaved={handleScenarioSaved}
+            onOpenIa={() => {
+              if (productRole !== "capacitador") return;
+              goToView("agent");
+            }}
+            onEditScenario={() => {
+              /* Editar abre el diseñador embebido en Mis escenarios. */
             }}
           />
         )}
 
-        {flow.view === "builder" && (
+        {flow.view === "builder" && productRole === "capacitador" && (
           <ScenarioBuilderScreen
             initialScenario={builderScenario}
             onCancel={() => {
@@ -343,24 +444,20 @@ function SimulatorShell() {
           />
         )}
 
-        {flow.view === "agent" && (
-          <AgentHarnessScreen
-            onScenarioSaved={handleScenarioSaved}
-            onPracticePreset={(slug) => {
-              setSelectedSlugOnLoad(slug);
-              setFlow(resetToTrain);
-            }}
-          />
+        {flow.view === "agent" && productRole === "capacitador" && (
+          <AgentHarnessScreen onScenarioSaved={handleScenarioSaved} />
         )}
 
-        {flow.view === "teams" && (
-          <TeamCompareScreen
-            traineeEmail={traineeEmail}
-            onPractice={(slug) => {
-              setSelectedSlugOnLoad(slug);
-              setFlow(resetToTrain);
-            }}
-          />
+        {flow.view === "teams" && productRole === "capacitador" && (
+          <CapacitadorAssignmentsScreen>
+            <TeamCompareScreen
+              traineeEmail={traineeEmail}
+              onPractice={(slug) => {
+                setSelectedSlugOnLoad(slug);
+                setFlow(resetToTrain);
+              }}
+            />
+          </CapacitadorAssignmentsScreen>
         )}
 
         {flow.view === "call" && callAttemptId && config && (
@@ -375,6 +472,8 @@ function SimulatorShell() {
             totalRounds={config.totalRounds}
             phaseLabels={config.phaseLabels}
             openingLine={config.openingLine}
+            buyerTemperament={config.temperament}
+            buyerDifficultyLabel={config.difficultyLabel}
             verifiedUserId={config.verifiedUserId}
             voiceAgent={config.voiceAgent}
             ending={ending}
@@ -392,8 +491,10 @@ function SimulatorShell() {
             loading={evaluating || openingDetail}
             onRepeat={() => void handleRepeat()}
             onNewScenario={handleNewScenario}
-            onViewHistory={handleGoHome}
-            historyActionLabel="Volver al inicio"
+            onViewHistory={handleViewHistoryAfterCall}
+            historyActionLabel={
+              productRole === "agente" ? "Volver a mis resultados" : "Volver al inicio"
+            }
           />
         ) : null}
       </ScreenTransition>

@@ -30,6 +30,9 @@ import { durationSecondsBetween } from "@/lib/session/duration";
 import { resolveEndSessionWin } from "@/lib/session/win";
 import { DEFAULT_WIN_CRITERIA } from "@/lib/scoring/outcome";
 import { getOpeningLine } from "@/lib/llm/client-replies";
+import { withCallOpeningInTranscript } from "@/lib/agent/buyer-transcript";
+import { openingLineForCall } from "@/lib/scenarios/authoring";
+import type { TranscriptLine } from "@/lib/scoring/types";
 import {
   applyVoiceAgentToRecord,
   parseVoiceAgentSettings,
@@ -133,6 +136,7 @@ export interface TurnSummary {
   roundScore: number;
   richFeedback: RichTurnFeedback;
   keywordHits?: Record<string, boolean>;
+  clientReply?: string;
 }
 
 export interface EndSessionResponse {
@@ -193,6 +197,8 @@ const historyByTrainee = new Map<string, HistoryEntry[]>();
 const traineeIdByEmail = new Map<string, string>();
 const customScenarios = new Map<string, StubScenario>();
 const voiceAgentBySlug = new Map<string, VoiceAgentSettings>();
+const deactivatedAtBySlug = new Map<string, string>();
+const libraryPublishedAtBySlug = new Map<string, string>();
 
 function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -235,7 +241,15 @@ function buildPresetScenario(slug: string): StubScenario | null {
 
 function withSavedVoiceAgent(record: ScenarioRecord): ScenarioRecord {
   const saved = voiceAgentBySlug.get(record.slug);
-  return saved ? applyVoiceAgentToRecord(record, saved) : record;
+  const withVoice = saved ? applyVoiceAgentToRecord(record, saved) : record;
+  const deactivatedAt = deactivatedAtBySlug.get(withVoice.slug);
+  const libraryPublishedAt = libraryPublishedAtBySlug.get(withVoice.slug);
+  let merged = withVoice;
+  if (deactivatedAt) merged = { ...merged, deactivatedAt };
+  if (libraryPublishedAt) {
+    merged = { ...merged, libraryPublishedAt };
+  }
+  return merged;
 }
 
 function getScenario(slug: string): StubScenario | null {
@@ -245,16 +259,9 @@ function getScenario(slug: string): StubScenario | null {
 }
 
 export function stubListScenarios(): ScenarioRecord[] {
-  const presets = ["mariana", "rodrigo", "efrain"]
-    .map((slug) => buildPresetScenario(slug)?.record)
-    .filter((s): s is ScenarioRecord => s !== undefined)
-    .map(withSavedVoiceAgent);
-  return [
-    ...presets,
-    ...Array.from(customScenarios.values()).map((s) =>
-      withSavedVoiceAgent(s.record),
-    ),
-  ];
+  return Array.from(customScenarios.values()).map((s) =>
+    withSavedVoiceAgent(s.record),
+  );
 }
 
 export function stubSaveVoiceAgent(
@@ -334,10 +341,63 @@ export function stubUpdateScenario(
   return record;
 }
 
+export function stubSetScenarioActive(
+  slug: string,
+  active: boolean,
+): ScenarioRecord {
+  const scenario = getScenario(slug);
+  if (!scenario) {
+    throw new Error(`Cliente no encontrado: ${slug}`);
+  }
+  if (scenario.record.isPreset) {
+    throw new Error("Los casos de la clínica no se pueden dar de baja.");
+  }
+  const deactivatedAt = active ? null : new Date().toISOString();
+  if (active) {
+    deactivatedAtBySlug.delete(slug);
+  } else {
+    deactivatedAtBySlug.set(slug, deactivatedAt!);
+  }
+  const record = withSavedVoiceAgent({
+    ...scenario.record,
+    deactivatedAt,
+  });
+  customScenarios.set(slug, { record });
+  return record;
+}
+
+export function stubSetScenarioLibraryPublished(
+  slug: string,
+  published: boolean,
+): ScenarioRecord {
+  const scenario = getScenario(slug);
+  if (!scenario) {
+    throw new Error(`Cliente no encontrado: ${slug}`);
+  }
+  if (scenario.record.isPreset) {
+    throw new Error("Los casos de la clínica no se publican en la biblioteca.");
+  }
+  const libraryPublishedAt = published ? new Date().toISOString() : null;
+  if (published) {
+    libraryPublishedAtBySlug.set(slug, libraryPublishedAt!);
+  } else {
+    libraryPublishedAtBySlug.delete(slug);
+  }
+  const record = withSavedVoiceAgent({
+    ...scenario.record,
+    libraryPublishedAt,
+  });
+  customScenarios.set(slug, { record });
+  return record;
+}
+
 export function stubCreateSession(body: CreateSessionRequest): SessionResponse {
   const scenario = getScenario(body.scenarioSlug);
   if (!scenario) {
     throw new Error(`Cliente no encontrado: ${body.scenarioSlug}`);
+  }
+  if (scenario.record.deactivatedAt) {
+    throw new Error(`Escenario dado de baja: ${body.scenarioSlug}`);
   }
 
   const callAttemptId = generateId("stub");
@@ -438,10 +498,20 @@ export async function stubSubmitTurn(
     roundType = customRound;
   }
 
-  const priorLines = session.turns.flatMap((turn) => {
-    const lines = [{ role: "trainee" as const, text: turn.utterance }];
-    return lines;
-  });
+  const opening = openingLineForCall(
+    session.scenario.record.config,
+    session.scenario.record.isPreset,
+    session.scenario.record.isPreset
+      ? getOpeningLine(session.scenario.record.config)
+      : undefined,
+  );
+  const priorLines: TranscriptLine[] = withCallOpeningInTranscript([], opening);
+  for (const turn of session.turns) {
+    priorLines.push({ role: "trainee", text: turn.utterance });
+    if (turn.clientReply?.trim()) {
+      priorLines.push({ role: "client", text: turn.clientReply });
+    }
+  }
 
   const score = await scoreTurnAdaptive({
     utterance: trimmed,
@@ -450,6 +520,7 @@ export async function stubSubmitTurn(
     roundLabel,
     roundGoal,
     difficultyLevel: session.difficultyLevel,
+    difficultyLabel: session.scenario.record.difficultyLabel,
     scenarioSlug: session.scenario.record.slug,
     isPreset: session.scenario.record.isPreset,
     config: session.scenario.record.isPreset ? null : session.scenario.record.config,
@@ -466,6 +537,7 @@ export async function stubSubmitTurn(
     expectedPhrase: score.richFeedback.strongerLine,
     roundScore: score.roundScore,
     richFeedback: score.richFeedback,
+    clientReply: score.clientReply,
   };
 
   session.turns.push(summary);
@@ -644,6 +716,8 @@ export function resetStubSessions(): void {
   traineeIdByEmail.clear();
   voiceAgentBySlug.clear();
   customScenarios.clear();
+  deactivatedAtBySlug.clear();
+  libraryPublishedAtBySlug.clear();
 }
 
 export function stubGetAgentHarness() {

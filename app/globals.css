@@ -452,6 +452,82 @@ body {
   color: var(--paper);
 }
 
+.empty-state__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
+.train-hub__mis-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.train-hub__workspace-intro {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.train-hub__builder {
+  margin-top: 0.25rem;
+}
+
+.builder-screen--embedded {
+  padding: 0;
+}
+
+.builder-screen--embedded .builder-steps {
+  margin-top: 0.5rem;
+}
+
+.builder-screen__embedded-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.builder-screen__embedded-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--paper);
+}
+
+.builder-screen__embedded-lead {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.train-hub__secondary-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 1rem 0 1.5rem;
+}
+
+.train-hub__secondary-action--tight {
+  margin: 0;
+}
+
+.train-hub__sync-hint {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
 .empty-state__desc {
   margin: 0 0 1.25rem;
   color: var(--muted);
@@ -659,10 +735,6 @@ body {
   padding: 2rem 0;
 }
 
-.train-hub__secondary-action {
-  margin: 1rem 0 1.5rem;
-}
-
 .scenario-grid {
   display: grid;
   gap: 0.85rem;
@@ -787,6 +859,9 @@ body {
 
 .config-panel__select {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   background: var(--surface-sunken);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -824,10 +899,29 @@ body {
 
 .voice-controls__essentials .segmented-field {
   flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.voice-controls__select-field {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.voice-controls__select-field .config-panel__select {
+  width: 100%;
+  max-width: 100%;
 }
 
 .voice-controls__essentials .btn {
   min-height: 2.5rem;
+}
+
+@media (max-width: 640px) {
+  .voice-controls__essentials .segmented-field {
+    flex: 1 1 100%;
+  }
 }
 
 .voice-controls__advanced {
@@ -843,6 +937,15 @@ body {
   .voice-controls__advanced {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+.voice-controls__voice-field,
+.voice-controls__elevenlabs-hint {
+  grid-column: 1 / -1;
+}
+
+.voice-controls__voice-select {
+  width: 100%;
 }
 
 /* ── Start bar ───────────────────────────────────────── */
@@ -1818,7 +1921,8 @@ body {
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   font-family: inherit;
   font-size: 0.9rem;
   padding: 0.55rem 0.75rem;
@@ -1839,7 +1943,9 @@ body {
 .field input:focus,
 .field input:focus-visible,
 .field textarea:focus,
-.field textarea:focus-visible {
+.field textarea:focus-visible,
+.field select:focus,
+.field select:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   border-color: var(--accent-2);
@@ -2003,7 +2109,9 @@ body {
 
 .scenario-card__actions {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  justify-content: center;
 }
 
 .app-header__signout {
@@ -2179,6 +2287,59 @@ body {
   margin: 0;
   font-size: 0.8rem;
   line-height: 1.4;
+}
+
+.client-engines__card--editing {
+  border-color: var(--accent);
+}
+
+.client-engines__editable {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.client-engines__editable:hover .client-engines__edit-hint {
+  opacity: 1;
+}
+
+.client-engines__edit-hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0;
+}
+
+.client-engines__field {
+  display: block;
+  margin-bottom: 0.45rem;
+}
+
+.client-engines__field-label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
+.client-engines__input,
+.client-engines__textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: inherit;
 }
 
 .agent-bubble {
@@ -2535,5 +2696,547 @@ body {
 
   .team-score-row input {
     max-width: none;
+  }
+}
+
+/* ── UX pass: train hub layout & coach UI ───────────── */
+
+.train-hub__layout {
+  display: grid;
+  gap: 1.25rem;
+}
+
+@media (min-width: 960px) {
+  .train-hub__layout {
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
+    align-items: start;
+  }
+
+  .train-hub__aside {
+    position: sticky;
+    top: 5.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+}
+
+.config-panel--stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 0;
+}
+
+.config-panel__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--paper);
+  grid-column: 1 / -1;
+}
+
+.train-session-card {
+  padding: 1rem 1.1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.train-session-card--empty {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.train-session-card__eyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.train-session-card__name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--paper);
+}
+
+.train-session-card__role {
+  margin: 0.25rem 0 0.65rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.train-session-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0 0 0.65rem;
+  padding: 0;
+}
+
+.train-session-card__chips li {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  color: var(--paper);
+}
+
+.train-session-card__hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.scenario-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0;
+}
+
+.scenario-card__tag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  color: var(--muted);
+}
+
+.coach-callout {
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  margin-bottom: 1.25rem;
+  background: var(--surface-sunken);
+}
+
+.coach-callout--info {
+  border-color: color-mix(in srgb, var(--accent-2) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent-2) 8%, var(--surface-sunken));
+}
+
+.coach-callout--success {
+  border-color: color-mix(in srgb, var(--success) 35%, var(--line));
+  background: color-mix(in srgb, var(--success) 8%, var(--surface-sunken));
+}
+
+.coach-callout--warn {
+  border-color: color-mix(in srgb, var(--warn) 35%, var(--line));
+}
+
+.coach-callout__title {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--paper);
+}
+
+.coach-callout__body {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.builder-subcard {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.builder-subcard__title {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--paper);
+}
+
+.builder-form__note--tight {
+  margin: 0;
+}
+
+.builder-autofill-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.25rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 12%, var(--surface-sunken)),
+    var(--surface-sunken)
+  );
+}
+
+.builder-autofill-card__copy {
+  flex: 1 1 14rem;
+}
+
+.builder-autofill-card__copy strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--paper);
+}
+
+.builder-autofill-card__copy p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.builder-scorecard__summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--paper);
+  margin-bottom: 0.75rem;
+}
+
+.call-console__split {
+  display: grid;
+  gap: 1.25rem;
+}
+
+@media (min-width: 900px) {
+  .call-console__split {
+    grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+    align-items: start;
+  }
+
+  .call-console__coaching {
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 12rem);
+    overflow: auto;
+  }
+}
+
+.call-console__coaching-title {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--paper);
+}
+
+.call-console__coaching-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.call-console__tech {
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.call-console__tech summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.builder-form__actions--inline {
+  margin-bottom: 0;
+}
+
+.config-panel__input {
+  width: 100%;
+  max-width: 100%;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--surface-sunken);
+  color: var(--paper);
+  font: inherit;
+}
+
+.role-picker {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.role-picker__eyebrow {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.role-picker__title {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+.role-picker__lead {
+  margin: 0 0 1.5rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.role-picker__cards {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .role-picker__cards {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.role-card {
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.role-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+}
+
+.role-card p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.role-home__steps {
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.role-home__project,
+.role-home__progress {
+  margin-bottom: 1rem;
+}
+
+.role-home__inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  align-items: center;
+}
+
+.role-home__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.role-home__progress-bar {
+  margin: 0.75rem 0;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.role-home--info .role-home__info-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .role-home--info .role-home__info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .role-home--info .role-home__info-card:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.role-home__info-card p,
+.role-home__info-card dd {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.role-home__info-card p:last-child,
+.role-home__info-card dd:last-child {
+  margin-bottom: 0;
+}
+
+.role-home__info-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 0.95rem;
+}
+
+.role-home__info-list li {
+  margin-bottom: 0.65rem;
+}
+
+.role-home__info-lead {
+  margin-bottom: 0.75rem !important;
+}
+
+.role-home__info-dl {
+  margin: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.role-home__info-dl dt {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.2rem;
+}
+
+.role-home__info-dl dd {
+  margin: 0;
+}
+
+.role-home__progress-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+}
+
+.role-assignments__grid--profile {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.role-assignments__cv {
+  margin-bottom: 1rem;
+}
+
+.role-assignments__cv input[type="file"] {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.role-assignments__profiles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.role-assignments__profile-card {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.role-assignments__profile-card:last-child {
+  border-bottom: 0;
+}
+
+.role-assignments__profile-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.role-assignments__profile-meta {
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.role-assignments__cv-preview {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0.35rem 0;
+}
+
+.role-assignments__grid {
+  display: grid;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.role-assignments__checks {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.role-assignments__toggle {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.grades-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.trainer-insights__list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.scenario-card-wrap--retired .card {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
+.scenario-card__deactivate {
+  color: var(--danger, #f87171);
+}
+
+.train-hub__retired {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 640px) {
+  .app-nav {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .app-nav__tab {
+    font-size: 0.78rem;
+    padding: 0.35rem 0.5rem;
   }
 }

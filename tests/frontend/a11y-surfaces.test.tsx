@@ -74,6 +74,7 @@ describe("a11y surfaces", () => {
   it("exposes a skip link and main target in the app shell", () => {
     render(
       <AppShell
+        productRole="capacitador"
         user={{
           id: "1",
           displayName: "Jaime",

@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SimulatorApp } from "@/app/components/SimulatorApp";
-import { marianaScenarioFixture } from "@/tests/frontend/fixtures";
+import { clearProductRole } from "@/lib/frontend/product-role";
+import { publishedMarianaLibraryFixture } from "@/tests/frontend/fixtures";
 import type { SessionResponse } from "@/lib/api/stubs";
 
 vi.mock("@/lib/api/client", () => ({
@@ -70,8 +71,11 @@ import { createSession, listScenarios, saveScenarioVoiceAgent } from "@/lib/api/
 
 describe("session start failure", () => {
   beforeEach(() => {
-    vi.mocked(listScenarios).mockResolvedValue([marianaScenarioFixture]);
-    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(marianaScenarioFixture);
+    clearProductRole();
+    vi.mocked(listScenarios).mockResolvedValue([publishedMarianaLibraryFixture]);
+    vi.mocked(saveScenarioVoiceAgent).mockResolvedValue(
+      publishedMarianaLibraryFixture,
+    );
     vi.mocked(createSession).mockRejectedValue(
       new Error("Servicio no disponible"),
     );
@@ -80,16 +84,26 @@ describe("session start failure", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    clearProductRole();
   });
+
+  async function openCapacitadorEscenarios(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(
+      await screen.findByRole("button", { name: /Entrar como Capacitador/i }),
+    );
+    await user.click(screen.getByRole("button", { name: "Escenarios" }));
+    await user.click(await screen.findByRole("tab", { name: "Biblioteca" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Mariana Escobedo/i })).toBeInTheDocument();
+    });
+  }
 
   it("shows an error toast and stays on setup when createSession fails", async () => {
     const user = userEvent.setup();
 
     render(<SimulatorApp />);
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Mariana Escobedo/i })).toBeInTheDocument();
-    });
+    await openCapacitadorEscenarios(user);
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
     await user.click(screen.getByRole("switch", { name: "Modo voz" }));
@@ -100,7 +114,7 @@ describe("session start failure", () => {
     });
 
     expect(
-      screen.getByRole("heading", { name: "Elige un escenario y empieza" }),
+      screen.getByRole("heading", { name: /Arma y prueba la llamada/i }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Llamada en vivo")).not.toBeInTheDocument();
     expect(createSession).toHaveBeenCalledTimes(1);
@@ -118,9 +132,7 @@ describe("session start failure", () => {
     const user = userEvent.setup();
     render(<SimulatorApp />);
 
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Mariana Escobedo/i })).toBeInTheDocument();
-    });
+    await openCapacitadorEscenarios(user);
 
     await user.click(screen.getByRole("button", { name: /Mariana Escobedo/i }));
     await user.click(screen.getByRole("switch", { name: "Modo voz" }));

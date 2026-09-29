@@ -25,7 +25,6 @@ import type {
   PublicScenarioSummary,
 } from "@/lib/agent/types";
 import { useDocumentLang } from "@/lib/a11y/document-lang";
-import { listCatalogPresets } from "@/lib/scenarios/catalog-presets";
 import {
   draftToCreateInput,
   validateAuthoringDraft,
@@ -35,15 +34,14 @@ import {
   listExamplePacks,
   type ExamplePack,
 } from "@/lib/scenarios/example-packs";
+import { UNIVERSAL_CLINIC_CAPACITADOR_NOTE } from "@/lib/agent/clinic-frame";
 
 interface AgentHarnessScreenProps {
   onScenarioSaved: (slug: string) => void;
-  onPracticePreset: (slug: string) => void;
 }
 
 export function AgentHarnessScreen({
   onScenarioSaved,
-  onPracticePreset,
 }: AgentHarnessScreenProps) {
   const { showToast } = useToast();
   const [settings, setSettings] = useState<AgentHarnessSettings>(
@@ -79,7 +77,6 @@ export function AgentHarnessScreen({
     writeStoredAgentSettings(window.localStorage, settings);
   }, [hydrated, settings]);
 
-  const presets = useMemo(() => listCatalogPresets(), []);
   const examplePacks = useMemo(() => listExamplePacks(), []);
   useDocumentLang(settings.voiceAgent.language);
 
@@ -109,7 +106,7 @@ export function AgentHarnessScreen({
       }
     } catch (error) {
       showToast(
-        error instanceof Error ? error.message : "No se pudo hablar con el agente.",
+        error instanceof Error ? error.message : "No se pudo hablar con la IA.",
         "error",
       );
     } finally {
@@ -153,7 +150,7 @@ export function AgentHarnessScreen({
     setMessages([
       {
         role: "assistant",
-        content: `Cargué ${pack.label}: ${pack.draft.clientName}. Revisa el pack y guárdalo, o práctica un caso de la clínica.`,
+        content: `Cargué ${pack.label}: ${pack.draft.clientName}. Revisa el pack y guárdalo, o pruébalo en Escenarios.`,
       },
     ]);
   };
@@ -181,44 +178,31 @@ export function AgentHarnessScreen({
 
   return (
     <div className="agent-harness">
-      <header className="page-hero">
-        <p className="page-hero__eyebrow">Arranque guiado</p>
-        <h1 className="page-hero__title">Arma el escenario o practica ya</h1>
+      <header className="page-hero page-hero--compact">
+        <p className="page-hero__eyebrow">Capacitador · IA</p>
+        <h1 className="page-hero__title">Instruye a la IA para armar el caso</h1>
         <p className="page-hero__subtitle">
-          Tres pasos: elige un caso listo o un ejemplo (Kraken Flow, Me We,
-          Wellness), revisa tono y si el cliente vive, practica. Luego compara
-          al equipo. Camino feliz: Vercel AI Gateway → DeepSeek.
+          Explica qué quieres medir y cómo debe proceder la práctica. La IA
+          rellena perfil del comprador, briefing y éxito. Revisa el borrador,
+          guárdalo y pruébalo en Escenarios — mismo motor en vivo que el
+          diseñador manual.
+        </p>
+        <p className="agent-settings__hint page-hero__subtitle">
+          {UNIVERSAL_CLINIC_CAPACITADOR_NOTE}
         </p>
       </header>
 
       <ol className="agent-onboarding" aria-label="Cómo empezar">
-        <li>Elige un caso de la clínica o un ejemplo</li>
+        <li>Elige un ejemplo o describe el comprador en el chat</li>
         <li>Revisa tono e idioma — el pack ya viene armado</li>
-        <li>Practica y compara al equipo en el mismo examen</li>
+        <li>Guarda en Mis escenarios, prueba y publica en la biblioteca</li>
       </ol>
-
-      <section className="agent-prefilled" aria-labelledby="agent-prefilled-title">
-        <h2 id="agent-prefilled-title">Clínica — listos para llamar</h2>
-        {presets.map((preset) => (
-          <Card key={preset.slug} className="agent-prefilled__card">
-            <h3>{preset.name}</h3>
-            <p>
-              {preset.title} · {preset.company}
-            </p>
-            <p>{preset.practiceBrief}</p>
-            <Button onClick={() => onPracticePreset(preset.slug)}>
-              Practicar {preset.name}
-            </Button>
-          </Card>
-        ))}
-      </section>
 
       <section className="agent-examples" aria-labelledby="agent-examples-title">
         <h2 id="agent-examples-title">Ejemplos para armar</h2>
         <p className="agent-settings__hint">
-          Lo que Jaime usa para probar al equipo: Kraken Flow, Me We, Wellness y
-          Global Green. Se guardan como caso propio — no tocan la clínica de
-          tres.
+          Plantillas de referencia (Kraken Flow, Me We, Wellness, Global Green).
+          Se guardan como caso propio en Mis escenarios.
         </p>
         <div className="agent-prefilled">
           {examplePacks.map((pack) => (

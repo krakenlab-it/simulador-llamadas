@@ -2,6 +2,7 @@ import type { DifficultyLevel, PracticeMode } from "@/lib/db/types";
 import { getCatalogPreset, type CatalogPreset } from "@/lib/scenarios/catalog-presets";
 import { buildPresetScenarioConfig } from "@/lib/scenarios/preset-config";
 import type { ScenarioConfig } from "@/lib/scenarios/types";
+import { combinedPracticeDifficulty } from "@/lib/scenarios/difficulty-etiquette";
 import {
   channelFromMode,
   encounterFromCallType,
@@ -27,15 +28,22 @@ export function buildClientPack(input: {
   config: ScenarioConfig;
   seed?: CatalogClientPackSeed;
   difficultyLevel: DifficultyLevel;
+  difficultyLabel?: string | null;
   mode?: PracticeMode | null;
   maxTurns?: number;
 }): ClientScenarioPack {
   const seed = input.seed;
+  const language = input.config.language === "en" ? "en" : "es";
+  const effectiveDifficulty = combinedPracticeDifficulty(
+    input.difficultyLevel,
+    input.difficultyLabel,
+    language,
+  );
   return {
     channel: channelFromMode(input.mode),
     encounterType: encounterFromCallType(input.config.callType),
     sellerObjective: seed?.sellerObjective ?? input.config.winCriteria,
-    difficultyJaime: mapDifficultyToJaime(input.difficultyLevel),
+    difficultyJaime: mapDifficultyToJaime(effectiveDifficulty),
     maxTurns: input.maxTurns ?? Math.max(input.config.rounds.length, 5),
     country: "México",
     register: "español mexicano oral, trato de usted",
@@ -117,6 +125,7 @@ export function buyerPsychPackForScenario(input: {
   config?: ScenarioConfig | null;
   clientName?: string;
   difficultyLevel?: DifficultyLevel;
+  difficultyLabel?: string | null;
   mode?: PracticeMode | null;
 }): Pick<ClientScenarioPack, "decisionRole" | "encounterType" | "temperament"> | undefined {
   const difficulty = input.difficultyLevel ?? 1;
@@ -140,6 +149,7 @@ export function buyerPsychPackForScenario(input: {
     config: input.config,
     seed: preset?.clientPack ?? parseCatalogClientPackSeed(input.config.clientPack),
     difficultyLevel: difficulty,
+    difficultyLabel: input.difficultyLabel,
     mode,
     maxTurns: input.config.rounds.length || 5,
   });

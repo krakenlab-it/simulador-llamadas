@@ -41,6 +41,7 @@ export interface SessionRecord {
   scenarioSlug: string;
   clientName: string;
   isPreset: boolean;
+  difficultyLabel?: string | null;
   difficultyLevel: DifficultyLevel;
   mode: PracticeMode;
   status: CallStatus;
@@ -152,6 +153,7 @@ interface ScenarioContext {
   slug: string;
   clientName: string;
   isPreset: boolean;
+  difficultyLabel: string | null;
   config: ScenarioConfig | null;
   totalRounds: number;
   voiceAgent: VoiceAgentSettings;
@@ -193,10 +195,13 @@ export class SessionRepository {
       slug: string;
       client_name: string;
       is_preset: boolean;
+      difficulty_label: string;
       config: ScenarioConfig;
       voice_agent: unknown;
+      deactivated_at: string | Date | null;
     }>(
-      `SELECT id, slug, client_name, is_preset, config, voice_agent FROM scenarios WHERE slug = $1`,
+      `SELECT id, slug, client_name, is_preset, difficulty_label, config, voice_agent, deactivated_at
+       FROM scenarios WHERE slug = $1`,
       [slug],
     );
 
@@ -205,6 +210,9 @@ export class SessionRepository {
     }
 
     const row = rows[0];
+    if (row.deactivated_at) {
+      throw new Error(`Scenario deactivated: ${slug}`);
+    }
     const config = row.is_preset ? null : parseConfig(row.config);
 
     return {
@@ -212,6 +220,7 @@ export class SessionRepository {
       slug: row.slug,
       clientName: row.client_name,
       isPreset: row.is_preset,
+      difficultyLabel: row.difficulty_label,
       config,
       totalRounds: getScoringPhaseCount(config, row.is_preset),
       voiceAgent: parseVoiceAgentSettings(row.voice_agent),
@@ -247,6 +256,7 @@ export class SessionRepository {
       scenarioSlug: scenario.slug,
       clientName: scenario.clientName,
       isPreset: scenario.isPreset,
+      difficultyLabel: scenario.difficultyLabel,
       difficultyLevel: input.difficultyLevel,
       mode: input.mode,
       status: "in_progress",
@@ -264,6 +274,7 @@ export class SessionRepository {
       scenario_slug: string;
       client_name: string;
       is_preset: boolean;
+      difficulty_label: string;
       config: ScenarioConfig;
       difficulty_level: DifficultyLevel;
       mode: PracticeMode;
@@ -277,6 +288,7 @@ export class SessionRepository {
          s.slug AS scenario_slug,
          s.client_name,
          s.is_preset,
+         s.difficulty_label,
          s.config,
          s.voice_agent,
          ca.difficulty_level,
@@ -287,8 +299,8 @@ export class SessionRepository {
        JOIN scenarios s ON s.id = ca.scenario_id
        LEFT JOIN call_turns ct ON ct.call_attempt_id = ca.id
        WHERE ca.id = $1
-       GROUP BY ca.id, ca.trainee_id, s.slug, s.client_name, s.is_preset, s.config,
-                s.voice_agent, ca.difficulty_level, ca.mode, ca.status`,
+       GROUP BY ca.id, ca.trainee_id, s.slug, s.client_name, s.is_preset, s.difficulty_label,
+                s.config, s.voice_agent, ca.difficulty_level, ca.mode, ca.status`,
       [callAttemptId],
     );
 
@@ -304,6 +316,7 @@ export class SessionRepository {
       scenarioSlug: row.scenario_slug,
       clientName: row.client_name,
       isPreset: row.is_preset,
+      difficultyLabel: row.difficulty_label,
       difficultyLevel: row.difficulty_level,
       mode: row.mode,
       status: row.status,

@@ -18,9 +18,9 @@ import {
 } from "@/lib/frontend/flow";
 
 describe("app flow state machine", () => {
-  it("starts on Entrenar with idle phase", () => {
+  it("starts on Inicio with idle phase", () => {
     const state = initialFlowState();
-    expect(state.view).toBe("train");
+    expect(state.view).toBe("home");
     expect(state.phase).toBe("idle");
     expect(state.hasActiveSession).toBe(false);
   });

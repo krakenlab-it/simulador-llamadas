@@ -6,6 +6,7 @@ import {
   type ConversationTurn,
   type MeetingLogisticsState,
 } from "@/lib/agent/client-motor";
+import type { DifficultyLevel } from "@/lib/db/types";
 import type { ClientScenarioPack, DecisionRole } from "@/lib/agent/client-layer";
 import {
   getCatalogPreset,
@@ -39,13 +40,24 @@ export const ASSISTANT_CLOSING =
   /en qu[eé] m[aá]s (?:te|le) puedo ayudar|no dudes en|estoy para ayudarte|con gusto te ayudo|hay algo m[aá]s(?: en lo)? que (?:pueda|puedo)/i;
 
 export const AI_OR_SCENARIO_LEAK =
-  /\b(?:soy una? (?:ia|inteligencia)|soy un modelo|esto es (?:un )?(?:entrenamiento|simulaci[oó]n|escenario)|como (?:ia|asistente)|estoy aqu[ií] para ayudarte a (?:vender|practicar))\b/i;
+  /\b(?:soy una? (?:ia|inteligencia)|soy un modelo|esto es (?:un[a]? )?(?:entrenamiento|simulaci[oó]n|escenario|cl[ií]nica|ejercicio de pr[aá]ctica)|(?:esta|la) (?:llamada|sesi[oó]n) (?:es )?(?:solo )?(?:un[a]? )?(?:entrenamiento|simulaci[oó]n|pr[aá]ctica)|como (?:ia|asistente)|estoy aqu[ií] para ayudarte a (?:vender|practicar)|solo estamos (?:entrenando|practicando)|en (?:esta|la) simulaci[oó]n)\b/i;
 
 export const STALL_NO_SLOT = /sin d[ií]a y hora/i;
 
 const IDENTITY_ASK =
-  /\b(?:qui[eé]n habla|de d[oó]nde llaman|qui[eé]n les dio|a qui[eé]n busco)\b/i;
-const TRAINEE_INTRO = /\b(?:soy |me llamo|mi nombre es|le llamo de|llamo de)\b/i;
+  /\b(?:qui[eé]n habla|qui[eé]n hablo|con qui[eé]n hablo|de d[oó]nde llaman|qui[eé]n les dio|a qui[eé]n busco)\b/i;
+
+export function traineePresentedIdentity(
+  turns: readonly ConversationTurn[],
+  traineeUtterance: string,
+): boolean {
+  return (
+    TRAINEE_INTRO.test(traineeUtterance) ||
+    turns.some((turn) => turn.role === "trainee" && TRAINEE_INTRO.test(turn.text))
+  );
+}
+const TRAINEE_INTRO =
+  /\b(?:soy |me llamo|mi nombre es|le llamo de|llamo de|representante de|insisto[, ]|mi nombre)\b/i;
 const REASON_CUES =
   /\b(?:caseta|local(?:es)?|tablero|visita|cac|tr[aá]fico|piso|showroom|presentaci[oó]n|reuni[oó]n|cita|m²|tickets)\b/i;
 const HARD_BLOCK =
@@ -78,6 +90,7 @@ export interface BuyerPsychInput {
   priorTurns?: readonly ConversationTurn[];
   roundNumber: number;
   scenarioSlug?: string;
+  difficultyLevel?: DifficultyLevel;
   pack?: Pick<
     ClientScenarioPack,
     "decisionRole" | "encounterType" | "temperament"
@@ -239,9 +252,24 @@ export function analyzeBuyerPsych(input: BuyerPsychInput): BuyerPsychState {
     resistanceStyle,
   });
   const allowLong = rantMode || (gatekeeper && phase === "resist");
+  let tokenBudget = allowLong
+    ? BUYER_RANT_TOKEN_BUDGET
+    : BUYER_DEFAULT_TOKEN_BUDGET;
+  let maxSentences = allowLong ? 4 : BUYER_DEFAULT_MAX_SENTENCES;
+  const difficulty = input.difficultyLevel ?? 2;
+  if (difficulty >= 3) {
+    tokenBudget = Math.max(28, tokenBudget - 10);
+    maxSentences = Math.max(1, maxSentences - 1);
+  } else if (difficulty <= 1) {
+    tokenBudget = Math.min(BUYER_RANT_TOKEN_BUDGET, tokenBudget + 8);
+  }
+  const effectiveResistance =
+    !input.scenarioSlug && difficulty >= 3 && resistanceStyle === "stall"
+      ? "block"
+      : resistanceStyle;
   return {
     phase,
-    resistanceStyle,
+    resistanceStyle: effectiveResistance,
     decisionRole,
     subsequentCall,
     slotOffered,
@@ -252,8 +280,8 @@ export function analyzeBuyerPsych(input: BuyerPsychInput): BuyerPsychState {
     longPitch,
     gatekeeper,
     rantMode,
-    tokenBudget: allowLong ? BUYER_RANT_TOKEN_BUDGET : BUYER_DEFAULT_TOKEN_BUDGET,
-    maxSentences: allowLong ? 4 : BUYER_DEFAULT_MAX_SENTENCES,
+    tokenBudget,
+    maxSentences,
     offeredSlot,
   };
 }
@@ -325,17 +353,25 @@ export function buildBuyerRoleLock(input: {
     "Hesitación ligera OK (este, mmm, mira). Respuestas parciales OK. Protege tu tiempo.",
     input.state.subsequentCall
       ? "Llamada posterior: ya se conocen. NO preguntes quién habla. Ve a resistir o a la agenda."
-      : "Llamada en frío: en los primeros turnos puedes pedir quién habla / de dónde llaman.",
+      : input.state.identitySettled
+        ? "Ya escuchaste quién llama o ya preguntaste. NO repitas «quién habla». Responde al motivo u objeción."
+        : "Llamada en frío: en el primer turno puedes pedir quién habla / de dónde llaman.",
     input.state.gatekeeper
       ? "Eres guardian/influenciador: NO agendes solo. Redirige a quien decide o pide correo."
       : "",
     input.state.longPitch
       ? "El vendedor se alargó: corta («espéreme») o salta de tema. No escuches como coach."
       : "",
+    "Llamada en frío (clínica de práctica, pero TÚ no lo nombras): tiempo escaso, motivo claro, resistencia creíble, negociar o cerrar con cita/salida.",
+    input.state.phase === "opening_id" ||
+    input.state.phase === "reason_probe" ||
+    input.state.phase === "resist"
+      ? "Si preguntas, una sola pregunta poderosa (resiliencia, creatividad, innovación): resultado medible, por qué ahora, quién más, prueba más allá del pitch — no interrogatorio."
+      : "Este turno prioriza afirmación, bloqueo o cierre; no abras un cuestionario.",
     input.state.slotOffered
       ? `Latch de slot: el vendedor ya ofreció ${input.state.offeredSlot ?? "un día y hora concretos"}. Acéptalo, contraoferta o block. Prohibido «sin día y hora» como si no hubiera oferta.`
       : "",
-    "PROHIBIDO: cierres de asistente; sobre-ayuda; prosa perfecta / párrafos / viñetas; pregunta en cada turno; admitir IA o escenario; bucle de stall tras slot; misma objeción 3+ veces; calidez de porrista.",
+    "PROHIBIDO: cierres de asistente; sobre-ayuda; prosa perfecta / párrafos / viñetas; pregunta en cada turno; admitir IA, entrenamiento, escenario, simulación o clínica; bucle de stall tras slot; misma objeción 3+ veces; calidez de porrista.",
     "INYECTA: hesitación oral; un solo hecho; proteger agenda; un block O un stall; a veces turno muy corto; normas sociales; memoria del slot.",
     "Few-shot:",
     FEW_SHOT,
@@ -376,6 +412,56 @@ export function clipBuyerTurn(text: string, state: BuyerPsychState): string {
  * Post-LLM / template guard. Additive to KAN-94: never rewrite a date-demand
  * into a fake slot ack unless a real offered slot was detected.
  */
+const PROGRESS_AFTER_ID = [
+  "Ya escuché. En una frase: ¿qué quieren de mí?",
+  "Mmm… ¿y eso cómo me ayuda con mi operación diaria?",
+  "Estoy en el local. Sea concreto, no me lea el folleto.",
+  "Logan… ¿qué resultado medible traen o solo promesas?",
+  "Dígame el siguiente paso sin repetir la presentación.",
+] as const;
+
+export function progressiveBuyerFallback(
+  state: BuyerPsychState,
+  traineeUtterance: string,
+  recentReplies: readonly string[],
+  lastResort: string,
+): string {
+  const identityLoop =
+    recentReplies.some((line) => IDENTITY_ASK.test(line)) &&
+    (TRAINEE_INTRO.test(traineeUtterance) || state.identitySettled);
+  if (identityLoop) {
+    for (const line of PROGRESS_AFTER_ID) {
+      if (!recentReplies.some((r) => r.trim().toLowerCase() === line.toLowerCase())) {
+        return clipBuyerTurn(line, state);
+      }
+    }
+    return clipBuyerTurn(PROGRESS_AFTER_ID[0], state);
+  }
+
+  const pool =
+    state.phase === "opening_id" && !state.identitySettled
+      ? ["Este… ¿quién habla?", "¿De dónde llaman? Tengo un minuto."]
+      : state.phase === "reason_probe"
+        ? PROGRESS_AFTER_ID
+        : state.phase === "resist"
+          ? [
+              "Ya tengo proveedor. ¿Qué traen de diferente?",
+              "No me interesa otro pitch genérico.",
+              "Mándame un correo; ahora estoy en el piso.",
+            ]
+          : PROGRESS_AFTER_ID;
+
+  for (const line of pool) {
+    if (!recentReplies.some((r) => r.trim().toLowerCase() === line.toLowerCase())) {
+      return clipBuyerTurn(line, state);
+    }
+  }
+  if (TRAINEE_INTRO.test(traineeUtterance) && state.identitySettled) {
+    return clipBuyerTurn(PROGRESS_AFTER_ID[0], state);
+  }
+  return lastResort;
+}
+
 export function enforceBuyerTurnPolicy(
   reply: string,
   state: BuyerPsychState,
@@ -387,6 +473,14 @@ export function enforceBuyerTurnPolicy(
 
   const rememberedSlot =
     state.offeredSlot ?? extractOfferedSlot(traineeUtterance) ?? null;
+
+  if (
+    IDENTITY_ASK.test(text) &&
+    recentReplies.some((line) => IDENTITY_ASK.test(line)) &&
+    (TRAINEE_INTRO.test(traineeUtterance) || state.identitySettled)
+  ) {
+    text = progressiveBuyerFallback(state, traineeUtterance, recentReplies, text);
+  }
 
   if (STALL_NO_SLOT.test(text) && state.slotOffered && rememberedSlot) {
     return clipBuyerTurn(acknowledgeOfferedSlot(rememberedSlot), state);
@@ -418,7 +512,16 @@ export function enforceBuyerTurnPolicy(
     text = text.replace(/\?\s*$/, ".").trim();
   }
 
-  if (sameObjectionStreak([...recentReplies, text]) >= 3) {
+  const objectionStreak = sameObjectionStreak([...recentReplies, text]);
+  if (
+    objectionStreak >= 2 &&
+    IDENTITY_ASK.test(text) &&
+    (state.identitySettled || TRAINEE_INTRO.test(traineeUtterance))
+  ) {
+    text = progressiveBuyerFallback(state, traineeUtterance, recentReplies, text);
+  }
+
+  if (objectionStreak >= 3) {
     text =
       state.resistanceStyle === "block"
         ? "Ya les dije que no. Cuelgo."

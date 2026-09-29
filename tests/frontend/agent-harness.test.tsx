@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AgentHarnessScreen } from "@/app/components/agent/AgentHarnessScreen";
 import { ToastProvider } from "@/components/ui/Toast";
+import { AGENT_SETTINGS_STORAGE_KEY } from "@/lib/agent/storage";
 import { emptyAuthoringDraft } from "@/lib/scenarios/authoring";
 
 const runAgentChat = vi.fn();
@@ -24,7 +25,7 @@ afterEach(() => {
 });
 
 describe("AgentHarnessScreen", () => {
-  it("shows PREFILLED practice cards and keeps the prompt behind advanced", async () => {
+  it("allows click-to-edit on client guardrail cards and persists locally", async () => {
     const user = userEvent.setup();
     getAgentHarness.mockResolvedValue({
       availability: { hasModel: false },
@@ -32,23 +33,53 @@ describe("AgentHarnessScreen", () => {
     listScenarios.mockResolvedValue([]);
     render(
       <ToastProvider>
-        <AgentHarnessScreen
-          onScenarioSaved={vi.fn()}
-          onPracticePreset={vi.fn()}
-        />
+        <AgentHarnessScreen onScenarioSaved={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    await user.click(
+      await screen.findByRole("button", { name: /Hechos del caso/i }),
+    );
+    await waitFor(() => {
+      expect(window.localStorage.getItem(AGENT_SETTINGS_STORAGE_KEY)).toBeTruthy();
+    });
+
+    const rule = await screen.findByLabelText("Regla");
+    fireEvent.change(rule, {
+      target: { value: "Solo datos del pack del caso." },
+    });
+
+    await waitFor(() => {
+      const stored = window.localStorage.getItem(AGENT_SETTINGS_STORAGE_KEY);
+      expect(stored).toContain("Solo datos del pack del caso.");
+    });
+  });
+
+  it("shows example packs and keeps the prompt behind advanced", async () => {
+    const user = userEvent.setup();
+    getAgentHarness.mockResolvedValue({
+      availability: { hasModel: false },
+    });
+    listScenarios.mockResolvedValue([]);
+    render(
+      <ToastProvider>
+        <AgentHarnessScreen onScenarioSaved={vi.fn()} />
       </ToastProvider>,
     );
     expect(
-      await screen.findByRole("heading", { name: /Arma el escenario/i }),
+      await screen.findByRole("heading", { name: /Instruye a la IA para armar el caso/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Vercel AI Gateway/i)).toBeInTheDocument();
+    expect(screen.getByText(/mismo motor en vivo/i)).toBeInTheDocument();
     expect(screen.getByText(/Hechos del caso/i)).toBeInTheDocument();
     expect(screen.getByText(/Coach aparte/i)).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Cliente en vivo" })).toBeChecked();
     expect(screen.queryByText(/System prompt/i)).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Practicar Mariana Escobedo/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { name: /Clínica — listos para llamar/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Practicar Mariana Escobedo/i }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText(/Ejemplos para armar/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Cargar Kraken Flow/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Cargar Me We/i })).toBeInTheDocument();
@@ -66,7 +97,7 @@ describe("AgentHarnessScreen", () => {
 
     render(
       <ToastProvider>
-        <AgentHarnessScreen onScenarioSaved={onSaved} onPracticePreset={vi.fn()} />
+        <AgentHarnessScreen onScenarioSaved={onSaved} />
       </ToastProvider>,
     );
 
@@ -119,7 +150,7 @@ describe("AgentHarnessScreen", () => {
 
     render(
       <ToastProvider>
-        <AgentHarnessScreen onScenarioSaved={onSaved} onPracticePreset={vi.fn()} />
+        <AgentHarnessScreen onScenarioSaved={onSaved} />
       </ToastProvider>,
     );
 
@@ -154,10 +185,7 @@ describe("AgentHarnessScreen", () => {
     listScenarios.mockResolvedValue([]);
     render(
       <ToastProvider>
-        <AgentHarnessScreen
-          onScenarioSaved={vi.fn()}
-          onPracticePreset={vi.fn()}
-        />
+        <AgentHarnessScreen onScenarioSaved={vi.fn()} />
       </ToastProvider>,
     );
     await user.click(screen.getByRole("button", { name: "Cierre SPIN" }));

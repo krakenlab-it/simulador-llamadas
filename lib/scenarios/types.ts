@@ -88,6 +88,18 @@ export interface ScenarioRecord {
   config: ScenarioConfig;
   /** Trainer voice-agent knobs; replay restores the same agent. */
   voiceAgent?: VoiceAgentSettings;
+  /** ISO timestamp when capacitador retired the case (soft delete). */
+  deactivatedAt?: string | null;
+  /** When set, scenario is visible in Biblioteca (published catalog). */
+  libraryPublishedAt?: string | null;
+}
+
+export function isScenarioActiveForPractice(scenario: ScenarioRecord): boolean {
+  return !scenario.deactivatedAt;
+}
+
+export function isScenarioPublishedToLibrary(scenario: ScenarioRecord): boolean {
+  return Boolean(scenario.libraryPublishedAt);
 }
 
 export interface CreateCustomScenarioInput {
