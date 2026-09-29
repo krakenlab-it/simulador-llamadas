@@ -29,12 +29,20 @@ import {
   analyzeMeetingLogistics,
   buildLiveStateBlock,
   initialEmotionalMeters,
+  acknowledgeOfferedSlot,
   repairDateDemandAfterAccept,
   updateEmotionalMeters,
   type ConversationTurn,
   type MeetingLogisticsState,
 } from "./client-motor";
 import { buildClientPack, formatClientPack } from "./client-pack";
+import {
+  buildBuyerHarnessContextBlocks,
+  buildImpersonationChatMessages,
+  enforceHarnessNoRepeat,
+  isHardRepeatViolation,
+  mergeClientReplies,
+} from "./dialogue-memory";
 import { composeSeparatedSystemPrompt } from "./roles";
 import {
   readProviderAvailability,
@@ -91,9 +99,9 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     (input.askedQuestions ?? []).map((item) => item.trim().toLowerCase()),
   );
   const unused = questions.filter((item) => !asked.has(item.toLowerCase()));
-  const recent = (input.recentReplies ?? []).slice(-4);
   const layer = input.clientLayer ?? DEFAULT_CLIENT_LAYER_SETTINGS;
   const difficulty = input.difficultyLevel ?? 1;
+  const configuredPhases = input.config.rounds.length || 5;
   const pack = buildClientPack({
     clientName: input.clientName,
     clientTitle: preset?.title,
@@ -102,7 +110,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     seed: preset?.clientPack ?? parseCatalogClientPackSeed(input.config.clientPack),
     difficultyLevel: difficulty,
     mode: input.mode,
-    maxTurns: input.config.rounds.length || 5,
+    maxTurns: configuredPhases,
   });
   const priorTurns = input.priorTurns ?? [];
   const logistics = analyzeMeetingLogistics(priorTurns, input.traineeUtterance);
@@ -116,7 +124,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     meters,
     logistics,
     turnNumber: input.roundNumber,
-    maxTurns: pack.maxTurns,
+    maxTurns: Math.max(configuredPhases, input.roundNumber),
   });
   const tone = toneHint(layer.toneId, mood);
   const psych = analyzeBuyerPsych({
@@ -143,19 +151,33 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     logisticsGrantInstruction(logistics),
     buyerToolsPromptHint(),
     "No repitas una pregunta que ya hiciste. No clones la última réplica.",
+    input.roundNumber > configuredPhases
+      ? `Llevas ${input.roundNumber} turnos: avanza (logística, confirmación o salida). No repitas la misma objeción.`
+      : "",
     unused[0] && (psych.phase === "opening_id" || psych.phase === "reason_probe")
       ? `Si preguntas algo, una sola variante de: ${unused[0]}`
       : "Este turno termina en afirmación o salida suave, no en otra pregunta.",
   ].join("\n");
 
-  const user = `El vendedor (usuario) dijo: "${input.traineeUtterance}"`;
+  const user =
+    "Responde solo como el cliente a la última línea del vendedor en los mensajes. No copies tus réplicas anteriores.";
+
+  const recentClientReplies = mergeClientReplies(priorTurns, input.recentReplies ?? []);
+
+  const harnessContext = buildBuyerHarnessContextBlocks({
+    priorTurns,
+    recentClientReplies,
+    psych,
+    logistics,
+    roundNumber: input.roundNumber,
+  });
 
   const context = [
     formatClientPack(pack),
     liveBlock,
     buildBuyerPsychBlock(psych),
+    harnessContext,
     `Turno de práctica: ${input.round.label} (${input.roundNumber})`,
-    recent.length ? `Réplicas recientes (NO clones):\n- ${recent.join("\n- ")}` : "",
     questions.length
       ? `Banco de este cliente (no es un quiz; usa una solo si la fase pide pregunta):\n- ${questions.join("\n- ")}`
       : "",
@@ -172,13 +194,7 @@ export function buildImpersonationPrompt(input: ImpersonationInput): string {
 }
 
 export function isCloneReply(candidate: string, recentReplies: string[]): boolean {
-  const normalized = candidate.trim().toLowerCase().replace(/\s+/g, " ");
-  if (!normalized) return true;
-  if (/^(ok|okay|s[ií]|vale|claro|entendido)\.?$/.test(normalized)) return true;
-  return recentReplies.some((item) => {
-    const other = item.trim().toLowerCase().replace(/\s+/g, " ");
-    return other === normalized || (other.length > 12 && normalized.includes(other));
-  });
+  return isHardRepeatViolation(candidate, recentReplies);
 }
 
 export async function generateImpersonatedReply(
@@ -196,10 +212,9 @@ export async function generateImpersonatedReply(
   if (!model) return fallbackText;
 
   const roles = buildImpersonationRoles(input);
-  const logistics = analyzeMeetingLogistics(
-    input.priorTurns ?? [],
-    input.traineeUtterance,
-  );
+  const priorTurns = input.priorTurns ?? [];
+  const recentClientReplies = mergeClientReplies(priorTurns, input.recentReplies ?? []);
+  const logistics = analyzeMeetingLogistics(priorTurns, input.traineeUtterance);
   const psych = roles.psych;
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), IMPERSONATION_TIMEOUT_MS);
@@ -209,35 +224,60 @@ export async function generateImpersonatedReply(
   });
 
   try {
+    const chatMessages = buildImpersonationChatMessages({
+      priorTurns,
+      traineeUtterance: input.traineeUtterance,
+    });
+
     const result = await generateText({
       model,
       system: composeSeparatedSystemPrompt(roles),
-      messages: [{ role: "user", content: roles.user }],
+      messages: chatMessages,
       tools: tools as Parameters<typeof generateText>[0]["tools"],
       temperature: BUYER_LIVE_TEMPERATURE,
       maxOutputTokens: BUYER_MAX_OUTPUT_TOKENS,
       abortSignal: controller.signal,
     });
-    const text = (result.text?.trim() || toolSpoken).trim();
-    if (!text || text.length > 400) return fallbackText;
-    if (isCloneReply(text, input.recentReplies ?? [])) return fallbackText;
+    let text = (result.text?.trim() || toolSpoken).trim();
+    if (!text || text.length > 400) text = fallbackText;
     const policed = enforceBuyerTurnPolicy(
       text,
       psych,
       input.traineeUtterance,
-      input.recentReplies ?? [],
+      recentClientReplies,
     );
+    let finalLine = policed;
+    const rememberedSlot = psych.offeredSlot ?? input.traineeUtterance;
     if (logistics.shouldAcknowledgeSlot) {
       const repaired = repairDateDemandAfterAccept(
         policed,
-        input.traineeUtterance,
+        rememberedSlot,
         input.roundNumber,
       );
-      if (repaired) return repaired;
+      if (repaired) finalLine = repaired;
     }
-    return policed;
+    const primaryFallback = logistics.shouldAcknowledgeSlot
+      ? acknowledgeOfferedSlot(rememberedSlot, input.roundNumber)
+      : fallbackText;
+    return enforceHarnessNoRepeat({
+      candidate: finalLine,
+      recentClientReplies,
+      psych,
+      primaryFallback,
+      turnNumber: input.roundNumber,
+    });
   } catch {
-    return fallbackText;
+    const rememberedSlot = psych.offeredSlot ?? input.traineeUtterance;
+    const primaryFallback = logistics.shouldAcknowledgeSlot
+      ? acknowledgeOfferedSlot(rememberedSlot, input.roundNumber)
+      : fallbackText;
+    return enforceHarnessNoRepeat({
+      candidate: primaryFallback,
+      recentClientReplies,
+      psych,
+      primaryFallback,
+      turnNumber: input.roundNumber,
+    });
   } finally {
     clearTimeout(timeoutId);
   }

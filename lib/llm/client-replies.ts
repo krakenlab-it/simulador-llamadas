@@ -10,6 +10,15 @@ import type { ScenarioConfig, ScenarioRoundDef } from "@/lib/scenarios/types";
 import { templateClientReply } from "@/lib/feedback/evaluation";
 import { isDeepSeekAvailable } from "@/lib/agent/availability";
 import { buyerPsychPackForScenario } from "@/lib/agent/client-pack";
+import {
+  acknowledgeOfferedSlot,
+  analyzeMeetingLogistics,
+} from "@/lib/agent/client-motor";
+import {
+  buildBuyerHarnessContextBlocks,
+  buildImpersonationChatMessages,
+  enforceHarnessNoRepeat,
+} from "@/lib/agent/dialogue-memory";
 import { generateImpersonatedReply } from "@/lib/agent/impersonation";
 import { callLlm, isLlmAvailable } from "@/lib/llm/provider";
 import { getCatalogPreset } from "@/lib/scenarios/catalog-presets";
@@ -37,9 +46,8 @@ export interface GenerateReplyInput {
 }
 
 async function callGroq(
-  prompt: string,
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>,
   signal: AbortSignal | undefined,
-  systemPrompt: string,
 ): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
@@ -54,10 +62,7 @@ async function callGroq(
       signal,
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: prompt },
-        ],
+        messages,
         max_tokens: 120,
         temperature: 0.7,
       }),
@@ -71,6 +76,33 @@ async function callGroq(
   } catch {
     return null;
   }
+}
+
+function harnessForReply(input: GenerateReplyInput): string {
+  const priorTurns = input.priorTurns ?? [];
+  if (priorTurns.length === 0) return "";
+  const psych = analyzeBuyerPsych({
+    traineeUtterance: input.traineeUtterance,
+    priorTurns,
+    roundNumber: input.roundNumber,
+    scenarioSlug: input.scenarioSlug,
+    pack: buyerPsychPackForScenario({
+      scenarioSlug: input.scenarioSlug,
+      config: input.config,
+      clientName: input.clientName,
+      difficultyLevel: input.difficultyLevel,
+      mode: input.mode,
+    }),
+  });
+  return buildBuyerHarnessContextBlocks({
+    priorTurns,
+    recentClientReplies: priorTurns
+      .filter((turn) => turn.role === "client")
+      .map((turn) => turn.text),
+    psych,
+    logistics: analyzeMeetingLogistics(priorTurns, input.traineeUtterance),
+    roundNumber: input.roundNumber,
+  });
 }
 
 export function buildClientReplyPrompt(input: GenerateReplyInput): string {
@@ -96,6 +128,8 @@ export function buildClientReplyPrompt(input: GenerateReplyInput): string {
     ? `Si preguntas, usa un ángulo de este cliente: ${preset.questionBank[0]} No copies las réplicas de otros clientes.`
     : "No repitas la misma pregunta. Cambia el ángulo.";
 
+  const harness = harnessForReply(input);
+
   return `Eres ${input.clientName}, cliente en ${input.config.industry}.
 Problema: ${input.config.clientProblem}.
 Vendes/compras: ${input.config.productSold}.
@@ -103,8 +137,8 @@ Temperamento: ${input.config.temperament}.
 Idioma obligatorio: ${language.promptName} (${language.iso639}). Habla SOLO en ${language.promptName}.
 ${turnLabel}
 ${goodLooksLike ? `En esta fase, una buena respuesta del vendedor se ve así: ${goodLooksLike}.` : ""}
-El vendedor dijo: "${input.traineeUtterance}".
-Responde en 1-2 oraciones cortas, tono ${mood}.
+${harness ? `${harness}\n\n` : ""}El vendedor dijo ahora: "${input.traineeUtterance}".
+Responde en 1-2 oraciones cortas, tono ${mood}. No repitas una réplica que ya dijiste en el transcript.
 ${questionHint}
 Solo la réplica del cliente, sin comillas ni explicación.`;
 }
@@ -128,18 +162,29 @@ export async function generateGroqClientReply(
 
   try {
     const language = resolveScenarioLanguage(input.config);
-    const prompt = buildClientReplyPrompt(input);
-    const llmReply = await callGroq(
-      prompt,
-      controller.signal,
-      buildLanguageLockSystemPrompt(language),
-    );
+    const harness = harnessForReply(input);
+    const groqMessages: Array<{
+      role: "system" | "user" | "assistant";
+      content: string;
+    }> = [
+      {
+        role: "system",
+        content: [buildLanguageLockSystemPrompt(language), harness]
+          .filter(Boolean)
+          .join("\n\n"),
+      },
+      ...buildImpersonationChatMessages({
+        priorTurns: input.priorTurns ?? [],
+        traineeUtterance: input.traineeUtterance,
+      }),
+    ];
+    const llmReply = await callGroq(groqMessages, controller.signal);
     if (!llmReply || llmReply.length < 8 || llmReply.length > 400) {
-      return fallbackText;
+      return policeClientReply(input, fallbackText);
     }
     return policeClientReply(input, llmReply);
   } catch {
-    return fallbackText;
+    return policeClientReply(input, fallbackText);
   } finally {
     clearTimeout(timeoutId);
   }
@@ -166,14 +211,14 @@ export async function generateClientReply(
     return generateImpersonatedReply(input, fallback);
   }
 
-  if (!isLlmAvailable()) return fallback;
+  if (!isLlmAvailable()) return policeClientReply(input, fallback);
 
   const language = resolveScenarioLanguage(input.config);
   const prompt = `${buildLanguageLockSystemPrompt(language)}\n\n${buildClientReplyPrompt(input)}`;
   const llmReply = await callLlm(prompt, { maxTokens: 120, temperature: 0.7 });
 
   if (!llmReply || llmReply.length < 8 || llmReply.length > 400) {
-    return fallback;
+    return policeClientReply(input, fallback);
   }
 
   return policeClientReply(input, llmReply);
@@ -193,7 +238,36 @@ function policeClientReply(input: GenerateReplyInput, reply: string): string {
       mode: input.mode,
     }),
   });
-  return enforceBuyerTurnPolicy(reply, psych, input.traineeUtterance);
+  const logistics = analyzeMeetingLogistics(
+    input.priorTurns ?? [],
+    input.traineeUtterance,
+  );
+  const recentClientReplies = (input.priorTurns ?? [])
+    .filter((turn) => turn.role === "client")
+    .map((turn) => turn.text);
+  const policed = enforceBuyerTurnPolicy(
+    reply,
+    psych,
+    input.traineeUtterance,
+    recentClientReplies,
+  );
+  let fallback = templateClientReply(
+    input.config,
+    input.round,
+    input.reaction,
+    input.clientName,
+  );
+  if (logistics.shouldAcknowledgeSlot) {
+    const rememberedSlot = psych.offeredSlot ?? input.traineeUtterance;
+    fallback = acknowledgeOfferedSlot(rememberedSlot, input.roundNumber);
+  }
+  return enforceHarnessNoRepeat({
+    candidate: policed,
+    recentClientReplies,
+    psych,
+    primaryFallback: fallback,
+    turnNumber: input.roundNumber,
+  });
 }
 
 export function getOpeningLine(config: ScenarioConfig): string {
