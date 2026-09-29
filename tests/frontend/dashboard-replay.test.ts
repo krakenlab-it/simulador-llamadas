@@ -82,7 +82,9 @@ describe("replaySetupFromDetail", () => {
   });
 
   it("uses clinic defaults when older details omit voice and config", () => {
-    const setup = replaySetupFromDetail(detail({ isPreset: true }));
+    const setup = replaySetupFromDetail(
+      detail({ isPreset: true, scenarioSlug: "mariana", clientName: "Mariana Escobedo" }),
+    );
     expect(setup.voiceAgent).toEqual(DEFAULT_VOICE_AGENT_SETTINGS);
     expect(setup.phaseLabels).toEqual([
       "Apertura",

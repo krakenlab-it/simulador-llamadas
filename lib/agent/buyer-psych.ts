@@ -40,7 +40,7 @@ export const ASSISTANT_CLOSING =
   /en qu[eé] m[aá]s (?:te|le) puedo ayudar|no dudes en|estoy para ayudarte|con gusto te ayudo|hay algo m[aá]s(?: en lo)? que (?:pueda|puedo)/i;
 
 export const AI_OR_SCENARIO_LEAK =
-  /\b(?:soy una? (?:ia|inteligencia)|soy un modelo|esto es (?:un )?(?:entrenamiento|simulaci[oó]n|escenario)|como (?:ia|asistente)|estoy aqu[ií] para ayudarte a (?:vender|practicar))\b/i;
+  /\b(?:soy una? (?:ia|inteligencia)|soy un modelo|esto es (?:un[a]? )?(?:entrenamiento|simulaci[oó]n|escenario|cl[ií]nica|ejercicio de pr[aá]ctica)|(?:esta|la) (?:llamada|sesi[oó]n) (?:es )?(?:solo )?(?:un[a]? )?(?:entrenamiento|simulaci[oó]n|pr[aá]ctica)|como (?:ia|asistente)|estoy aqu[ií] para ayudarte a (?:vender|practicar)|solo estamos (?:entrenando|practicando)|en (?:esta|la) simulaci[oó]n)\b/i;
 
 export const STALL_NO_SLOT = /sin d[ií]a y hora/i;
 
@@ -362,10 +362,16 @@ export function buildBuyerRoleLock(input: {
     input.state.longPitch
       ? "El vendedor se alargó: corta («espéreme») o salta de tema. No escuches como coach."
       : "",
+    "Llamada en frío (clínica de práctica, pero TÚ no lo nombras): tiempo escaso, motivo claro, resistencia creíble, negociar o cerrar con cita/salida.",
+    input.state.phase === "opening_id" ||
+    input.state.phase === "reason_probe" ||
+    input.state.phase === "resist"
+      ? "Si preguntas, una sola pregunta poderosa (resiliencia, creatividad, innovación): resultado medible, por qué ahora, quién más, prueba más allá del pitch — no interrogatorio."
+      : "Este turno prioriza afirmación, bloqueo o cierre; no abras un cuestionario.",
     input.state.slotOffered
       ? `Latch de slot: el vendedor ya ofreció ${input.state.offeredSlot ?? "un día y hora concretos"}. Acéptalo, contraoferta o block. Prohibido «sin día y hora» como si no hubiera oferta.`
       : "",
-    "PROHIBIDO: cierres de asistente; sobre-ayuda; prosa perfecta / párrafos / viñetas; pregunta en cada turno; admitir IA o escenario; bucle de stall tras slot; misma objeción 3+ veces; calidez de porrista.",
+    "PROHIBIDO: cierres de asistente; sobre-ayuda; prosa perfecta / párrafos / viñetas; pregunta en cada turno; admitir IA, entrenamiento, escenario, simulación o clínica; bucle de stall tras slot; misma objeción 3+ veces; calidez de porrista.",
     "INYECTA: hesitación oral; un solo hecho; proteger agenda; un block O un stall; a veces turno muy corto; normas sociales; memoria del slot.",
     "Few-shot:",
     FEW_SHOT,

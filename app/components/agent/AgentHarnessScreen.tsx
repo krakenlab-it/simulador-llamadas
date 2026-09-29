@@ -34,6 +34,7 @@ import {
   listExamplePacks,
   type ExamplePack,
 } from "@/lib/scenarios/example-packs";
+import { UNIVERSAL_CLINIC_CAPACITADOR_NOTE } from "@/lib/agent/clinic-frame";
 
 interface AgentHarnessScreenProps {
   onScenarioSaved: (slug: string) => void;
@@ -181,10 +182,13 @@ export function AgentHarnessScreen({
         <p className="page-hero__eyebrow">Capacitador · IA</p>
         <h1 className="page-hero__title">Instruye a la IA para armar el caso</h1>
         <p className="page-hero__subtitle">
-          Explica qué quieres medir y cómo debe proceder la simulación. La IA
+          Explica qué quieres medir y cómo debe proceder la práctica. La IA
           rellena perfil del comprador, briefing y éxito. Revisa el borrador,
           guárdalo y pruébalo en Escenarios — mismo motor en vivo que el
           diseñador manual.
+        </p>
+        <p className="agent-settings__hint page-hero__subtitle">
+          {UNIVERSAL_CLINIC_CAPACITADOR_NOTE}
         </p>
       </header>
 

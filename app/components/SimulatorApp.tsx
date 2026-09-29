@@ -19,7 +19,6 @@ import {
   enterResults,
   initialFlowState,
   navigate,
-  openBuilder,
   resetToHome,
   resetToTrain,
   type AppView,

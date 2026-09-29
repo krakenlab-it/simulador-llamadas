@@ -50,6 +50,10 @@ import { progressiveBuyerFallback } from "@/lib/agent/buyer-psych";
 import { buildClientPack, formatClientPack } from "./client-pack";
 import { composeSeparatedSystemPrompt } from "./roles";
 import {
+  buildUniversalClinicSystemFrame,
+  powerfulQuestionHintForPhase,
+} from "./clinic-frame";
+import {
   readProviderAvailability,
   resolveAgentProvider,
 } from "./availability";
@@ -149,7 +153,13 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     logistics,
   });
 
+  const powerfulHint = powerfulQuestionHintForPhase(
+    psych.phase,
+    unused[0] ?? questions[0],
+  );
+
   const agent = [
+    buildUniversalClinicSystemFrame(),
     buildBuyerRoleLock({
       name: input.clientName,
       title: pack.clientTitle || preset?.title,
@@ -174,9 +184,8 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     logisticsGrantInstruction(logistics),
     buyerToolsPromptHint(),
     "No repitas una pregunta que ya hiciste. No clones la última réplica.",
-    unused[0] && (psych.phase === "opening_id" || psych.phase === "reason_probe")
-      ? `Si preguntas algo, una sola variante de: ${unused[0]}`
-      : "Este turno termina en afirmación o salida suave, no en otra pregunta.",
+    powerfulHint ??
+      "Este turno termina en afirmación o salida suave, no en otra pregunta.",
   ].join("\n");
 
   const transcriptMessages = buildBuyerChatMessages(
@@ -195,7 +204,7 @@ export function buildImpersonationRoles(input: ImpersonationInput): {
     `Turno de práctica: ${input.round.label} (${input.roundNumber})`,
     recent.length ? `Réplicas recientes (NO clones):\n- ${recent.join("\n- ")}` : "",
     questions.length
-      ? `Banco de este cliente (no es un quiz; usa una solo si la fase pide pregunta):\n- ${questions.join("\n- ")}`
+      ? `Banco de preguntas del caso (clínica en frío — elige UNA si la fase lo permite; tensiona resiliencia/innovación, no interrogatorio):\n- ${questions.join("\n- ")}`
       : "",
   ]
     .filter(Boolean)

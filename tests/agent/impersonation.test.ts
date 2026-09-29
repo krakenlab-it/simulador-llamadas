@@ -26,6 +26,7 @@ describe("impersonation", () => {
     });
     expect(roles.agent).toMatch(/Mariana Escobedo/);
     expect(roles.agent).toMatch(/Nunca hables como el vendedor/);
+    expect(roles.agent).toMatch(/MARCO INTERNO/i);
     expect(roles.agent).toMatch(/decisor/);
     expect(roles.user).toMatch(/vendedor/);
     expect(roles.context).toMatch(/PACK DEL ESCENARIO/);

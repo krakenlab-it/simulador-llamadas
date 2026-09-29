@@ -1,5 +1,7 @@
 import type { SetupConfig } from "@/app/components/training/ScenarioHub";
 import type { SessionDetail } from "@/lib/api/stubs";
+import { getClientBySlug } from "@/lib/clients";
+import { getClientLine } from "@/lib/simulation/rounds";
 import {
   openingLineForCall,
   phaseLabelsForCall,
@@ -14,6 +16,12 @@ export function replaySetupFromDetail(detail: SessionDetail): SetupConfig {
     detail.voiceAgent ?? DEFAULT_VOICE_AGENT_SETTINGS,
   );
 
+  const presetClient = detail.isPreset
+    ? getClientBySlug(detail.scenarioSlug)
+    : undefined;
+  const presetOpening =
+    presetClient ? getClientLine(presetClient, 0) : undefined;
+
   return {
     scenarioSlug: detail.scenarioSlug,
     clientName: detail.clientName,
@@ -23,6 +31,10 @@ export function replaySetupFromDetail(detail: SessionDetail): SetupConfig {
     totalRounds: detail.totalRounds,
     phaseLabels: phaseLabelsForCall(detail.config ?? null, detail.isPreset),
     voiceAgent,
-    openingLine: openingLineForCall(detail.config ?? null, detail.isPreset),
+    openingLine: openingLineForCall(
+      detail.config ?? null,
+      detail.isPreset,
+      presetOpening,
+    ),
   };
 }

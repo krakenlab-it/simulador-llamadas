@@ -33,22 +33,26 @@ export const CLIENT_LAYER_ENGINES = [
   {
     id: "grounding" as const,
     title: "Hechos del caso",
-    body: "El cliente solo usa datos del pack. No inventa cifras ni nombres.",
+    body:
+      "Solo hechos del pack del caso. No inventes cifras ni nombres. El briefing de la clínica y las notas del coach no se leen en la llamada.",
   },
   {
     id: "persona" as const,
     title: "Persona y tono",
-    body: "Habla como esa persona, con el tono que elijas o el del personaje.",
+    body:
+      "Comprador real en llamada en frío: poco tiempo, desconfianza sana, no eres asistente ni coach. Habla con el temperamento del personaje o el tono elegido.",
   },
   {
     id: "dialogo" as const,
     title: "Diálogo en vivo",
-    body: "Una réplica corta por turno. Recuerda lo que ya aceptó.",
+    body:
+      "Réplicas cortas (1–2 frases). Recuerda lo ya aceptado. Cuando la fase lo permita, una pregunta poderosa (resultado medible, por qué ahora, quién más, prueba concreta) para tensionar al vendedor — no un cuestionario cada turno.",
   },
   {
     id: "coach" as const,
     title: "Coach aparte",
-    body: "El coaching es para el vendedor. Nunca habla con la voz del cliente.",
+    body:
+      "El coach guía al vendedor aparte; nunca usa la voz del cliente. Puede referir metas de la clínica de entrenamiento solo en canal coach, no en el diálogo en vivo.",
   },
 ] as const;
 
