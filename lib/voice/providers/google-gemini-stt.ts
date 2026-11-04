@@ -1,7 +1,8 @@
 import type { SttResult } from "@/lib/voice/types";
 
-/** Spec target: gemini-3.5-transcribe-preview; falls back to flash multimodal. */
-export const GEMINI_TRANSCRIBE_MODEL = "gemini-2.0-flash";
+import { GEMINI_TRANSCRIBE_MODEL } from "@/lib/agent/models";
+
+export { GEMINI_TRANSCRIBE_MODEL };
 
 /** Gemini API-key STT via multimodal generateContent (transcribe path). */
 export async function transcribeWithGemini(

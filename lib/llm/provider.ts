@@ -1,3 +1,9 @@
+import {
+  FALLBACK_GEMINI_MODEL,
+  FALLBACK_GROQ_MODEL,
+  GROQ_REASONING_EFFORT,
+} from "@/lib/agent/models";
+
 export type LlmProvider = "groq" | "gemini";
 
 export function getLlmProvider(): LlmProvider | null {
@@ -42,14 +48,18 @@ async function callGroq(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: FALLBACK_GROQ_MODEL,
         messages: [{ role: "user", content: prompt }],
         max_tokens: maxTokens,
         temperature,
+        reasoning_effort: GROQ_REASONING_EFFORT,
       }),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      warnLlmFailure("groq", FALLBACK_GROQ_MODEL, response.status);
+      return null;
+    }
     const data = (await response.json()) as {
       choices?: { message?: { content?: string } }[];
     };
@@ -69,7 +79,7 @@ async function callGemini(
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${FALLBACK_GEMINI_MODEL}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -80,7 +90,10 @@ async function callGemini(
       },
     );
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      warnLlmFailure("gemini", FALLBACK_GEMINI_MODEL, response.status);
+      return null;
+    }
     const data = (await response.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] } }[];
     };
@@ -109,4 +122,9 @@ export function parseJsonFromLlm<T>(raw: string): T | null {
     }
     return null;
   }
+}
+
+/** One-line, secret-free warning so a dead model id never fails silently again (KAN-144). */
+export function warnLlmFailure(provider: string, model: string, status: number): void {
+  console.warn(`[llm] ${provider} model ${model} returned HTTP ${status}; using fallback.`);
 }
