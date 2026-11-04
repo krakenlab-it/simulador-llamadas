@@ -1,3 +1,4 @@
+import { FALLBACK_GROQ_MODEL, GROQ_REASONING_EFFORT } from "@/lib/agent/models";
 import {
   analyzeBuyerPsych,
   enforceBuyerTurnPolicy,
@@ -61,10 +62,11 @@ async function callGroq(
       },
       signal,
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        model: FALLBACK_GROQ_MODEL,
         messages,
         max_tokens: 120,
         temperature: 0.7,
+        reasoning_effort: GROQ_REASONING_EFFORT,
       }),
     });
 
