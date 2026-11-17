@@ -4,10 +4,20 @@ import {
   readResponseDetail,
   type ProviderOutcome,
 } from "@/lib/voice/provider-result";
+import { normalizeGeminiTtsAudioBytes } from "@/lib/voice/providers/google-gemini-tts-audio";
 
-const MODEL = "gemini-2.5-flash-preview-tts";
+/** GA successor for shut-down preview TTS (see Gemini API deprecations). */
+export const DEFAULT_GEMINI_TTS_MODEL = "gemini-3.8-flash-lite-tts";
+
 const VOICE = "Kore";
 const LANGUAGE = "es-US";
+
+export function resolveGeminiTtsModel(): string {
+  const override = process.env.GEMINI_TTS_MODEL?.trim();
+  return override || DEFAULT_GEMINI_TTS_MODEL;
+}
+
+export const GEMINI_TTS_MODEL = DEFAULT_GEMINI_TTS_MODEL;
 
 /** Gemini API-key TTS (Kore voice, es-US). */
 export async function synthesizeWithGeminiFlash(
@@ -18,11 +28,12 @@ export async function synthesizeWithGeminiFlash(
     return providerSkipped("missing_GOOGLE_API_KEY");
   }
 
+  const model = resolveGeminiTtsModel();
   const normalized = applyPronunciationHints(text);
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,7 +83,9 @@ export async function synthesizeWithGeminiFlash(
       return { ok: false, reason: "google_gemini_empty_audio" };
     }
 
-    return { ok: true, value: Buffer.from(inline.data, "base64") };
+    const raw = Buffer.from(inline.data, "base64");
+    const audio = normalizeGeminiTtsAudioBytes(raw, inline.mimeType);
+    return { ok: true, value: audio };
   } catch (error) {
     return {
       ok: false,
@@ -81,5 +94,3 @@ export async function synthesizeWithGeminiFlash(
     };
   }
 }
-
-export const GEMINI_TTS_MODEL = MODEL;
