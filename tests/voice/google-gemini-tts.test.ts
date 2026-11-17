@@ -50,18 +50,18 @@ describe("resolveGeminiTtsModel", () => {
     vi.resetModules();
   });
 
-  it("defaults to gemini-3.8-flash-tts", async () => {
+  it("defaults to gemini-3.8-flash-lite-tts", async () => {
     vi.stubEnv("GEMINI_TTS_MODEL", "");
     const { resolveGeminiTtsModel, DEFAULT_GEMINI_TTS_MODEL } =
       await loadProvider();
-    expect(DEFAULT_GEMINI_TTS_MODEL).toBe("gemini-3.8-flash-tts");
-    expect(resolveGeminiTtsModel()).toBe("gemini-3.8-flash-tts");
+    expect(DEFAULT_GEMINI_TTS_MODEL).toBe("gemini-3.8-flash-lite-tts");
+    expect(resolveGeminiTtsModel()).toBe("gemini-3.8-flash-lite-tts");
   });
 
   it("honors GEMINI_TTS_MODEL override (model name only)", async () => {
-    vi.stubEnv("GEMINI_TTS_MODEL", "gemini-3.8-flash-lite-tts");
+    vi.stubEnv("GEMINI_TTS_MODEL", "gemini-3.8-flash-tts");
     const { resolveGeminiTtsModel } = await loadProvider();
-    expect(resolveGeminiTtsModel()).toBe("gemini-3.8-flash-lite-tts");
+    expect(resolveGeminiTtsModel()).toBe("gemini-3.8-flash-tts");
   });
 });
 
@@ -107,7 +107,7 @@ describe("synthesizeWithGeminiFlash", () => {
     const result = await synthesizeWithGeminiFlash("Hola");
 
     expect(result.ok).toBe(true);
-    expect(modelFromFetchCall()).toBe("gemini-3.8-flash-tts");
+    expect(modelFromFetchCall()).toBe("gemini-3.8-flash-lite-tts");
   });
 
   it("uses GEMINI_TTS_MODEL in the request URL", async () => {

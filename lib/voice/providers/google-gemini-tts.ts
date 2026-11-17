@@ -7,7 +7,7 @@ import {
 import { normalizeGeminiTtsAudioBytes } from "@/lib/voice/providers/google-gemini-tts-audio";
 
 /** GA successor for shut-down preview TTS (see Gemini API deprecations). */
-export const DEFAULT_GEMINI_TTS_MODEL = "gemini-3.8-flash-tts";
+export const DEFAULT_GEMINI_TTS_MODEL = "gemini-3.8-flash-lite-tts";
 
 const VOICE = "Kore";
 const LANGUAGE = "es-US";
